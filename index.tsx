@@ -154,6 +154,7 @@ const englishTranslations = {
     to: "To",
     to_placeholder: "Destination",
     find_route_btn: "Find Optimal Route",
+    get_directions: "Get Directions",
     calculating_route: "Calculating...",
     share_route: "Share Route",
     clear_route_btn: "Clear Route",
@@ -222,6 +223,7 @@ const nepaliTranslations = {
     to: "सम्म",
     to_placeholder: "गन्तव्य",
     find_route_btn: "उत्तम मार्ग खोज्नुहोस्",
+    get_directions: "निर्देशनहरू पाउनुहोस्",
     calculating_route: "गणना गर्दै...",
     share_route: "मार्ग साझा गर्नुहोस्",
     clear_route_btn: "मार्ग हटाउनुहोस्",
@@ -547,12 +549,16 @@ function updateDisplayedItems() {
         const marker = L.marker([item.lat, item.lng], { icon: icon });
         
         const popupContent = `
-            <div class="popup-title">${item.name}</div>
-            <div class="popup-details">${translate(item.status_key)}</div>
-            <button class="popup-directions-btn" data-name="${item.name}">
-                <span class="material-icons">directions</span>
-                Get Directions
-            </button>
+            <div class="custom-popup">
+                <div class="popup-header">
+                    <h3 class="popup-title">${item.name}</h3>
+                </div>
+                <p class="popup-status">${translate(item.status_key)}</p>
+                <button class="popup-directions-btn" data-name="${item.name}">
+                    <span class="material-icons">directions</span>
+                    <span>${translate('get_directions')}</span>
+                </button>
+            </div>
         `;
         marker.bindPopup(popupContent);
         
@@ -1244,8 +1250,9 @@ function setupEventListeners() {
              langPopup.classList.add('hidden');
         }
         // Handle popup "Get Directions" button clicks
-        if (target.classList.contains('popup-directions-btn')) {
-            const destName = target.dataset.name;
+        const directionsBtn = target.closest('.popup-directions-btn');
+        if (directionsBtn) {
+            const destName = (directionsBtn as HTMLElement).dataset.name;
             if (destName) {
                 (document.getElementById('to-input') as HTMLInputElement).value = destName;
                 (document.getElementById('from-input') as HTMLInputElement).value = "My Current Location"; // Placeholder
