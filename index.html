@@ -33,49 +33,49 @@
             <div class="header-right">
                 <div id="gps-status-indicator" data-lang-key-title="gps_searching" title="GPS Status: Searching..."></div>
                 
-                <!-- New Language Selector -->
+                <!-- Redesigned Language Selector -->
                 <div id="language-selector-container">
-                    <button id="language-selector-btn" class="icon-button" aria-label="Select Language">
-                        <span class="material-icons">language</span>
+                    <button id="language-selector-btn" class="icon-button" aria-label="Select Language" aria-haspopup="true" aria-expanded="false">
+                        <span class="material-icons colorful-globe">language</span>
+                        <span class="material-icons">expand_more</span>
                     </button>
                     <div id="language-popup" class="hidden">
-                        <div class="lang-category">
-                            <h3 data-lang-key="lang_cat_international">International</h3>
-                            <button class="lang-option" data-lang="en">English</button>
-                            <button class="lang-option" data-lang="es">Español</button>
-                            <button class="lang-option" data-lang="fr">Français</button>
-                            <button class="lang-option" data-lang="de">Deutsch</button>
-                            <button class="lang-option" data-lang="pt">Português</button>
-                            <button class="lang-option" data-lang="it">Italiano</button>
-                            <button class="lang-option" data-lang="nl">Nederlands</button>
-                            <button class="lang-option" data-lang="ru">Русский</button>
-                            <button class="lang-option" data-lang="ar">العربية</button>
-                            <button class="lang-option" data-lang="zh">中文</button>
-                            <button class="lang-option" data-lang="ja">日本語</button>
-                            <button class="lang-option" data-lang="ko">한국어</button>
-                            <button class="lang-option" data-lang="hi">हिन्दी</button>
-                            <button class="lang-option" data-lang="id">Bahasa Indonesia</button>
-                            <button class="lang-option" data-lang="tr">Türkçe</button>
-                            <button class="lang-option" data-lang="vi">Tiếng Việt</button>
-                            <button class="lang-option" data-lang="th">ภาษาไทย</button>
+                        <div class="lang-category" data-category="international">
+                            <button class="lang-category-header">
+                                <span class="material-icons">language</span>
+                                <span data-lang-key="lang_cat_international">International</span>
+                                <span class="material-icons expand-icon">chevron_right</span>
+                            </button>
+                            <div class="lang-options-list">
+                                <button class="lang-option" data-lang="en">English</button>
+                                <button class="lang-option" data-lang="es">Español</button>
+                                <button class="lang-option" data-lang="fr">Français</button>
+                                <button class="lang-option" data-lang="de">Deutsch</button>
+                                <button class="lang-option" data-lang="hi">हिन्दी</button>
+                                <!-- Add more as needed -->
+                            </div>
                         </div>
-                        <hr>
-                        <div class="lang-category">
-                            <h3 data-lang-key="lang_cat_nepali">Nepali</h3>
-                            <button class="lang-option" data-lang="np">नेपाली</button>
-                            <button class="lang-option" data-lang="mai">मैथिली</button>
-                            <button class="lang-option" data-lang="bho">भोजपुरी</button>
-                            <button class="lang-option" data-lang="thr">थारु</button>
-                            <button class="lang-option" data-lang="taj">तामाङ</button>
-                            <button class="lang-option" data-lang="new">नेपाल भाषा</button>
-                            <button class="lang-option" data-lang="mag">मगर</button>
-                            <button class="lang-option" data-lang="rai">राई</button>
-                            <button class="lang-option" data-lang="lif">लिम्बु</button>
-                            <button class="lang-option" data-lang="gvr">गुरुङ</button>
-                            <button class="lang-option" data-lang="xsr">शेर्पा</button>
+                        <div class="lang-category" data-category="national">
+                            <button class="lang-category-header">
+                                <span class="flag-icon">🇳🇵</span>
+                                <span data-lang-key="lang_cat_national">National</span>
+                                <span class="material-icons expand-icon">chevron_right</span>
+                            </button>
+                            <div class="lang-options-list">
+                                <button class="lang-option" data-lang="np">नेपाली</button>
+                                <button class="lang-option" data-lang="mai">मैथिली</button>
+                                <button class="lang-option" data-lang="bho">भोजपुरी</button>
+                                <button class="lang-option" data-lang="thr">थारु</button>
+                                <!-- Add more as needed -->
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                <!-- Moved Theme Toggle -->
+                <button id="theme-toggle" class="icon-button" data-lang-key-aria-label="toggle_dark_mode" aria-label="Toggle dark mode">
+                    <span class="material-icons">light_mode</span>
+                </button>
             </div>
         </header>
 
@@ -96,12 +96,6 @@
              <div class="settings-content">
                 <div class="settings-section">
                     <h3 data-lang-key="app_settings">App Settings</h3>
-                    <div class="setting-item">
-                        <span data-lang-key="dark_mode">Dark Mode</span>
-                        <button id="theme-toggle" class="icon-button" data-lang-key-aria-label="toggle_dark_mode" aria-label="Toggle dark mode">
-                            <span class="material-icons">light_mode</span>
-                        </button>
-                    </div>
                     <div class="setting-item">
                         <span data-lang-key="ai_voice_response">AI Voice Response</span>
                         <input type="checkbox" id="toggle-voice-response" role="switch" checked>
@@ -244,7 +238,7 @@
                         <label for="from-input" class="input-label" data-lang-key="from">From</label>
                         <div class="input-wrapper">
                             <span class="material-icons input-icon">trip_origin</span>
-                            <input type="text" id="from-input" list="locations-datalist" data-lang-key-placeholder="from_placeholder" placeholder="Start location" value="Maitighar Mandala">
+                            <input type="text" id="from-input" list="locations-datalist" data-lang-key-placeholder="from_placeholder" placeholder="Start location">
                         </div>
                     </div>
                      <div class="swap-locations-container">
@@ -256,7 +250,7 @@
                         <label for="to-input" class="input-label" data-lang-key="to">To</label>
                         <div class="input-wrapper">
                             <span class="material-icons input-icon">place</span>
-                            <input type="text" id="to-input" list="locations-datalist" data-lang-key-placeholder="to_placeholder" placeholder="Destination" value="Thapathali Bridge">
+                            <input type="text" id="to-input" list="locations-datalist" data-lang-key-placeholder="to_placeholder" placeholder="Destination">
                         </div>
                     </div>
                     <datalist id="locations-datalist"></datalist>
@@ -324,6 +318,14 @@
                 </div>
                 <div class="typing-indicator hidden">
                     <span></span><span></span><span></span>
+                </div>
+                 <!-- Language Switch Proposal Banner -->
+                <div id="language-switch-proposal" class="hidden">
+                    <p id="language-proposal-text"></p>
+                    <div class="proposal-actions">
+                        <button id="confirm-lang-switch" class="proposal-btn">Yes</button>
+                        <button id="decline-lang-switch" class="proposal-btn">No</button>
+                    </div>
                 </div>
                 <div class="chat-input-area">
                     <form id="chat-form">
@@ -412,32 +414,36 @@
             </div>
         </div>
 
-        <!-- Bottom Menu -->
+        <!-- Corrected Bottom Menu -->
         <footer id="bottom-menu">
-            <button id="profile-btn" class="menu-item" aria-label="Profile">
-                <span class="material-icons">person</span>
-                <span class="label" data-lang-key="profile">Profile</span>
+            <button id="app-mode-btn" class="menu-item" data-lang-key-aria-label="change_mode" aria-label="Change App Mode">
+                 <span class="material-icons">explore</span>
+                 <span class="label" data-lang-key="mode_driving">Driving</span>
+            </button>
+            <button id="route-finder-trigger" class="menu-item" data-lang-key-aria-label="open_route_finder" aria-label="Open Route Finder">
+                <span class="material-icons">route</span>
+                <span class="label">Route</span>
+            </button>
+            <button id="ai-assistant-btn" class="ai-fab" data-lang-key-aria-label="ai_assistant_btn" aria-label="AI Assistant">
+                <span class="material-icons">auto_awesome</span>
             </button>
             <button id="live-cam-btn" class="menu-item" aria-label="Live Cam">
                 <span class="material-icons">videocam</span>
                  <span class="label">Live Cam</span>
             </button>
-
-            <button id="route-finder-trigger" class="menu-action-button" data-lang-key-aria-label="open_route_finder" aria-label="Open Route Finder">
-                <span class="material-icons">route</span>
-            </button>
-            
-            <button id="app-mode-btn" class="menu-item" data-lang-key-aria-label="change_mode" aria-label="Change App Mode">
-                 <span class="material-icons">explore</span>
-                 <span class="label" data-lang-key="mode_driving">Driving</span>
-            </button>
-            
-            <button id="ai-assistant-btn" class="menu-action-button" data-lang-key-aria-label="ai_assistant_btn" aria-label="AI Assistant">
-                <span class="material-icons">auto_awesome</span>
+            <button id="profile-btn" class="menu-item" aria-label="Profile">
+                <span class="material-icons">person</span>
+                <span class="label" data-lang-key="profile">Profile</span>
             </button>
         </footer>
     </div>
     
+    <!-- Toast Notification -->
+    <div id="toast-notification" class="hidden">
+        <span class="material-icons" id="toast-icon">info</span>
+        <p id="toast-message"></p>
+    </div>
+
     <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script type="module" src="index.tsx"></script>

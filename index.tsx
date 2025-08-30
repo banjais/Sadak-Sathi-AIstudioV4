@@ -69,7 +69,7 @@ const api = {
         await new Promise(resolve => setTimeout(resolve, 300));
         return Promise.resolve([
             { id: 1, name: "Maitighar Mandala", lat: 27.693, lng: 85.322, type: 'poi', status_key: 'status_good_condition', category: 'landmark' },
-            { id: 2, name: "Thapathali Bridge", lat: 27.691, lng: 85.316, type: 'bridge', status_key: 'status_maintenance', category: 'bridge' },
+            { id: 2, name: "Thapathali Bridge", lat: 27.691, lng: 85.316, type: 'poi', status_key: 'status_maintenance', category: 'bridge' },
             { id: 5, name: "Patan Hospital", lat: 27.671, lng: 85.318, type: 'poi', status_key: 'status_open_247', category: 'hospital' },
             { id: 6, name: "Himalayan Java Coffee", lat: 27.695, lng: 85.320, type: 'poi', status_key: 'status_open', category: 'coffee' },
             { id: 7, name: "Civil Mall", lat: 27.699, lng: 85.314, type: 'poi', status_key: 'status_open', category: 'shopping' },
@@ -104,6 +104,7 @@ let currentLang = 'en';
 let allPois: any[] = [];
 let allIncidents: any[] = [];
 let allRoadsData: any = null;
+let allItemsMap = new Map<string, any>(); // Correction: For optimized POI lookups
 let isVoiceResponseEnabled = true; // State for AI voice response feature
 let isAudioUnlocked = false; // Flag to check if user interaction has occurred
 let activeChat: any = null; // To hold the AI chat session
@@ -207,7 +208,7 @@ const englishTranslations = {
     map_style_terrain: "Terrain",
     map_style_dark: "Dark",
     lang_cat_international: "International",
-    lang_cat_nepali: "Nepali",
+    lang_cat_national: "National",
     route_details_distance: "Distance",
     route_details_time: "Est. Time",
     route_details_directions: "Directions",
@@ -216,6 +217,10 @@ const englishTranslations = {
     error_email_not_registered: "This email is not registered.",
     error_invalid_otp: "Invalid OTP. Please try again.",
     error_user_not_found: "An error occurred. User not found.",
+    error_geolocation_permission: "Location permission denied. Please enable it in your browser settings.",
+    error_geolocation_unavailable: "Could not determine your location. Please check your connection and try again.",
+    error_no_user_location: "Your current location is not available. Cannot find the nearest starting point.",
+    language_proposal: "It looks like you're speaking {language}. Would you like to switch the app to {language}?",
 };
 
 const nepaliTranslations = {
@@ -284,7 +289,7 @@ const nepaliTranslations = {
     map_style_terrain: "भू-भाग",
     map_style_dark: "डार्क",
     lang_cat_international: "अन्तर्राष्ट्रिय",
-    lang_cat_nepali: "नेपाली",
+    lang_cat_national: "राष्ट्रिय",
     route_details_distance: "दूरी",
     route_details_time: "अनुमानित समय",
     route_details_directions: "निर्देशनहरू",
@@ -293,6 +298,10 @@ const nepaliTranslations = {
     error_email_not_registered: "यो इमेल दर्ता गरिएको छैन।",
     error_invalid_otp: "अमान्य OTP। कृपया फेरि प्रयास गर्नुहोस्।",
     error_user_not_found: "एक त्रुटि भयो। प्रयोगकर्ता फेला परेन।",
+    error_geolocation_permission: "स्थान अनुमति अस्वीकार गरियो। कृपया आफ्नो ब्राउजर सेटिङहरूमा सक्षम गर्नुहोस्।",
+    error_geolocation_unavailable: "तपाईंको स्थान निर्धारण गर्न सकिएन। कृपया आफ्नो जडान जाँच गर्नुहोस् र फेरि प्रयास गर्नुहोस्।",
+    error_no_user_location: "तपाईंको हालको स्थान उपलब्ध छैन। नजिकको सुरूवात बिन्दु फेला पार्न सकिँदैन।",
+    language_proposal: "तपाईं {language} बोल्दै हुनुहुन्छ जस्तो छ। के तपाईं एपलाई {language} मा स्विच गर्न चाहनुहुन्छ?",
 };
 
 const translations: { [key: string]: any } = {
@@ -335,8 +344,13 @@ const synthesisLangCodeMap: { [key: string]: string } = {
     lif: 'ne-NP', gvr: 'ne-NP', xsr: 'ne-NP'
 };
 
-const recognitionLangCodeMap: { [key: string]: string } = {
-    ...synthesisLangCodeMap
+const langCodeToNameMap: { [key: string]: string } = {
+    'en': 'English', 'np': 'Nepali', 'hi': 'Hindi', 'es': 'Spanish', 'fr': 'French',
+    'de': 'German', 'pt': 'Portuguese', 'it': 'Italian', 'nl': 'Dutch', 'ru': 'Russian',
+    'ar': 'Arabic', 'zh': 'Chinese', 'ja': 'Japanese', 'ko': 'Korean', 'id': 'Indonesian',
+    'tr': 'Turkish', 'vi': 'Vietnamese', 'th': 'Thai', 'mai': 'Maithili', 'bho': 'Bhojpuri',
+    'thr': 'Tharu', 'taj': 'Tajpuriya', 'new': 'Newari', 'mag': 'Magahi', 'rai': 'Rai',
+    'lif': 'Limbu', 'gvr': 'Gurung', 'xsr': 'Sherpa'
 };
 
 
@@ -493,6 +507,12 @@ function updateUserLocation() {
         console.error(`Geolocation error (${error.code}): ${error.message}`);
         gpsIndicator.classList.remove('searching', 'connected');
         gpsIndicator.classList.add('lost');
+        // Correction: Show user-friendly toast notification for geolocation errors
+        let userMessageKey = 'error_geolocation_unavailable';
+        if (error.code === 1) { // PERMISSION_DENIED
+            userMessageKey = 'error_geolocation_permission';
+        }
+        showToast(translate(userMessageKey), 'error');
     }, {
         enableHighAccuracy: true,
         timeout: 10000,
@@ -515,6 +535,13 @@ async function fetchAndDisplayData() {
         allRoadsData = roads;
         allPois = pois;
         allIncidents = incidents;
+        
+        // Correction: Populate the optimized lookup map
+        allItemsMap.clear();
+        const allLocations = [...allPois, ...allIncidents];
+        allLocations.forEach(item => {
+            allItemsMap.set(item.name.toLowerCase(), item);
+        });
 
         roadsLayer.clearLayers().addData(roads);
         
@@ -523,7 +550,6 @@ async function fetchAndDisplayData() {
         // Populate route finder datalist
         const datalist = document.getElementById('locations-datalist') as HTMLDataListElement;
         datalist.innerHTML = ''; // Clear previous options
-        const allLocations = [...allPois, ...allIncidents];
         const locationNames = new Set(allLocations.map(item => item.name));
         locationNames.forEach(name => {
             const option = document.createElement('option');
@@ -726,31 +752,44 @@ function loadPersona() {
 async function initAI() {
     const aiName = localStorage.getItem('aiName') || 'Sadak Sathi';
     const personaDesc = localStorage.getItem('aiPersonaDesc') || 'You are a helpful AI road co-pilot.';
-    const systemInstruction = `${personaDesc}. Your name is ${aiName}. You are integrated into a map application called Sadak Sathi for driving in Nepal. Your current user interface language is ${currentLang}. All your text responses MUST be in this language. You have access to real-time data about roads, points of interest (POIs), and traffic incidents. You can also find routes for the user. Be helpful, concise, and proactive.`;
+    const systemInstruction = `${personaDesc}. Your name is ${aiName}. You are integrated into a map application called Sadak Sathi for driving in Nepal. Your current user interface language is ${currentLang} (${langCodeToNameMap[currentLang]}). All your text responses MUST be in this language. If the user speaks in a different language, respond in their language, then use the 'proposeLanguageSwitch' function to ask if they want to change the UI language. You have access to real-time data about roads, points of interest (POIs), and traffic incidents. You can also find routes for the user. Be helpful, concise, and proactive.`;
 
-    const findRouteTool: Tool = {
-        functionDeclarations: [
-            {
-                name: "findRoute",
-                description: "Finds and displays the optimal route between two locations based on user preferences.",
-                parameters: {
-                    type: Type.OBJECT,
-                    properties: {
-                        start: { type: Type.STRING, description: "The starting location, e.g., 'Maitighar Mandala'" },
-                        end: { type: Type.STRING, description: "The destination location, e.g., 'Civil Mall'" },
-                    },
-                    required: ["start", "end"]
+    const functionDeclarations: Tool[] = [
+        {
+            functionDeclarations: [
+                {
+                    name: "findRoute",
+                    description: "Finds and displays the optimal route between two locations based on user preferences.",
+                    parameters: {
+                        type: Type.OBJECT,
+                        properties: {
+                            start: { type: Type.STRING, description: "The starting location, e.g., 'Maitighar Mandala'" },
+                            end: { type: Type.STRING, description: "The destination location, e.g., 'Civil Mall'" },
+                        },
+                        required: ["start", "end"]
+                    }
+                },
+                {
+                    name: "proposeLanguageSwitch",
+                    description: "Call this function when you detect the user is speaking a language different from the current UI language.",
+                    parameters: {
+                        type: Type.OBJECT,
+                        properties: {
+                            detectedLanguageCode: { type: Type.STRING, description: "The BCP-47 language code detected, e.g., 'fr', 'hi', 'np'" },
+                        },
+                        required: ["detectedLanguageCode"]
+                    }
                 }
-            }
-        ]
-    };
+            ]
+        }
+    ];
 
     try {
         activeChat = ai.chats.create({
             model: 'gemini-2.5-flash',
             config: {
                 systemInstruction: systemInstruction,
-                tools: [findRouteTool]
+                tools: functionDeclarations
             }
         });
         console.log("AI chat initialized with new persona and language:", currentLang);
@@ -769,6 +808,7 @@ async function handleAIChat(prompt: string, isFunctionResponse = false, function
 
     const typingIndicator = document.querySelector('.typing-indicator') as HTMLElement;
     typingIndicator.classList.remove('hidden');
+    document.getElementById('language-switch-proposal')?.classList.add('hidden');
 
     try {
         const response: GenerateContentResponse = isFunctionResponse
@@ -803,7 +843,20 @@ async function handleAIChat(prompt: string, isFunctionResponse = false, function
                     },
                 };
                 await handleAIChat("", true, functionResponse as any);
+            } else if (name === 'proposeLanguageSwitch') {
+                const detectedCode = args.detectedLanguageCode as string;
+                const proposalBanner = document.getElementById('language-switch-proposal')!;
+                const proposalText = document.getElementById('language-proposal-text')!;
+                
+                if (langCodeToNameMap[detectedCode]) {
+                    const languageName = langCodeToNameMap[detectedCode];
+                    proposalText.textContent = translate('language_proposal', { language: languageName });
+                    
+                    (document.getElementById('confirm-lang-switch') as HTMLElement).dataset.lang = detectedCode;
+                    proposalBanner.classList.remove('hidden');
+                }
             }
+
         } else {
             const text = response.text;
             addMessageToChat(text, 'ai');
@@ -848,7 +901,8 @@ function handleVoiceCommand() {
     }
 
     recognition = new SpeechRecognition();
-    recognition.lang = recognitionLangCodeMap[currentLang] || 'en-US';
+    // CRITICAL CHANGE: Do not set a specific language. Let the Gemini model detect it.
+    // recognition.lang = recognitionLangCodeMap[currentLang] || 'en-US';
     recognition.interimResults = true;
     recognition.continuous = false;
 
@@ -903,7 +957,7 @@ async function handleFindRoute(calledFromAI = false) {
         const toName = toInput.value.trim();
 
         if (!fromName || !toName) {
-            alert(translate('error_both_locations'));
+            showToast(translate('error_both_locations'), 'error');
             return false;
         }
 
@@ -911,7 +965,7 @@ async function handleFindRoute(calledFromAI = false) {
         const toPOI = findPOIByName(toName);
 
         if (!fromPOI || !toPOI) {
-            alert(translate('error_location_not_found'));
+            showToast(translate('error_location_not_found'), 'error');
             return false;
         }
 
@@ -939,7 +993,7 @@ async function handleFindRoute(calledFromAI = false) {
         const roadNames = routeData.route;
 
         if (!roadNames || roadNames.length === 0) {
-            alert(translate('error_no_route'));
+            showToast(translate('error_no_route'), 'error');
             return false;
         }
 
@@ -954,7 +1008,7 @@ async function handleFindRoute(calledFromAI = false) {
         });
         
         if (routeCoordinates.length === 0) {
-             alert(translate('error_no_geometry'));
+             showToast(translate('error_no_geometry'), 'error');
              return false;
         }
 
@@ -972,13 +1026,15 @@ async function handleFindRoute(calledFromAI = false) {
 
         (document.getElementById('route-finder-panel') as HTMLElement).classList.add('hidden');
         
-        showProactiveAlert(translate('route_success_message', { fromName, toName }));
+        if(!calledFromAI) {
+            showProactiveAlert(translate('route_success_message', { fromName, toName }));
+        }
         displayRouteDetails(roadNames, routeCoordinates);
         return true;
 
     } catch (error) {
         console.error("Error finding route:", error);
-        alert(translate('error_generic_route'));
+        showToast(translate('error_generic_route'), 'error');
         return false;
     } finally {
         findRouteBtn.textContent = originalButtonText;
@@ -1009,9 +1065,9 @@ function displayRouteDetails(roadNames: string[], coordinates: L.LatLng[]) {
     panel.classList.remove('hidden');
 }
 
+// Correction: Use optimized lookup map
 function findPOIByName(name: string): any | null {
-    const allItems = [...allPois, ...allIncidents];
-    return allItems.find(item => item.name.toLowerCase() === name.toLowerCase()) || null;
+    return allItemsMap.get(name.toLowerCase()) || null;
 }
 
 function clearRoute() {
@@ -1095,7 +1151,7 @@ async function handleSendOtp(event: Event) {
     
     // --- SIMULATION ONLY ---
     // In a real app, this would be a backend call.
-    alert(`OTP for ${email} is 123456`);
+    showToast(`OTP for ${email} is 123456`, 'info');
     
     clearAuthErrors();
     (document.getElementById('otp-email-display') as HTMLElement).textContent = email;
@@ -1147,7 +1203,6 @@ function checkSession() {
 // Event Listeners
 // =================================================================================
 function setupEventListeners() {
-    const themeToggle = document.getElementById('theme-toggle')!;
     const appContainer = document.getElementById('app-container')!;
     const profileBtn = document.getElementById('profile-btn')!;
     const profileModal = document.getElementById('profile-modal')!;
@@ -1168,7 +1223,8 @@ function setupEventListeners() {
     const displayPanelHeader = document.getElementById('display-panel-header')!;
     const displayPanel = document.getElementById('display-panel')!;
 
-    // Theme Toggle
+    // Theme Toggle (moved to header)
+    const themeToggle = document.getElementById('theme-toggle')!;
     themeToggle.addEventListener('click', () => {
         const isDark = appContainer.dataset.theme === 'dark';
         appContainer.dataset.theme = isDark ? 'light' : 'dark';
@@ -1210,18 +1266,37 @@ function setupEventListeners() {
     document.getElementById('otp-form')!.addEventListener('submit', handleLogin);
     document.getElementById('logout-btn')!.addEventListener('click', handleLogout);
     
-    // Language Selector
+    // Redesigned Language Selector
     const langSelectorBtn = document.getElementById('language-selector-btn')!;
     const langPopup = document.getElementById('language-popup')!;
     langSelectorBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        langPopup.classList.toggle('hidden');
+        const isHidden = langPopup.classList.toggle('hidden');
+        langSelectorBtn.setAttribute('aria-expanded', isHidden ? 'false' : 'true');
     });
+
+    document.querySelectorAll('.lang-category-header').forEach(header => {
+        header.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const category = (header as HTMLElement).closest('.lang-category');
+            if (!category) return;
+
+            // Accordion: close other open categories
+            document.querySelectorAll('.lang-category.open').forEach(openCategory => {
+                if (openCategory !== category) {
+                    openCategory.classList.remove('open');
+                }
+            });
+            category.classList.toggle('open');
+        });
+    });
+
     document.querySelectorAll('.lang-option').forEach(btn => {
         btn.addEventListener('click', () => {
             const lang = btn.getAttribute('data-lang')!;
             changeLanguage(lang);
             langPopup.classList.add('hidden');
+            langSelectorBtn.setAttribute('aria-expanded', 'false');
         });
     });
 
@@ -1237,12 +1312,25 @@ function setupEventListeners() {
             chatInput.value = '';
         }
     });
+    
+    // Language Switch Proposal Buttons
+    document.getElementById('confirm-lang-switch')!.addEventListener('click', (e) => {
+        const langCode = (e.currentTarget as HTMLElement).dataset.lang;
+        if (langCode) {
+            changeLanguage(langCode);
+        }
+        document.getElementById('language-switch-proposal')!.classList.add('hidden');
+    });
+    document.getElementById('decline-lang-switch')!.addEventListener('click', () => {
+        document.getElementById('language-switch-proposal')!.classList.add('hidden');
+    });
+
 
     // Live Cam Feature
     const liveCamBtn = document.getElementById('live-cam-btn')!;
     liveCamBtn.addEventListener('click', () => {
         if (currentAppMode === 'driving') {
-            alert('Live Cam is disabled in Driving mode for your safety.');
+            showToast('Live Cam is disabled in Driving mode for your safety.', 'info');
             return;
         }
         const camPanel = document.getElementById('live-cam-panel')!;
@@ -1426,16 +1514,29 @@ function setupEventListeners() {
         }
         if (!langPopup.classList.contains('hidden') && !target.closest('#language-selector-container')) {
              langPopup.classList.add('hidden');
+             langSelectorBtn.setAttribute('aria-expanded', 'false');
         }
-        // Handle popup "Get Directions" button clicks
+        
+        // Correction: Handle "Get Directions" button clicks with fixed logic
         const directionsBtn = target.closest('.popup-directions-btn');
         if (directionsBtn) {
+            map.closePopup();
             const destName = (directionsBtn as HTMLElement).dataset.name;
             if (destName) {
-                (document.getElementById('to-input') as HTMLInputElement).value = destName;
-                (document.getElementById('from-input') as HTMLInputElement).value = "My Current Location"; // Placeholder
-                routeFinderPanel.classList.remove('hidden');
-                map.closePopup();
+                if (!userMarker) {
+                    showToast(translate('error_no_user_location'), 'error');
+                    return;
+                }
+                const userLatLng = userMarker.getLatLng();
+                const closestPOI = findClosestPOI(userLatLng);
+
+                if (closestPOI) {
+                    (document.getElementById('from-input') as HTMLInputElement).value = closestPOI.name;
+                    (document.getElementById('to-input') as HTMLInputElement).value = destName;
+                    routeFinderPanel.classList.remove('hidden');
+                } else {
+                    showToast(translate('error_no_user_location'), 'error');
+                }
             }
         }
     });
@@ -1479,6 +1580,26 @@ function setupEventListeners() {
     });
 }
 
+// Correction: Helper function to find the closest POI to a given location.
+function findClosestPOI(latlng: L.LatLng): any | null {
+    const allItems = [...allPois, ...allIncidents];
+    if (allItems.length === 0) return null;
+
+    let closestItem = null;
+    let minDistance = Infinity;
+
+    allItems.forEach(item => {
+        const itemLatLng = L.latLng(item.lat, item.lng);
+        const distance = latlng.distanceTo(itemLatLng);
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestItem = item;
+        }
+    });
+
+    return closestItem;
+}
+
 
 async function startLiveCam(enable: boolean) {
     const videoElement = document.getElementById('live-cam-video') as HTMLVideoElement;
@@ -1510,7 +1631,7 @@ async function startLiveCam(enable: boolean) {
         } catch (err) {
             console.error("Error accessing camera:", err);
             videoElement.classList.add('hidden');
-            placeholder.classList.remove('hidden');
+            placeholder.classList.add('hidden');
         }
     } else {
         if (cameraStream) {
@@ -1538,6 +1659,34 @@ function showProactiveAlert(messageKey: string) {
     }, 10000);
 }
 
+// Correction: New function to show toast notifications
+function showToast(message: string, type: 'error' | 'success' | 'info' = 'info', duration: number = 4000) {
+    const toast = document.getElementById('toast-notification') as HTMLElement;
+    const toastMessage = document.getElementById('toast-message') as HTMLElement;
+    const toastIcon = document.getElementById('toast-icon') as HTMLElement;
+
+    toastMessage.textContent = message;
+    toast.dataset.type = type;
+
+    switch (type) {
+        case 'error':
+            toastIcon.textContent = 'error';
+            break;
+        case 'success':
+            toastIcon.textContent = 'check_circle';
+            break;
+        default:
+            toastIcon.textContent = 'info';
+            break;
+    }
+
+    toast.classList.remove('hidden');
+
+    setTimeout(() => {
+        toast.classList.add('hidden');
+    }, duration);
+}
+
 // =================================================================================
 // App Initialization
 // =================================================================================
@@ -1548,6 +1697,8 @@ document.addEventListener('DOMContentLoaded', () => {
     appContainer.dataset.theme = savedTheme;
     if (savedTheme === 'dark') {
         (document.querySelector('#theme-toggle .material-icons') as HTMLElement).textContent = 'dark_mode';
+    } else {
+        (document.querySelector('#theme-toggle .material-icons') as HTMLElement).textContent = 'light_mode';
     }
 
     const savedLang = localStorage.getItem('preferredLang') || 'en';
@@ -1559,6 +1710,8 @@ document.addEventListener('DOMContentLoaded', () => {
     checkSession(); // Check for logged in user
     changeLanguage(savedLang); // This also calls updateUIText and initAI
     
+    // Temporarily disable proactive alerts for cleaner testing
+    /*
     setInterval(() => {
         if (Math.random() < 0.1) showProactiveAlert(translate('fuel_low_alert'));
     }, 30000);
@@ -1566,4 +1719,5 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(() => {
         if (Math.random() < 0.05) showProactiveAlert(translate('pressure_low_alert'));
     }, 60000);
+    */
 });
