@@ -193,6 +193,10 @@ const englishTranslations = {
     map_style_dark: "Dark",
     lang_cat_international: "International",
     lang_cat_nepali: "Nepali",
+    route_details_distance: "Distance",
+    route_details_time: "Est. Time",
+    route_details_directions: "Directions",
+    start_navigation: "Start Navigation",
 };
 
 const nepaliTranslations = {
@@ -262,6 +266,10 @@ const nepaliTranslations = {
     map_style_dark: "डार्क",
     lang_cat_international: "अन्तर्राष्ट्रिय",
     lang_cat_nepali: "नेपाली",
+    route_details_distance: "दूरी",
+    route_details_time: "अनुमानित समय",
+    route_details_directions: "निर्देशनहरू",
+    start_navigation: "नेभिगेसन सुरु गर्नुहोस्",
 };
 
 const translations: { [key: string]: any } = {
@@ -960,6 +968,7 @@ function displayRouteDetails(roadNames: string[], coordinates: L.LatLng[]) {
     const distanceEl = document.getElementById('route-distance')!;
     const timeEl = document.getElementById('route-time')!;
     const directionsList = document.getElementById('route-directions-list')!;
+    const directionsTitle = document.getElementById('route-directions-title')!;
 
     // Simulate distance and time
     const distance = (coordinates.length * 0.15).toFixed(1); // Rough simulation
@@ -968,7 +977,13 @@ function displayRouteDetails(roadNames: string[], coordinates: L.LatLng[]) {
     distanceEl.textContent = `${distance} km`;
     timeEl.textContent = `${time} min`;
 
-    directionsList.innerHTML = roadNames.map(name => `<div class="direction-item">${name}</div>`).join('');
+    directionsTitle.textContent = translate('route_details_directions');
+    directionsList.innerHTML = roadNames.map((name, index) => 
+        `<div class="direction-item">
+            <span class="direction-step">${index + 1}</span>
+            <span class="direction-text">${name}</span>
+        </div>`
+    ).join('');
 
     panel.classList.remove('hidden');
 }

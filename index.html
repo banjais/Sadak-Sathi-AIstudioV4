@@ -241,8 +241,11 @@
                 </div>
                 <div class="route-inputs">
                     <div class="input-group">
-                        <span class="material-icons input-icon">trip_origin</span>
-                        <input type="text" id="from-input" list="locations-datalist" data-lang-key-placeholder="from_placeholder" placeholder="Start location" value="Maitighar Mandala">
+                        <label for="from-input" class="input-label" data-lang-key="from">From</label>
+                        <div class="input-wrapper">
+                            <span class="material-icons input-icon">trip_origin</span>
+                            <input type="text" id="from-input" list="locations-datalist" data-lang-key-placeholder="from_placeholder" placeholder="Start location" value="Maitighar Mandala">
+                        </div>
                     </div>
                      <div class="swap-locations-container">
                         <button id="swap-locations-btn" class="icon-button" aria-label="Swap locations">
@@ -250,8 +253,11 @@
                         </button>
                     </div>
                     <div class="input-group">
-                        <span class="material-icons input-icon">place</span>
-                        <input type="text" id="to-input" list="locations-datalist" data-lang-key-placeholder="to_placeholder" placeholder="Destination" value="Thapathali Bridge">
+                        <label for="to-input" class="input-label" data-lang-key="to">To</label>
+                        <div class="input-wrapper">
+                            <span class="material-icons input-icon">place</span>
+                            <input type="text" id="to-input" list="locations-datalist" data-lang-key-placeholder="to_placeholder" placeholder="Destination" value="Thapathali Bridge">
+                        </div>
                     </div>
                     <datalist id="locations-datalist"></datalist>
                 </div>
@@ -262,7 +268,7 @@
             </div>
         </div>
 
-        <!-- NEW Route Details Panel -->
+        <!-- ENHANCED Route Details Panel -->
         <section id="route-details-panel" class="hidden">
             <div class="panel-header">
                 <h2>Route Details</h2>
@@ -272,21 +278,30 @@
             </div>
             <div class="route-summary">
                 <div class="route-stat">
-                    <span class="material-icons">signpost</span>
-                    <span id="route-distance">-- km</span>
+                    <div class="stat-label" data-lang-key="route_details_distance">Distance</div>
+                    <div class="stat-value">
+                        <span class="material-icons">signpost</span>
+                        <span id="route-distance">-- km</span>
+                    </div>
                 </div>
                 <div class="route-stat">
-                    <span class="material-icons">timer</span>
-                    <span id="route-time">-- min</span>
+                    <div class="stat-label" data-lang-key="route_details_time">Est. Time</div>
+                    <div class="stat-value">
+                        <span class="material-icons">timer</span>
+                        <span id="route-time">-- min</span>
+                    </div>
                 </div>
             </div>
-            <div id="route-directions-list">
-                <!-- Directions injected here -->
+            <div class="directions-container">
+                <h4 id="route-directions-title" data-lang-key="route_details_directions">Directions</h4>
+                <div id="route-directions-list">
+                    <!-- Directions injected here -->
+                </div>
             </div>
             <div class="route-details-actions">
                 <button id="start-navigation-btn" class="primary-btn">
                     <span class="material-icons">navigation</span>
-                    <span>Start Navigation</span>
+                    <span data-lang-key="start_navigation">Start Navigation</span>
                 </button>
             </div>
         </section>
