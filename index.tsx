@@ -429,8 +429,10 @@ function initMap() {
         onEachFeature: (feature, layer) => {
             if (feature.properties && feature.properties.name) {
                 const popupContent = `
-                    <div class="popup-title">${feature.properties.name}</div>
-                    <div class="popup-details">Status: ${feature.properties.status}</div>
+                    <div class="custom-popup">
+                        <h3 class="popup-title">${feature.properties.name}</h3>
+                        <p class="popup-status">Status: ${feature.properties.status}</p>
+                    </div>
                 `;
                 layer.bindPopup(popupContent);
             }
@@ -976,7 +978,12 @@ function displayRouteDetails(roadNames: string[], coordinates: L.LatLng[]) {
     distanceEl.textContent = `${distance} km`;
     timeEl.textContent = `${time} min`;
     
-    directionsList.innerHTML = roadNames.map(name => `<li>${name}</li>`).join('');
+    directionsList.innerHTML = roadNames.map((name, index) => `
+        <div class="direction-item">
+            <span class="direction-step">${index + 1}</span>
+            <div class="direction-text">${name}</div>
+        </div>
+    `).join('');
 
     panel.classList.remove('hidden');
 }
