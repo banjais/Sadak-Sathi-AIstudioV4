@@ -572,7 +572,7 @@ function updateDisplayedItems() {
         
         // Associate item ID with the marker's DOM element for highlighting
         marker.on('add', () => {
-            marker.getElement().dataset.itemId = item.id;
+            (marker.getElement() as HTMLElement).dataset.itemId = String(item.id);
         });
 
         if (item.type === 'poi' || item.type === 'bridge') {
@@ -968,7 +968,6 @@ function displayRouteDetails(roadNames: string[], coordinates: L.LatLng[]) {
     const distanceEl = document.getElementById('route-distance')!;
     const timeEl = document.getElementById('route-time')!;
     const directionsList = document.getElementById('route-directions-list')!;
-    const directionsTitle = document.getElementById('route-directions-title')!;
 
     // Simulate distance and time
     const distance = (coordinates.length * 0.15).toFixed(1); // Rough simulation
@@ -976,14 +975,8 @@ function displayRouteDetails(roadNames: string[], coordinates: L.LatLng[]) {
 
     distanceEl.textContent = `${distance} km`;
     timeEl.textContent = `${time} min`;
-
-    directionsTitle.textContent = translate('route_details_directions');
-    directionsList.innerHTML = roadNames.map((name, index) => 
-        `<div class="direction-item">
-            <span class="direction-step">${index + 1}</span>
-            <span class="direction-text">${name}</span>
-        </div>`
-    ).join('');
+    
+    directionsList.innerHTML = roadNames.map(name => `<li>${name}</li>`).join('');
 
     panel.classList.remove('hidden');
 }
