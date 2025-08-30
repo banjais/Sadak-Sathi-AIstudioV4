@@ -306,51 +306,38 @@ const nepaliTranslations = {
 
 const translations: { [key: string]: any } = {
     en: englishTranslations,
-    np: nepaliTranslations,
-    hi: englishTranslations, // Placeholder
-    es: englishTranslations,
-    fr: englishTranslations,
+    es: englishTranslations, // Placeholder for Spanish
+    fr: englishTranslations, // Placeholder for French
     de: englishTranslations,
-    pt: englishTranslations,
     it: englishTranslations,
-    nl: englishTranslations,
-    ru: englishTranslations,
-    ar: englishTranslations,
     zh: englishTranslations,
     ja: englishTranslations,
     ko: englishTranslations,
-    id: englishTranslations,
-    tr: englishTranslations,
-    vi: englishTranslations,
-    th: englishTranslations,
-    mai: nepaliTranslations,
-    bho: nepaliTranslations,
-    thr: nepaliTranslations,
-    taj: nepaliTranslations,
-    new: nepaliTranslations,
-    mag: nepaliTranslations,
-    rai: nepaliTranslations,
-    lif: nepaliTranslations,
-    gvr: nepaliTranslations,
-    xsr: nepaliTranslations
+    ar: englishTranslations,
+    ru: englishTranslations,
+    hi: englishTranslations, // Placeholder, can be replaced with Hindi translations
+    np: nepaliTranslations,
+    mth: nepaliTranslations, // Placeholder for Maithili
+    bjp: nepaliTranslations, // Placeholder for Bhojpuri
+    th: nepaliTranslations,  // Placeholder for Tharu
+    tm: nepaliTranslations,  // Placeholder for Tamang
+    new: nepaliTranslations, // Placeholder for Newar
+    mg: nepaliTranslations,  // Placeholder for Magar
+    dot: nepaliTranslations  // Placeholder for Doteli
 };
 
 const synthesisLangCodeMap: { [key: string]: string } = {
-    en: 'en-US', np: 'ne-NP', hi: 'hi-IN', es: 'es-ES', fr: 'fr-FR',
-    de: 'de-DE', pt: 'pt-BR', it: 'it-IT', nl: 'nl-NL', ru: 'ru-RU',
-    ar: 'ar-SA', zh: 'zh-CN', ja: 'ja-JP', ko: 'ko-KR', id: 'id-ID',
-    tr: 'tr-TR', vi: 'vi-VN', th: 'th-TH', mai: 'hi-IN', bho: 'hi-IN',
-    thr: 'ne-NP', taj: 'ne-NP', new: 'ne-NP', mag: 'ne-NP', rai: 'ne-NP',
-    lif: 'ne-NP', gvr: 'ne-NP', xsr: 'ne-NP'
+    en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', it: 'it-IT',
+    zh: 'zh-CN', ja: 'ja-JP', ko: 'ko-KR', ar: 'ar-SA', ru: 'ru-RU',
+    hi: 'hi-IN', np: 'ne-NP', mth: 'ne-NP', bjp: 'ne-NP', th: 'ne-NP',
+    tm: 'ne-NP', new: 'ne-NP', mg: 'ne-NP', dot: 'ne-NP'
 };
 
 const langCodeToNameMap: { [key: string]: string } = {
-    'en': 'English', 'np': 'Nepali', 'hi': 'Hindi', 'es': 'Spanish', 'fr': 'French',
-    'de': 'German', 'pt': 'Portuguese', 'it': 'Italian', 'nl': 'Dutch', 'ru': 'Russian',
-    'ar': 'Arabic', 'zh': 'Chinese', 'ja': 'Japanese', 'ko': 'Korean', 'id': 'Indonesian',
-    'tr': 'Turkish', 'vi': 'Vietnamese', 'th': 'Thai', 'mai': 'Maithili', 'bho': 'Bhojpuri',
-    'thr': 'Tharu', 'taj': 'Tajpuriya', 'new': 'Newari', 'mag': 'Magahi', 'rai': 'Rai',
-    'lif': 'Limbu', 'gvr': 'Gurung', 'xsr': 'Sherpa'
+    'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German', 'it': 'Italian',
+    'zh': 'Chinese', 'ja': 'Japanese', 'ko': 'Korean', 'ar': 'Arabic', 'ru': 'Russian',
+    'hi': 'Hindi', 'np': 'Nepali', 'mth': 'Maithili', 'bjp': 'Bhojpuri', 'th': 'Tharu',
+    'tm': 'Tamang', 'new': 'Newar', 'mg': 'Magar', 'dot': 'Doteli'
 };
 
 
