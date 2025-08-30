@@ -659,8 +659,8 @@ function createMapIcon(category: string): L.DivIcon {
         html: html,
         className: 'custom-map-icon',
         iconSize: [36, 36],
-        iconAnchor: [18, 36],
-        popupAnchor: [0, -38]
+        iconAnchor: [18, 18],
+        popupAnchor: [0, -20]
     });
 }
 
@@ -1214,13 +1214,28 @@ function setupEventListeners() {
     });
 
     document.getElementById('toggle-roads')!.addEventListener('change', (e) => {
-        map.hasLayer(roadsLayer) ? map.removeLayer(roadsLayer) : map.addLayer(roadsLayer);
+        const checkbox = e.target as HTMLInputElement;
+        if (checkbox.checked) {
+            map.addLayer(roadsLayer);
+        } else {
+            map.removeLayer(roadsLayer);
+        }
     });
     document.getElementById('toggle-pois')!.addEventListener('change', (e) => {
-        map.hasLayer(poisLayer) ? map.removeLayer(poisLayer) : map.addLayer(poisLayer);
+        const checkbox = e.target as HTMLInputElement;
+        if (checkbox.checked) {
+            map.addLayer(poisLayer);
+        } else {
+            map.removeLayer(poisLayer);
+        }
     });
     document.getElementById('toggle-incidents')!.addEventListener('change', (e) => {
-        map.hasLayer(incidentsLayer) ? map.removeLayer(incidentsLayer) : map.addLayer(incidentsLayer);
+        const checkbox = e.target as HTMLInputElement;
+        if (checkbox.checked) {
+            map.addLayer(incidentsLayer);
+        } else {
+            map.removeLayer(incidentsLayer);
+        }
     });
 
     document.querySelectorAll('.style-option').forEach(btn => {
