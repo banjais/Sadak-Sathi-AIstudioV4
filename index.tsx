@@ -469,7 +469,7 @@ function updateUserLocation() {
             map.panTo(latLng);
         }
     }, error => {
-        console.error("Geolocation error:", error);
+        console.error(`Geolocation error (${error.code}): ${error.message}`);
         gpsIndicator.classList.remove('searching', 'connected');
         gpsIndicator.classList.add('lost');
     }, {
