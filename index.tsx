@@ -197,6 +197,7 @@ const englishTranslations = {
     route_details_time: "Est. Time",
     route_details_directions: "Directions",
     start_navigation: "Start Navigation",
+    swap_locations: "Swap locations",
 };
 
 const nepaliTranslations = {
@@ -270,6 +271,7 @@ const nepaliTranslations = {
     route_details_time: "अनुमानित समय",
     route_details_directions: "निर्देशनहरू",
     start_navigation: "नेभिगेसन सुरु गर्नुहोस्",
+    swap_locations: "स्थानहरू बदल्नुहोस्",
 };
 
 const translations: { [key: string]: any } = {
@@ -558,9 +560,7 @@ function updateDisplayedItems() {
         
         const popupContent = `
             <div class="custom-popup">
-                <div class="popup-header">
-                    <h3 class="popup-title">${item.name}</h3>
-                </div>
+                <h3 class="popup-title">${item.name}</h3>
                 <p class="popup-status">${translate(item.status_key)}</p>
                 <button class="popup-directions-btn" data-name="${item.name}">
                     <span class="material-icons">directions</span>
