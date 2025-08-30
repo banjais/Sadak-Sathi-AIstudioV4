@@ -215,6 +215,9 @@
                 <span class="material-icons cam-status-icon">videocam</span>
                 <span class="cam-title">Live Cam</span>
                 <div class="cam-controls">
+                    <button id="toggle-cam-analysis-btn" class="icon-button" aria-label="Toggle Live Analysis">
+                        <span class="material-icons">visibility_off</span>
+                    </button>
                     <button id="flip-cam-btn" class="icon-button" aria-label="Flip Camera">
                         <span class="material-icons">flip_camera_android</span>
                     </button>
@@ -223,10 +226,13 @@
                     </button>
                 </div>
             </div>
-            <video id="live-cam-video" autoplay playsinline muted></video>
-            <div id="live-cam-placeholder">
-                <span class="material-icons">videocam_off</span>
-                <p>Camera not available</p>
+            <div class="live-cam-body">
+                <video id="live-cam-video" autoplay playsinline muted></video>
+                <canvas id="live-cam-overlay"></canvas>
+                <div id="live-cam-placeholder">
+                    <span class="material-icons">videocam_off</span>
+                    <p>Camera not available</p>
+                </div>
             </div>
         </aside>
 

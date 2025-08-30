@@ -122,6 +122,10 @@ let currentBaseLayer: L.TileLayer | null = null;
 let lastLightBaseLayer = 'streets'; // To remember the last used light theme map
 let cameraStream: MediaStream | null = null;
 let isFrontCamera = false; // For the new Live Cam feature
+let isAnalyzingCamera = false;
+let analysisIntervalId: number | null = null;
+let isAnalysisAPICallRunning = false;
+
 
 // User Authentication State
 type UserRole = 'user' | 'admin' | 'superadmin';
@@ -1490,8 +1494,9 @@ function setupEventListeners() {
     document.getElementById('close-cam-btn')!.addEventListener('click', () => startLiveCam(false));
     document.getElementById('flip-cam-btn')!.addEventListener('click', () => {
         isFrontCamera = !isFrontCamera;
-        startLiveCam(true);
+        startLiveCam(true); // Restart the stream with the new camera
     });
+    document.getElementById('toggle-cam-analysis-btn')!.addEventListener('click', toggleCameraAnalysis);
     
     // Make Live Cam panel draggable
     const liveCamPanel = document.getElementById('live-cam-panel')!;
@@ -1750,17 +1755,21 @@ function findClosestPOI(latlng: L.LatLng): any | null {
 }
 
 
+// =================================================================================
+// Live Camera and AI Analysis
+// =================================================================================
+
 async function startLiveCam(enable: boolean) {
     const videoElement = document.getElementById('live-cam-video') as HTMLVideoElement;
-    const placeholder = document.getElementById('live-cam-placeholder') as HTMLElement;
+    const placeholder = document.getElementById('live-cam-placeholder')!.parentElement!;
     const panel = document.getElementById('live-cam-panel') as HTMLElement;
 
     if (enable) {
         panel.classList.remove('hidden');
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             console.warn('Camera API not available.');
-            videoElement.classList.add('hidden');
             placeholder.classList.remove('hidden');
+            videoElement.classList.add('hidden');
             return;
         }
         try {
@@ -1777,10 +1786,14 @@ async function startLiveCam(enable: boolean) {
             videoElement.srcObject = cameraStream;
             videoElement.classList.remove('hidden');
             placeholder.classList.add('hidden');
+            
+            if (isAnalyzingCamera) {
+                startAnalysisLoop();
+            }
         } catch (err) {
             console.error("Error accessing camera:", err);
             videoElement.classList.add('hidden');
-            placeholder.classList.add('hidden');
+            placeholder.classList.remove('hidden');
         }
     } else {
         if (cameraStream) {
@@ -1788,7 +1801,160 @@ async function startLiveCam(enable: boolean) {
             cameraStream = null;
             videoElement.srcObject = null;
         }
+        stopAnalysisLoop();
+        clearAnalysisOverlay();
         panel.classList.add('hidden');
+    }
+}
+
+
+function toggleCameraAnalysis() {
+    isAnalyzingCamera = !isAnalyzingCamera;
+    const toggleBtn = document.getElementById('toggle-cam-analysis-btn')!;
+    const icon = toggleBtn.querySelector('.material-icons')!;
+    toggleBtn.classList.toggle('active', isAnalyzingCamera);
+
+    if (isAnalyzingCamera) {
+        icon.textContent = 'visibility';
+        startAnalysisLoop();
+        showToast("Live analysis started.", "info");
+    } else {
+        icon.textContent = 'visibility_off';
+        stopAnalysisLoop();
+        clearAnalysisOverlay();
+        showToast("Live analysis stopped.", "info");
+    }
+}
+
+function startAnalysisLoop() {
+    if (analysisIntervalId || !cameraStream) return;
+    analyzeCameraFrame();
+    analysisIntervalId = window.setInterval(analyzeCameraFrame, 3000); // 3 seconds interval
+}
+
+function stopAnalysisLoop() {
+    if (analysisIntervalId) {
+        clearInterval(analysisIntervalId);
+        analysisIntervalId = null;
+    }
+}
+
+async function analyzeCameraFrame() {
+    if (isAnalysisAPICallRunning || !cameraStream) return;
+
+    isAnalysisAPICallRunning = true;
+    const videoElement = document.getElementById('live-cam-video') as HTMLVideoElement;
+    
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = videoElement.videoWidth;
+    tempCanvas.height = videoElement.videoHeight;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) {
+        isAnalysisAPICallRunning = false;
+        return;
+    }
+    tempCtx.drawImage(videoElement, 0, 0, tempCanvas.width, tempCanvas.height);
+    const base64ImageData = tempCanvas.toDataURL('image/jpeg').split(',')[1];
+
+    try {
+        const imagePart = { inlineData: { data: base64ImageData, mimeType: 'image/jpeg' } };
+        const prompt = `Analyze this image from a vehicle's camera. Identify potential traffic hazards (like pedestrians, stopped cars, obstacles, animals) or notable points of interest (like landmarks, signs, shops). For each item, provide a name, a type ('hazard' or 'poi'), a brief description, and a normalized bounding box {x, y, width, height} where coordinates are from 0.0 to 1.0. If nothing noteworthy is found, return an empty array in the 'detections' field.`;
+        
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: { parts: [imagePart, { text: prompt }] },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        detections: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    name: { type: Type.STRING },
+                                    type: { type: Type.STRING },
+                                    description: { type: Type.STRING },
+                                    boundingBox: {
+                                        type: Type.OBJECT,
+                                        properties: {
+                                            x: { type: Type.NUMBER },
+                                            y: { type: Type.NUMBER },
+                                            width: { type: Type.NUMBER },
+                                            height: { type: Type.NUMBER }
+                                        },
+                                        required: ["x", "y", "width", "height"]
+                                    }
+                                },
+                                required: ["name", "type", "description", "boundingBox"]
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        const result = JSON.parse(response.text);
+        if (result.detections && result.detections.length > 0) {
+            drawDetections(result.detections);
+            const firstHazard = result.detections.find((d: any) => d.type === 'hazard');
+            if (firstHazard) {
+                showToast(`Hazard detected: ${firstHazard.name}`, 'error');
+            }
+        } else {
+            clearAnalysisOverlay();
+        }
+
+    } catch (error) {
+        console.error("Error analyzing camera frame:", error);
+    } finally {
+        isAnalysisAPICallRunning = false;
+    }
+}
+
+function drawDetections(detections: any[]) {
+    const overlayCanvas = document.getElementById('live-cam-overlay') as HTMLCanvasElement;
+    const videoElement = document.getElementById('live-cam-video') as HTMLVideoElement;
+
+    overlayCanvas.width = videoElement.clientWidth;
+    overlayCanvas.height = videoElement.clientHeight;
+    const ctx = overlayCanvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+    detections.forEach(detection => {
+        const { boundingBox, name, type } = detection;
+        const x = boundingBox.x * overlayCanvas.width;
+        const y = boundingBox.y * overlayCanvas.height;
+        const width = boundingBox.width * overlayCanvas.width;
+        const height = boundingBox.height * overlayCanvas.height;
+
+        const color = type === 'hazard' ? '#e74c3c' : '#3498db';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.fillStyle = color;
+        ctx.font = '14px Roboto';
+        
+        ctx.strokeRect(x, y, width, height);
+
+        const text = name.toUpperCase();
+        const textMetrics = ctx.measureText(text);
+        const textWidth = textMetrics.width;
+        const textHeight = 14; 
+        
+        ctx.fillRect(x, y - textHeight - 4, textWidth + 8, textHeight + 4);
+        ctx.fillStyle = 'white';
+        ctx.fillText(text, x + 4, y - 4);
+    });
+}
+
+function clearAnalysisOverlay() {
+    const overlayCanvas = document.getElementById('live-cam-overlay') as HTMLCanvasElement;
+    const ctx = overlayCanvas.getContext('2d');
+    if (ctx) {
+        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
     }
 }
 
