@@ -147,14 +147,14 @@ html, body {
     position: absolute;
     top: 50px;
     right: 0;
-    width: 120px; /* Refined: Made even narrower */
+    width: 180px; /* Refined: More compact width */
     max-height: 70vh;
     overflow-y: auto;
     background-color: var(--panel-bg-color);
     border-radius: 8px;
     box-shadow: 0 4px 15px var(--shadow-color);
     z-index: 1100;
-    padding: 0.2rem; /* Refined: Tighter padding */
+    padding: 4px; /* Refined: Tighter padding */
     border: 1px solid var(--border-color);
 }
 .lang-category-header {
@@ -162,7 +162,7 @@ html, body {
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: 0.35rem 0.4rem; /* Refined: Tighter padding */
+    padding: 0.5rem 0.75rem; /* Refined: Tighter padding */
     background: none;
     border: none;
     color: var(--text-color);
@@ -182,27 +182,27 @@ html, body {
 .lang-category.open .lang-category-header .expand-icon {
     transform: rotate(90deg);
 }
-.lang-category.open .lang-options-list {
-    max-height: 500px; /* Animate open */
-}
 .lang-options-list {
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.3s ease-in-out;
     padding-left: 0.75rem;
 }
+.lang-category.open .lang-options-list {
+    max-height: 400px; /* Allow space for options to appear */
+}
 .flag-icon { font-size: 1.2rem; }
 .lang-option {
     display: block;
     width: 100%;
-    padding: 0.25rem 0.6rem; /* Refined: Tighter padding */
+    padding: 0.4rem 0.8rem; /* Refined: Tighter padding */
     background: none;
     border: none;
     color: var(--text-color);
     text-align: left;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 0.7rem; /* Refined: Smaller font */
+    font-size: 0.85rem; /* Refined: Smaller font */
     transition: background-color 0.2s;
 }
 .lang-option:hover {
