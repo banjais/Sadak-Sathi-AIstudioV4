@@ -213,6 +213,9 @@ const englishTranslations = {
     route_details_directions: "Directions",
     start_navigation: "Start Navigation",
     swap_locations: "Swap locations",
+    error_email_not_registered: "This email is not registered.",
+    error_invalid_otp: "Invalid OTP. Please try again.",
+    error_user_not_found: "An error occurred. User not found.",
 };
 
 const nepaliTranslations = {
@@ -287,6 +290,9 @@ const nepaliTranslations = {
     route_details_directions: "निर्देशनहरू",
     start_navigation: "नेभिगेसन सुरु गर्नुहोस्",
     swap_locations: "स्थानहरू बदल्नुहोस्",
+    error_email_not_registered: "यो इमेल दर्ता गरिएको छैन।",
+    error_invalid_otp: "अमान्य OTP। कृपया फेरि प्रयास गर्नुहोस्।",
+    error_user_not_found: "एक त्रुटि भयो। प्रयोगकर्ता फेला परेन।",
 };
 
 const translations: { [key: string]: any } = {
@@ -1028,10 +1034,24 @@ function clearRoute() {
 // User Authentication
 // =================================================================================
 
+function showAuthError(view: 'login' | 'otp', messageKey: string) {
+    clearAuthErrors();
+    const errorElement = document.getElementById(`${view}-error-message`) as HTMLElement;
+    if (errorElement) {
+        errorElement.textContent = translate(messageKey);
+        errorElement.classList.remove('hidden');
+    }
+}
+
+function clearAuthErrors() {
+    (document.getElementById('login-error-message') as HTMLElement).classList.add('hidden');
+    (document.getElementById('otp-error-message') as HTMLElement).classList.add('hidden');
+}
+
+
 function updateUserUI() {
     const profileBtnIcon = document.querySelector('#profile-btn .material-icons') as HTMLElement;
     const profileBtnLabel = document.querySelector('#profile-btn .label') as HTMLElement;
-    const profileModal = document.getElementById('profile-modal')!;
     
     if (currentUser) {
         // Logged In State
@@ -1069,7 +1089,7 @@ async function handleSendOtp(event: Event) {
 
     const user = mockUsers.find(u => u.email === email);
     if (!user) {
-        alert("This email is not registered.");
+        showAuthError('login', 'error_email_not_registered');
         return;
     }
     
@@ -1077,6 +1097,7 @@ async function handleSendOtp(event: Event) {
     // In a real app, this would be a backend call.
     alert(`OTP for ${email} is 123456`);
     
+    clearAuthErrors();
     (document.getElementById('otp-email-display') as HTMLElement).textContent = email;
     document.getElementById('login-view')!.classList.add('hidden');
     document.getElementById('otp-view')!.classList.remove('hidden');
@@ -1090,7 +1111,7 @@ async function handleLogin(event: Event) {
     
     // --- SIMULATION ONLY ---
     if (otp !== '123456' || !email) {
-        alert("Invalid OTP. Please try again.");
+        showAuthError('otp', 'error_invalid_otp');
         return;
     }
     
@@ -1100,7 +1121,7 @@ async function handleLogin(event: Event) {
         localStorage.setItem('currentUserEmail', user.email);
         updateUserUI();
     } else {
-        alert("An error occurred. User not found.");
+        showAuthError('otp', 'error_user_not_found');
     }
 }
 
@@ -1174,7 +1195,10 @@ function setupEventListeners() {
     });
 
     // Profile & Settings
-    profileBtn.addEventListener('click', () => profileModal.classList.remove('hidden'));
+    profileBtn.addEventListener('click', () => {
+        clearAuthErrors();
+        profileModal.classList.remove('hidden');
+    });
     profileModal.querySelector('.modal-close-btn')!.addEventListener('click', () => profileModal.classList.add('hidden'));
     document.getElementById('open-settings-btn')!.addEventListener('click', () => {
         profileModal.classList.add('hidden');

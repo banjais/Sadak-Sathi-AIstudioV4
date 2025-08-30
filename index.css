@@ -1088,6 +1088,18 @@ html, body {
     letter-spacing: 0.5em; /* Spreads out OTP digits */
 }
 
+/* Inline Error Message */
+.error-message {
+    color: var(--danger-color);
+    background-color: rgba(231, 76, 60, 0.1);
+    padding: 0.75rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    text-align: center;
+    margin-top: 1rem;
+    border: 1px solid var(--danger-color);
+}
+
 /* Profile View */
 .profile-header {
     display: flex;
