@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="copyright" content="Copyright (c) 2024 Your Company or Name. All Rights Reserved.">
+    <title>Sadak Sathi - Your Road Companion</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.15.0"
+  }
+}
+</script>
+</head>
+<body>
+    <div id="app-container" data-theme="light" data-mode="driving">
+        <!-- Map container -->
+        <div id="map"></div>
+
+        <!-- Header -->
+        <header id="app-header">
+            <div class="header-left">
+                <div class="app-title">
+                    <h1>Sadak Sathi</h1>
+                    <p class="app-subtitle" data-lang-key="app_subtitle">Your Road Companion</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div id="gps-status-indicator" data-lang-key-title="gps_searching" title="GPS Status: Searching..."></div>
+                
+                <!-- New Language Selector -->
+                <div id="language-selector-container">
+                    <button id="language-selector-btn" class="icon-button" aria-label="Select Language">
+                        <span class="material-icons">language</span>
+                    </button>
+                    <div id="language-popup" class="hidden">
+                        <div class="lang-category">
+                            <h3 data-lang-key="lang_cat_international">International</h3>
+                            <button class="lang-option" data-lang="en">English</button>
+                            <button class="lang-option" data-lang="es">Español</button>
+                            <button class="lang-option" data-lang="fr">Français</button>
+                            <button class="lang-option" data-lang="de">Deutsch</button>
+                            <button class="lang-option" data-lang="pt">Português</button>
+                            <button class="lang-option" data-lang="it">Italiano</button>
+                            <button class="lang-option" data-lang="nl">Nederlands</button>
+                            <button class="lang-option" data-lang="ru">Русский</button>
+                            <button class="lang-option" data-lang="ar">العربية</button>
+                            <button class="lang-option" data-lang="zh">中文</button>
+                            <button class="lang-option" data-lang="ja">日本語</button>
+                            <button class="lang-option" data-lang="ko">한국어</button>
+                            <button class="lang-option" data-lang="hi">हिन्दी</button>
+                            <button class="lang-option" data-lang="id">Bahasa Indonesia</button>
+                            <button class="lang-option" data-lang="tr">Türkçe</button>
+                            <button class="lang-option" data-lang="vi">Tiếng Việt</button>
+                            <button class="lang-option" data-lang="th">ภาษาไทย</button>
+                        </div>
+                        <hr>
+                        <div class="lang-category">
+                            <h3 data-lang-key="lang_cat_nepali">Nepali</h3>
+                            <button class="lang-option" data-lang="np">नेपाली</button>
+                            <button class="lang-option" data-lang="mai">मैथिली</button>
+                            <button class="lang-option" data-lang="bho">भोजपुरी</button>
+                            <button class="lang-option" data-lang="thr">थारु</button>
+                            <button class="lang-option" data-lang="taj">तामाङ</button>
+                            <button class="lang-option" data-lang="new">नेपाल भाषा</button>
+                            <button class="lang-option" data-lang="mag">मगर</button>
+                            <button class="lang-option" data-lang="rai">राई</button>
+                            <button class="lang-option" data-lang="lif">लिम्बु</button>
+                            <button class="lang-option" data-lang="gvr">गुरुङ</button>
+                            <button class="lang-option" data-lang="xsr">शेर्पा</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Proactive Alert Banner -->
+        <div id="proactive-alert" class="hidden">
+            <span class="material-icons alert-icon">warning</span>
+            <p id="alert-message"></p>
+            <div class="alert-actions">
+                 <button id="alert-ask-ai-btn" class="alert-btn" data-lang-key="alert_ask_ai">Ask AI</button>
+                 <button id="alert-close-btn" class="icon-button" data-lang-key-aria-label="alert_dismiss" aria-label="Dismiss Alert">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Settings Panel -->
+        <aside id="settings-panel">
+             <div class="settings-content">
+                <div class="settings-section">
+                    <h3 data-lang-key="app_settings">App Settings</h3>
+                    <div class="setting-item">
+                        <span data-lang-key="dark_mode">Dark Mode</span>
+                        <button id="theme-toggle" class="icon-button" data-lang-key-aria-label="toggle_dark_mode" aria-label="Toggle dark mode">
+                            <span class="material-icons">light_mode</span>
+                        </button>
+                    </div>
+                    <div class="setting-item">
+                        <span data-lang-key="ai_voice_response">AI Voice Response</span>
+                        <input type="checkbox" id="toggle-voice-response" role="switch" checked>
+                    </div>
+                </div>
+                <hr>
+                <div class="settings-section">
+                    <h3 data-lang-key="route_preferences">Route Preferences</h3>
+                    <label class="setting-item">
+                        <span data-lang-key="prefer_highways">Prefer Highways</span>
+                        <input type="checkbox" id="pref-highways" role="switch">
+                    </label>
+                    <label class="setting-item">
+                        <span data-lang-key="avoid_tolls">Avoid Tolls</span>
+                        <input type="checkbox" id="pref-no-tolls" role="switch">
+                    </label>
+                    <label class="setting-item">
+                        <span data-lang-key="prefer_scenic_route">Prefer Scenic Route</span>
+                        <input type="checkbox" id="pref-scenic" role="switch">
+                    </label>
+                </div>
+                <hr>
+                 <!-- AI Persona Section -->
+                <div id="ai-persona-settings" class="settings-section">
+                    <h3>AI Persona</h3>
+                    <div class="persona-avatar-uploader">
+                        <label for="persona-avatar-upload">
+                            <img id="persona-avatar-preview" src="https://www.w3schools.com/howto/img_avatar.png" alt="AI Avatar">
+                            <span class="upload-icon material-icons">photo_camera</span>
+                        </label>
+                        <input type="file" id="persona-avatar-upload" accept="image/*" class="hidden">
+                    </div>
+                    <div class="setting-item-col">
+                        <label for="persona-name-input">Name</label>
+                        <input type="text" id="persona-name-input" placeholder="e.g., Jean-Pierre">
+                    </div>
+                    <div class="setting-item-col">
+                        <label for="persona-desc-input">Persona Description</label>
+                        <textarea id="persona-desc-input" rows="5" placeholder="Describe the AI's personality..."></textarea>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Map Overlays -->
+        <div id="map-overlays-top-right">
+             <!-- NEW VERTICAL MAP CONTROLS -->
+            <div id="map-controls-container">
+                <button id="zoom-in-btn" class="map-control-button" aria-label="Zoom in"><span class="material-icons">add</span></button>
+                <button id="zoom-out-btn" class="map-control-button" aria-label="Zoom out"><span class="material-icons">remove</span></button>
+                <button id="center-location-btn" class="map-control-button" data-lang-key-aria-label="center_location" aria-label="Center on my location">
+                    <span class="material-icons">my_location</span>
+                </button>
+                <div id="map-options-selector">
+                    <button id="map-options-btn" class="map-control-button" data-lang-key-aria-label="layers" aria-label="Map Options">
+                        <span class="material-icons">layers</span>
+                    </button>
+                    <div id="map-options-popup" class="hidden">
+                        <div class="map-options-section">
+                            <h4>Map Style</h4>
+                            <div class="style-options-grid">
+                                <button class="style-option active" data-style="streets" data-lang-key="map_style_streets">Streets</button>
+                                <button class="style-option" data-style="satellite" data-lang-key="map_style_satellite">Satellite</button>
+                                <button class="style-option" data-style="terrain" data-lang-key="map_style_terrain">Terrain</button>
+                                <button class="style-option" data-style="dark" data-lang-key="map_style_dark">Dark</button>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="map-options-section">
+                            <h4 data-lang-key="layers">Data Layers</h4>
+                             <label class="layer-toggle">
+                                <input type="checkbox" id="toggle-roads" checked>
+                                <span data-lang-key="roads">Roads</span>
+                            </label>
+                            <label class="layer-toggle">
+                                <input type="checkbox" id="toggle-pois" checked>
+                                <span data-lang-key="pois">Points of Interest</span>
+                            </label>
+                            <label class="layer-toggle">
+                                <input type="checkbox" id="toggle-incidents" checked>
+                                <span data-lang-key="incidents">Incidents</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Onboard/Display Panel -->
+        <section id="display-panel">
+             <div id="display-panel-header" class="panel-header">
+                <h2 data-lang-key="display_panel_title">Nearby Information</h2>
+                 <div class="panel-header-controls">
+                    <!-- Sorting controls can be added here -->
+                    <span class="material-icons panel-toggle-icon">expand_less</span>
+                 </div>
+            </div>
+            <div id="display-panel-content">
+                <div id="display-panel-filters">
+                    <!-- Filter buttons injected here -->
+                </div>
+                <div id="display-panel-list">
+                    <!-- Cards will be injected here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Cam Panel (Floating) -->
+        <aside id="live-cam-panel" class="hidden">
+            <div id="live-cam-header">
+                <span class="material-icons cam-status-icon">videocam</span>
+                <span class="cam-title">Live Cam</span>
+                <div class="cam-controls">
+                    <button id="flip-cam-btn" class="icon-button" aria-label="Flip Camera">
+                        <span class="material-icons">flip_camera_android</span>
+                    </button>
+                    <button id="close-cam-btn" class="icon-button" aria-label="Close Camera">
+                        <span class="material-icons">close</span>
+                    </button>
+                </div>
+            </div>
+            <video id="live-cam-video" autoplay playsinline muted></video>
+            <div id="live-cam-placeholder">
+                <span class="material-icons">videocam_off</span>
+                <p>Camera not available</p>
+            </div>
+        </aside>
+
+        <!-- Route Finder Panel (Modal) -->
+        <div id="route-finder-panel" class="hidden">
+            <div class="panel-content">
+                <div class="panel-header">
+                    <h2 data-lang-key="route_finder">Route Finder</h2>
+                    <button id="route-finder-close" class="icon-button" data-lang-key-aria-label="close" aria-label="Close">
+                        <span class="material-icons">close</span>
+                    </button>
+                </div>
+                <div class="route-inputs">
+                    <div class="input-group">
+                        <span class="material-icons input-icon">trip_origin</span>
+                        <input type="text" id="from-input" list="locations-datalist" data-lang-key-placeholder="from_placeholder" placeholder="Start location" value="Maitighar Mandala">
+                    </div>
+                     <div class="swap-locations-container">
+                        <button id="swap-locations-btn" class="icon-button" aria-label="Swap locations">
+                            <span class="material-icons">swap_vert</span>
+                        </button>
+                    </div>
+                    <div class="input-group">
+                        <span class="material-icons input-icon">place</span>
+                        <input type="text" id="to-input" list="locations-datalist" data-lang-key-placeholder="to_placeholder" placeholder="Destination" value="Thapathali Bridge">
+                    </div>
+                    <datalist id="locations-datalist"></datalist>
+                </div>
+                <div class="route-actions">
+                    <button id="find-route-btn" data-lang-key="find_route_btn">Find Optimal Route</button>
+                    <button id="clear-route-btn" class="secondary" data-lang-key="clear_route_btn">Clear Route</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW Route Details Panel -->
+        <section id="route-details-panel" class="hidden">
+            <div class="panel-header">
+                <h2>Route Details</h2>
+                <button id="route-details-close" class="icon-button" aria-label="Close">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="route-summary">
+                <div class="route-stat">
+                    <span class="material-icons">signpost</span>
+                    <span id="route-distance">-- km</span>
+                </div>
+                <div class="route-stat">
+                    <span class="material-icons">timer</span>
+                    <span id="route-time">-- min</span>
+                </div>
+            </div>
+            <div id="route-directions-list">
+                <!-- Directions injected here -->
+            </div>
+            <div class="route-details-actions">
+                <button id="start-navigation-btn" class="primary-btn">
+                    <span class="material-icons">navigation</span>
+                    <span>Start Navigation</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- AI Chat Modal -->
+        <div id="ai-chat-modal" class="modal-overlay hidden">
+            <div class="chat-panel">
+                <header class="panel-header chat-header">
+                    <img id="chat-ai-avatar" src="https://www.w3schools.com/howto/img_avatar.png" alt="AI Avatar" class="ai-avatar">
+                    <div class="ai-info">
+                        <h2 id="chat-ai-name" data-lang-key="ai_chat_title">AI Assistant</h2>
+                        <span class="ai-status">Online</span>
+                    </div>
+                    <button id="close-chat-btn" class="icon-button" data-lang-key-aria-label="close_chat" aria-label="Close Chat">
+                        <span class="material-icons">close</span>
+                    </button>
+                </header>
+                <div class="chat-messages">
+                    <!-- Messages are injected here -->
+                </div>
+                <div class="typing-indicator hidden">
+                    <span></span><span></span><span></span>
+                </div>
+                <div class="chat-input-area">
+                    <form id="chat-form">
+                        <input type="text" id="chat-input" data-lang-key-placeholder="ai_chat_placeholder" placeholder="Type a message..." autocomplete="off">
+                        <button id="voice-command-btn" type="button" class="icon-button" data-lang-key-aria-label="use_microphone" aria-label="Use microphone">
+                            <span class="material-icons">mic</span>
+                        </button>
+                        <button type="submit" class="icon-button" data-lang-key-aria-label="send_message" aria-label="Send Message">
+                            <span class="material-icons">send</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- App Mode Modal -->
+        <div id="app-mode-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <h3 data-lang-key="select_mode">Select Mode</h3>
+                <button class="modal-close-btn icon-button" data-lang-key-aria-label="close" aria-label="Close">
+                    <span class="material-icons">close</span>
+                </button>
+                <div class="mode-selection">
+                    <button class="mode-select-btn" data-mode="driving">
+                        <span class="material-icons">directions_car</span>
+                        <span data-lang-key="mode_driving">Driving</span>
+                    </button>
+                    <button class="mode-select-btn" data-mode="riding">
+                        <span class="material-icons">two_wheeler</span>
+                        <span data-lang-key="mode_riding">Riding</span>
+                    </button>
+                    <button class="mode-select-btn" data-mode="exploring">
+                        <span class="material-icons">hiking</span>
+                        <span data-lang-key="mode_exploring">Exploring</span>
+                    </button>
+                    <button class="mode-select-btn" data-mode="connect">
+                        <span class="material-icons">people</span>
+                        <span data-lang-key="mode_connect">Connect</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Menu -->
+        <footer id="bottom-menu">
+            <button id="settings-btn" class="menu-item" data-lang-key-aria-label="menu_settings" aria-label="Settings">
+                <span class="material-icons">settings</span>
+                <span class="label" data-lang-key="menu_settings">Settings</span>
+            </button>
+            <button id="live-cam-btn" class="menu-item" aria-label="Live Cam">
+                <span class="material-icons">videocam</span>
+                 <span class="label">Live Cam</span>
+            </button>
+
+            <button id="route-finder-trigger" class="menu-action-button" data-lang-key-aria-label="open_route_finder" aria-label="Open Route Finder">
+                <span class="material-icons">route</span>
+            </button>
+            
+            <button id="app-mode-btn" class="menu-item" data-lang-key-aria-label="change_mode" aria-label="Change App Mode">
+                 <span class="material-icons">explore</span>
+                 <span class="label" data-lang-key="mode_driving">Driving</span>
+            </button>
+            
+            <button id="ai-assistant-btn" class="menu-action-button" data-lang-key-aria-label="ai_assistant_btn" aria-label="AI Assistant">
+                <span class="material-icons">auto_awesome</span>
+            </button>
+        </footer>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script type="module" src="index.tsx"></script>
+</body>
+</html>

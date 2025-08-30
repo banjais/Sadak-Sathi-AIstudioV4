@@ -1,0 +1,9 @@
+{
+  "name": "Copy of Copy of Sadak-Sathi-AIstudio",
+  "description": "Your Road Companion",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera",
+    "microphone"
+  ]
+}
