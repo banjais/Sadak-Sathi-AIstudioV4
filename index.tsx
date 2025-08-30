@@ -122,6 +122,21 @@ let lastLightBaseLayer = 'streets'; // To remember the last used light theme map
 let cameraStream: MediaStream | null = null;
 let isFrontCamera = false; // For the new Live Cam feature
 
+// User Authentication State
+type UserRole = 'user' | 'admin' | 'superadmin';
+interface User {
+    email: string;
+    role: UserRole;
+    avatar?: string;
+}
+let currentUser: User | null = null;
+
+// Mock User Database
+const mockUsers: User[] = [
+    { email: 'user@example.com', role: 'user' },
+    { email: 'admin@example.com', role: 'admin' },
+    { email: 'super@example.com', role: 'superadmin' }
+];
 
 // =================================================================================
 // Internationalization (i18n)
@@ -1010,12 +1025,111 @@ function clearRoute() {
 }
 
 // =================================================================================
+// User Authentication
+// =================================================================================
+
+function updateUserUI() {
+    const profileBtnIcon = document.querySelector('#profile-btn .material-icons') as HTMLElement;
+    const profileBtnLabel = document.querySelector('#profile-btn .label') as HTMLElement;
+    const profileModal = document.getElementById('profile-modal')!;
+    
+    if (currentUser) {
+        // Logged In State
+        profileBtnIcon.textContent = 'person';
+        profileBtnLabel.textContent = currentUser.email.split('@')[0];
+        
+        const profileView = document.getElementById('profile-view')!;
+        (document.getElementById('profile-email') as HTMLElement).textContent = currentUser.email;
+        const roleBadge = document.getElementById('profile-role-badge') as HTMLElement;
+        roleBadge.textContent = currentUser.role;
+        roleBadge.dataset.role = currentUser.role;
+
+        // Role-based access for Admin Panel
+        document.getElementById('admin-panel-btn')!.classList.toggle('hidden', currentUser.role !== 'superadmin');
+
+        document.getElementById('login-view')!.classList.add('hidden');
+        document.getElementById('otp-view')!.classList.add('hidden');
+        profileView.classList.remove('hidden');
+
+    } else {
+        // Logged Out State
+        profileBtnIcon.textContent = 'login';
+        profileBtnLabel.textContent = translate('profile');
+        
+        document.getElementById('login-view')!.classList.remove('hidden');
+        document.getElementById('otp-view')!.classList.add('hidden');
+        document.getElementById('profile-view')!.classList.add('hidden');
+    }
+}
+
+async function handleSendOtp(event: Event) {
+    event.preventDefault();
+    const emailInput = document.getElementById('login-email') as HTMLInputElement;
+    const email = emailInput.value.trim().toLowerCase();
+
+    const user = mockUsers.find(u => u.email === email);
+    if (!user) {
+        alert("This email is not registered.");
+        return;
+    }
+    
+    // --- SIMULATION ONLY ---
+    // In a real app, this would be a backend call.
+    alert(`OTP for ${email} is 123456`);
+    
+    (document.getElementById('otp-email-display') as HTMLElement).textContent = email;
+    document.getElementById('login-view')!.classList.add('hidden');
+    document.getElementById('otp-view')!.classList.remove('hidden');
+    (document.getElementById('otp-input') as HTMLInputElement).focus();
+}
+
+async function handleLogin(event: Event) {
+    event.preventDefault();
+    const email = (document.getElementById('otp-email-display') as HTMLElement).textContent;
+    const otp = (document.getElementById('otp-input') as HTMLInputElement).value;
+    
+    // --- SIMULATION ONLY ---
+    if (otp !== '123456' || !email) {
+        alert("Invalid OTP. Please try again.");
+        return;
+    }
+    
+    const user = mockUsers.find(u => u.email === email);
+    if (user) {
+        currentUser = user;
+        localStorage.setItem('currentUserEmail', user.email);
+        updateUserUI();
+    } else {
+        alert("An error occurred. User not found.");
+    }
+}
+
+function handleLogout() {
+    currentUser = null;
+    localStorage.removeItem('currentUserEmail');
+    (document.getElementById('profile-modal') as HTMLElement).classList.add('hidden');
+    updateUserUI();
+}
+
+function checkSession() {
+    const savedEmail = localStorage.getItem('currentUserEmail');
+    if (savedEmail) {
+        const user = mockUsers.find(u => u.email === savedEmail);
+        if (user) {
+            currentUser = user;
+        }
+    }
+    updateUserUI();
+}
+
+// =================================================================================
 // Event Listeners
 // =================================================================================
 function setupEventListeners() {
     const themeToggle = document.getElementById('theme-toggle')!;
     const appContainer = document.getElementById('app-container')!;
-    const settingsBtn = document.getElementById('settings-btn')!;
+    const profileBtn = document.getElementById('profile-btn')!;
+    const profileModal = document.getElementById('profile-modal')!;
     const settingsPanel = document.getElementById('settings-panel')!;
     const centerBtn = document.getElementById('center-location-btn')!;
     const aiAssistantBtn = document.getElementById('ai-assistant-btn')!;
@@ -1059,8 +1173,18 @@ function setupEventListeners() {
         }
     });
 
-    // Settings Panel
-    settingsBtn.addEventListener('click', () => settingsPanel.classList.toggle('open'));
+    // Profile & Settings
+    profileBtn.addEventListener('click', () => profileModal.classList.remove('hidden'));
+    profileModal.querySelector('.modal-close-btn')!.addEventListener('click', () => profileModal.classList.add('hidden'));
+    document.getElementById('open-settings-btn')!.addEventListener('click', () => {
+        profileModal.classList.add('hidden');
+        settingsPanel.classList.add('open');
+    });
+
+    // Login/Logout Listeners
+    document.getElementById('login-form')!.addEventListener('submit', handleSendOtp);
+    document.getElementById('otp-form')!.addEventListener('submit', handleLogin);
+    document.getElementById('logout-btn')!.addEventListener('click', handleLogout);
     
     // Language Selector
     const langSelectorBtn = document.getElementById('language-selector-btn')!;
@@ -1273,8 +1397,8 @@ function setupEventListeners() {
         if (!mapOptionsPopup.classList.contains('hidden') && !target.closest('#map-options-selector')) {
             mapOptionsPopup.classList.add('hidden');
         }
-        if (settingsPanel.classList.contains('open') && !target.closest('#settings-panel') && !target.closest('#settings-btn')) {
-            settingsPanel.classList.remove('open');
+        if (settingsPanel.classList.contains('open') && !target.closest('#settings-panel') && !target.closest('#open-settings-btn')) {
+             settingsPanel.classList.remove('open');
         }
         if (!langPopup.classList.contains('hidden') && !target.closest('#language-selector-container')) {
              langPopup.classList.add('hidden');
@@ -1408,6 +1532,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchAndDisplayData();
     loadPersona();
     setupEventListeners();
+    checkSession(); // Check for logged in user
     changeLanguage(savedLang); // This also calls updateUIText and initAI
     
     setInterval(() => {

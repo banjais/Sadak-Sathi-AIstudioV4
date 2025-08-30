@@ -91,7 +91,7 @@
             </div>
         </div>
 
-        <!-- Settings Panel -->
+        <!-- Settings Panel (Now opened from Profile) -->
         <aside id="settings-panel">
              <div class="settings-content">
                 <div class="settings-section">
@@ -367,10 +367,53 @@
             </div>
         </div>
 
+        <!-- NEW Login/Profile Modal -->
+        <div id="profile-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <button class="modal-close-btn icon-button" data-lang-key-aria-label="close" aria-label="Close"><span class="material-icons">close</span></button>
+                
+                <!-- Login View -->
+                <div id="login-view">
+                    <h3>Login</h3>
+                    <p class="modal-subtitle">Enter your email to receive a login code.</p>
+                    <form id="login-form">
+                        <input type="email" id="login-email" placeholder="you@example.com" required>
+                        <button type="submit" class="primary-btn">Send OTP</button>
+                    </form>
+                </div>
+
+                <!-- OTP View -->
+                <div id="otp-view" class="hidden">
+                    <h3>Enter Code</h3>
+                    <p class="modal-subtitle">A 6-digit code was sent to <b id="otp-email-display"></b>.</p>
+                    <form id="otp-form">
+                        <input type="text" id="otp-input" placeholder="123456" required maxlength="6" pattern="\d{6}">
+                        <button type="submit" class="primary-btn">Login</button>
+                    </form>
+                </div>
+
+                <!-- Profile View -->
+                <div id="profile-view" class="hidden">
+                    <div class="profile-header">
+                        <img id="profile-avatar" src="https://www.w3schools.com/howto/img_avatar.png" alt="User Avatar">
+                        <div class="profile-info">
+                            <span id="profile-email"></span>
+                            <span id="profile-role-badge"></span>
+                        </div>
+                    </div>
+                    <div class="profile-actions">
+                        <button id="admin-panel-btn" class="secondary-btn hidden"><span class="material-icons">admin_panel_settings</span>Admin Panel</button>
+                        <button id="open-settings-btn" class="secondary-btn"><span class="material-icons">tune</span>App Settings</button>
+                        <button id="logout-btn" class="danger-btn"><span class="material-icons">logout</span>Logout</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Bottom Menu -->
         <footer id="bottom-menu">
-            <button id="settings-btn" class="menu-item" aria-label="Settings">
-                <span class="material-icons">settings</span>
+            <button id="profile-btn" class="menu-item" aria-label="Profile">
+                <span class="material-icons">person</span>
                 <span class="label" data-lang-key="profile">Profile</span>
             </button>
             <button id="live-cam-btn" class="menu-item" aria-label="Live Cam">

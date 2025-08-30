@@ -1039,9 +1039,14 @@ html, body {
 .modal-content {
     background: var(--panel-bg-color); padding: 1.5rem; border-radius: 12px;
     width: 90%; max-width: 400px; box-shadow: 0 5px 25px var(--shadow-color);
-    position: relative; text-align: center;
+    position: relative;
 }
-.modal-content h3 { margin-bottom: 1rem; }
+.modal-content h3 { margin-bottom: 0.25rem; }
+.modal-subtitle {
+    font-size: 0.9rem;
+    color: var(--text-color-muted);
+    margin-bottom: 1.5rem;
+}
 .modal-close-btn { position: absolute; top: 8px; right: 8px; }
 
 /* App Mode Modal Specific Styles */
@@ -1059,3 +1064,99 @@ html, body {
 }
 .mode-select-btn:hover { background: var(--primary-color); color: white; border-color: var(--primary-color); }
 .mode-select-btn .material-icons { font-size: 2rem; }
+
+/* NEW Profile & Login Modal Styles */
+#profile-modal form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+#profile-modal input[type="email"],
+#profile-modal input[type="text"] {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-size: 1rem;
+    text-align: center;
+}
+#profile-modal input[type="text"] {
+    font-size: 1.5rem;
+    font-weight: 500;
+    letter-spacing: 0.5em; /* Spreads out OTP digits */
+}
+
+/* Profile View */
+.profile-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+#profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--border-color);
+}
+.profile-info {
+    text-align: center;
+}
+#profile-email {
+    font-weight: 500;
+    font-size: 1.1rem;
+}
+#profile-role-badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    border-radius: 12px;
+    text-transform: uppercase;
+    margin-top: 0.25rem;
+    color: white;
+}
+#profile-role-badge[data-role="user"] { background-color: var(--primary-color); }
+#profile-role-badge[data-role="admin"] { background-color: var(--warning-color); }
+#profile-role-badge[data-role="superadmin"] { background-color: var(--danger-color); }
+.profile-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+/* Button Variants */
+.secondary-btn, .danger-btn {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: background-color 0.2s;
+}
+.secondary-btn {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+.secondary-btn:hover {
+    background-color: var(--border-color);
+}
+.danger-btn {
+    background-color: transparent;
+    border-color: var(--danger-color);
+    color: var(--danger-color);
+}
+.danger-btn:hover {
+    background-color: var(--danger-color);
+    color: white;
+}
