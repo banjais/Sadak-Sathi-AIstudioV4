@@ -62,8 +62,25 @@ const api = {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const data = await response.json();
-            // Assuming the script returns data in GeoJSON FeatureCollection format
-            console.log("API: Successfully fetched live road data.");
+            
+            // Fix: The live API uses different property names (e.g., ROAD_NAME) than the app expects (e.g., name).
+            // This transformation step maps the live data to the app's internal model.
+            if (data && data.features) {
+                data.features.forEach((feature: any) => {
+                    if (feature.properties) {
+                        feature.properties.name = feature.properties.ROAD_NAME;
+                        feature.properties.code = feature.properties.ROAD_CODE;
+                        feature.properties.status = feature.properties.ROAD_STATU;
+
+                        // Clean up old properties to avoid confusion
+                        delete feature.properties.ROAD_NAME;
+                        delete feature.properties.ROAD_CODE;
+                        delete feature.properties.ROAD_STATU;
+                    }
+                });
+            }
+
+            console.log("API: Successfully fetched and transformed live road data.");
             return data;
         } catch (error) {
             console.error("API: Failed to fetch live road data, falling back to mock data.", error);
