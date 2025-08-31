@@ -185,7 +185,7 @@
                                 <input type="checkbox" id="toggle-pois" role="switch" checked>
                             </label>
                             <label class="layer-toggle">
-                                <span data-lang-key="incidents">Incidents</span>
+                                <span data-lang-key="incidents">Live Alerts</span>
                                 <input type="checkbox" id="toggle-incidents" role="switch" checked>
                             </label>
                         </div>
@@ -232,6 +232,7 @@
             </div>
             <div class="live-cam-body">
                 <video id="live-cam-video" autoplay playsinline muted></video>
+                <img id="ip-cam-stream" class="hidden" alt="IP Camera Stream">
                 <canvas id="live-cam-overlay"></canvas>
                 <div id="live-cam-placeholder">
                     <span class="material-icons">videocam_off</span>
@@ -480,6 +481,11 @@
                     <div class="setting-item-col">
                         <label for="admin-traffic-data-url">Traffic Data URL (Waze)</label>
                         <input type="text" id="admin-traffic-data-url" placeholder="Future Waze API endpoint" readonly>
+                    </div>
+                    <div class="setting-item-col">
+                        <label for="admin-ip-cam-url">Live IP Camera URL (MJPEG)</label>
+                        <input type="url" id="admin-ip-cam-url" placeholder="http://example.com/stream.mjpeg">
+                        <button id="save-ip-cam-btn" class="primary-btn">Save Camera URL</button>
                     </div>
                 </div>
             </div>

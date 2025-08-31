@@ -51,50 +51,106 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 // =================================================================================
 const ROAD_DATA_URL = 'https://script.google.com/macros/s/AKfycbx6gmAt6XdIUqQstWfn1GdBTdAxXcsZkLwZ006ajJaCTRdlCgMzFa0Qw-di2IkKChxW/exec';
 
+// --- NEW: Nepal-centric configuration ---
+const NEPAL_BORDER_GEOJSON = { "type": "Polygon", "coordinates": [[[80.058, 28.995], [80.12, 30.448], [81.5, 30.222], [82.8, 29.5], [84.0, 28.5], [85.0, 27.8], [86.0, 28.0], [88.2, 27.5], [88.1, 26.3], [85.8, 26.6], [83.5, 27.5], [82.0, 27.9], [80.058, 28.995]]] };
+const nepalBounds = L.latLngBounds([[26.3, 80.0], [30.5, 88.2]]);
+
+
 const api = {
-    // In a real backend, this would fetch your DoR GeoJSON shapefile.
-    getRoads: async (): Promise<any> => {
-        console.log("API: Fetching live road data...");
+    /**
+     * Represents fetching the base map geometry (e.g., from a shapefile).
+     * Since the shapefile URL is not provided, this uses mock data as a stable source for road lines.
+     */
+    getRoadGeometries: async (): Promise<any> => {
+        console.log("API: Using mock road geometry data.");
+        return Promise.resolve({
+            "type": "FeatureCollection", "features": [
+                { "type": "Feature", "properties": { "name": "Araniko Highway", "code": "H03", "status": "Resumed" }, "geometry": { "type": "LineString", "coordinates": [[85.3, 27.7], [85.4, 27.75], [85.5, 27.7]] } },
+                { "type": "Feature", "properties": { "name": "Prithvi Highway", "code": "H04", "status": "One-Lane" }, "geometry": { "type": "LineString", "coordinates": [[84.4, 27.7], [84.8, 27.65], [85.3, 27.7]] } },
+                { "type": "Feature", "properties": { "name": "Local Road", "code": "L22", "status": "Blocked" }, "geometry": { "type": "LineString", "coordinates": [[85.32, 27.68], [85.35, 27.69], [85.34, 27.66]] } },
+                { "type": "Feature", "properties": { "name": "Ring Road", "code": "H16", "status": "Resumed" }, "geometry": { "type": "LineString", "coordinates": [[85.316, 27.691], [85.300, 27.680], [85.310, 27.670], [85.322, 27.693]] } }
+            ]
+        });
+    },
+
+    /**
+     * Fetches and processes the LIVE road status markers from the official Google Sheet data source.
+     * This function is designed to handle point data, not line geometries.
+     */
+    getRoadStatuses: async (): Promise<any> => {
+        console.log("API: Fetching live road status markers...");
         try {
-            // Use the live Google Apps Script URL provided by the user
             const response = await fetch(ROAD_DATA_URL);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            const data = await response.json();
-            
-            // Fix: The live API uses different property names (e.g., ROAD_NAME) than the app expects (e.g., name).
-            // This transformation step maps the live data to the app's internal model.
-            if (data && data.features) {
-                data.features.forEach((feature: any) => {
-                    if (feature.properties) {
-                        feature.properties.name = feature.properties.ROAD_NAME;
-                        feature.properties.code = feature.properties.ROAD_CODE;
-                        feature.properties.status = feature.properties.ROAD_STATU;
+            const rawData = await response.json();
 
-                        // Clean up old properties to avoid confusion
-                        delete feature.properties.ROAD_NAME;
-                        delete feature.properties.ROAD_CODE;
-                        delete feature.properties.ROAD_STATU;
-                    }
-                });
+            let statusArray: any[] = [];
+            // Handle both direct array responses and object-wrapped array responses from the API
+            if (Array.isArray(rawData)) {
+                statusArray = rawData;
+            } else if (rawData && typeof rawData === 'object' && rawData.data && Array.isArray(rawData.data)) {
+                // A common API pattern is to wrap the array in a 'data' property
+                statusArray = rawData.data;
+            } else {
+                // If the data is in an unexpected format, log the error and return an empty set.
+                console.error("API: Live status data is not in a recognized array format.", rawData);
+                return { type: "FeatureCollection", features: [] };
             }
 
-            console.log("API: Successfully fetched and transformed live road data.");
-            return data;
-        } catch (error) {
-            console.error("API: Failed to fetch live road data, falling back to mock data.", error);
-            // Fallback to mock data if the live API fails
-            return Promise.resolve({
-                "type": "FeatureCollection", "features": [
-                    { "type": "Feature", "properties": { "name": "Araniko Highway", "code": "H03", "status": "Resumed" }, "geometry": { "type": "LineString", "coordinates": [[85.3, 27.7], [85.4, 27.75], [85.5, 27.7]] } },
-                    { "type": "Feature", "properties": { "name": "Prithvi Highway", "code": "H04", "status": "One-Lane" }, "geometry": { "type": "LineString", "coordinates": [[84.4, 27.7], [84.8, 27.65], [85.3, 27.7]] } },
-                    { "type": "Feature", "properties": { "name": "Local Road", "code": "L22", "status": "Blocked" }, "geometry": { "type": "LineString", "coordinates": [[85.32, 27.68], [85.35, 27.69], [85.34, 27.66]] } },
-                    { "type": "Feature", "properties": { "name": "Ring Road", "code": "H16", "status": "Resumed" }, "geometry": { "type": "LineString", "coordinates": [[85.316, 27.691], [85.300, 27.680], [85.310, 27.670], [85.322, 27.693]] } }
-                ]
+            // --- NEW: Filter data to be within Nepal's borders ---
+            const filteredStatusArray = statusArray.filter(item => {
+                if (item.lat && item.lng) {
+                    return nepalBounds.contains([item.lat, item.lng]);
+                }
+                return false;
             });
+
+            // Map Nepali status text to the app's internal English keys
+            const statusMap: { [key: string]: string } = {
+                "अवरुद्व": "Blocked",
+                "एकतर्फी": "One-Lane",
+                "सञ्चालित": "Resumed"
+            };
+            
+            const features = filteredStatusArray.map(item => {
+                if (!item.lat || !item.lng) return null; // Skip items without coordinates
+
+                const englishStatus = statusMap[item.status] || 'Unknown';
+                return {
+                    type: "Feature",
+                    properties: {
+                        name: `Status on ${item.highway}`,
+                        highwayName: item.highway, // Add original highway name for easier matching
+                        code: item.serial,
+                        status: englishStatus,
+                        cause: item.cause,
+                        section: item.section,
+                        description: item.description,
+                        contactName: item.contact?.name,
+                        contactNumber: item.contact?.number,
+                        category: 'road_status' // Assign a specific category for icons and filtering
+                    },
+                    geometry: {
+                        type: "Point",
+                        coordinates: [item.lng, item.lat] // GeoJSON is [lng, lat]
+                    }
+                };
+            }).filter(Boolean); // Filter out any null items
+
+            console.log(`API: Processed ${features.length} live road status markers within Nepal.`);
+            return {
+                type: "FeatureCollection",
+                features: features
+            };
+
+        } catch (error) {
+            console.error("API: Failed to fetch or process live road status markers.", error);
+            return { type: "FeatureCollection", features: [] }; // Return empty but valid GeoJSON on error
         }
     },
+
     getPOIs: async (): Promise<any[]> => {
         console.log("API: Fetching POIs...");
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -127,7 +183,7 @@ const api = {
 let map: L.Map;
 let roadsLayer: L.GeoJSON;
 let poisLayer: L.FeatureGroup;
-let incidentsLayer: L.FeatureGroup;
+let alertsLayer: L.FeatureGroup;
 let userMarker: L.Marker;
 let routeLine: L.Polyline | null = null;
 let routeStartMarker: L.Marker | null = null;
@@ -197,7 +253,7 @@ const englishTranslations = {
     layers: "Data Layers",
     roads: "Roads",
     pois: "Points of Interest",
-    incidents: "Incidents",
+    incidents: "Live Alerts",
     center_location: "Center on my location",
     display_panel_title: "Nearby Information",
     no_items_found: "No items found.",
@@ -275,6 +331,7 @@ const englishTranslations = {
     error_speech_generic: "An unknown speech recognition error occurred.",
     route_options_title: "Route Options",
     select_route: "Select Route",
+    admin_ip_cam_url_saved: "IP Camera URL saved.",
 };
 
 const spanishTranslations = {
@@ -295,7 +352,7 @@ const spanishTranslations = {
     layers: "Capas de Datos",
     roads: "Carreteras",
     pois: "Puntos de Interés",
-    incidents: "Incidentes",
+    incidents: "Alertas en Vivo",
     center_location: "Centrar en mi ubicación",
     display_panel_title: "Información Cercana",
     no_items_found: "No se encontraron elementos.",
@@ -373,6 +430,7 @@ const spanishTranslations = {
     error_speech_generic: "Ocurrió un error desconocido en el reconocimiento de voz.",
     route_options_title: "Opciones de Ruta",
     select_route: "Seleccionar Ruta",
+    admin_ip_cam_url_saved: "URL de la cámara IP guardada.",
 };
 
 const frenchTranslations = {
@@ -393,7 +451,7 @@ const frenchTranslations = {
     layers: "Couches de Données",
     roads: "Routes",
     pois: "Points d'Intérêt",
-    incidents: "Incidents",
+    incidents: "Alertes en Direct",
     center_location: "Centrer sur ma position",
     display_panel_title: "Informations à Proximité",
     no_items_found: "Aucun élément trouvé.",
@@ -471,6 +529,7 @@ const frenchTranslations = {
     error_speech_generic: "Une erreur de reconnaissance vocale inconnue est survenue.",
     route_options_title: "Options d'Itinéraire",
     select_route: "Sélectionner l'Itinéraire",
+    admin_ip_cam_url_saved: "URL de la caméra IP enregistrée.",
 };
 
 const nepaliTranslations = {
@@ -491,7 +550,7 @@ const nepaliTranslations = {
     layers: "डाटा तहहरू",
     roads: "सडकहरू",
     pois: "चासोका ठाउँहरू",
-    incidents: "घटनाहरू",
+    incidents: "प्रत्यक्ष अलर्टहरू",
     center_location: "मेरो स्थानमा केन्द्रित गर्नुहोस्",
     display_panel_title: "नजिकैको जानकारी",
     no_items_found: "कुनै वस्तु फेला परेन।",
@@ -569,6 +628,7 @@ const nepaliTranslations = {
     error_speech_generic: "एक अज्ञात वाक् पहिचान त्रुटि भयो।",
     route_options_title: "मार्ग विकल्पहरू",
     select_route: "मार्ग चयन गर्नुहोस्",
+    admin_ip_cam_url_saved: "आईपी क्यामेरा URL सुरक्षित गरियो।",
 };
 
 const translations: { [key: string]: any } = {
@@ -681,9 +741,11 @@ function changeLanguage(langCode: string) {
 // =================================================================================
 function initMap() {
     map = L.map('map', {
-        center: [27.7172, 85.3240], // Kathmandu
-        zoom: 13,
-        zoomControl: false // We are using custom controls
+        center: [28.3949, 84.1240], // Center of Nepal
+        zoom: 7,
+        zoomControl: false, // We are using custom controls
+        maxBounds: nepalBounds, // --- NEW: Constrain map view
+        minZoom: 7, // --- NEW: Prevent zooming out too far
     });
 
     baseLayers = {
@@ -704,8 +766,15 @@ function initMap() {
     currentBaseLayer = baseLayers['streets'];
     currentBaseLayer.addTo(map);
 
+    // --- NEW: Add Nepal border highlight layer ---
+    L.geoJSON(NEPAL_BORDER_GEOJSON, {
+        style: {
+            className: 'nepal-border' // Use CSS for styling
+        }
+    }).addTo(map);
+
     poisLayer = L.featureGroup().addTo(map);
-    incidentsLayer = L.featureGroup().addTo(map);
+    alertsLayer = L.featureGroup().addTo(map);
     roadsLayer = L.geoJSON(undefined, {
         style: (feature) => {
             switch (feature?.properties.status) {
@@ -784,31 +853,71 @@ function updateUserLocation() {
 
 async function fetchAndDisplayData() {
     try {
-        const [roads, pois, incidents] = await Promise.all([
-            api.getRoads(),
+        // Fetch all data sources concurrently.
+        const [roadGeometries, roadStatuses, pois, incidents] = await Promise.all([
+            api.getRoadGeometries(),
+            api.getRoadStatuses(),
             api.getPOIs(),
             api.getIncidents()
         ]);
         
-        allRoadsData = roads;
-        allPois = pois;
-        allIncidents = incidents;
+        // --- DATA MERGE LOGIC ---
+        // Create a lookup map of live statuses from the official data source.
+        const liveStatusMap = new Map<string, string>();
+        if (roadStatuses && Array.isArray(roadStatuses.features)) {
+            roadStatuses.features.forEach((statusFeature: any) => {
+                const highwayName = statusFeature.properties.highwayName;
+                const status = statusFeature.properties.status;
+                if (highwayName && status) {
+                    // If multiple statuses for one highway, the last one wins.
+                    liveStatusMap.set(highwayName, status);
+                }
+            });
+        }
+
+        // Create a new GeoJSON object with the live statuses merged into the road geometries.
+        // This makes the road colors reflect the live data.
+        const updatedGeometries = JSON.parse(JSON.stringify(roadGeometries)); // Deep copy to prevent mutation
+        updatedGeometries.features.forEach((feature: any) => {
+            const roadName = feature.properties.name;
+            if (liveStatusMap.has(roadName)) {
+                feature.properties.status = liveStatusMap.get(roadName);
+            }
+        });
         
-        // Correction: Populate the optimized lookup map
+        allRoadsData = updatedGeometries; // Use the merged data for AI routing and display.
+
+        // Transform live status points into a format for the alerts/markers layer.
+        // We still want to display these as clickable points with detailed popups.
+        const liveStatusPois = roadStatuses.features.map((f: any) => ({
+            id: `status-${f.properties.code}`,
+            name: f.properties.name,
+            lat: f.geometry.coordinates[1],
+            lng: f.geometry.coordinates[0],
+            type: 'incident',
+            status_key: `status_${f.properties.status.toLowerCase()}`,
+            category: 'road_status',
+            fullDetails: f.properties
+        }));
+        
+        allPois = pois;
+        allIncidents = [...incidents, ...liveStatusPois];
+        
+        // Populate the optimized lookup map for quick searches.
         allItemsMap.clear();
-        const allLocations = [...allPois, ...allIncidents];
-        allLocations.forEach(item => {
+        [...allPois, ...allIncidents].forEach(item => {
             allItemsMap.set(item.name.toLowerCase(), item);
         });
 
-        roadsLayer.clearLayers().addData(roads);
+        // Add the updated road geometries to the map. Leaflet will style them based on the new status.
+        roadsLayer.clearLayers().addData(updatedGeometries);
         
-        updateDisplayedItems(); // Initial display with all items
+        updateDisplayedItems(); // Display all POIs and incident/status markers.
 
-        // Populate route finder datalist
+        // Populate route finder datalist with all available locations.
         const datalist = document.getElementById('locations-datalist') as HTMLDataListElement;
-        datalist.innerHTML = ''; // Clear previous options
-        const locationNames = new Set(allLocations.map(item => item.name));
+        datalist.innerHTML = '';
+        const locationNames = new Set([...allPois, ...allIncidents].map(item => item.name));
         locationNames.forEach(name => {
             const option = document.createElement('option');
             option.value = name;
@@ -819,8 +928,10 @@ async function fetchAndDisplayData() {
 
     } catch (error) {
         console.error("Failed to fetch map data:", error);
+        showToast("Failed to load map data. Please try refreshing.", "error");
     }
 }
+
 
 function setupDynamicFilters() {
     const filtersContainer = document.getElementById('display-panel-filters')!;
@@ -833,12 +944,13 @@ function setupDynamicFilters() {
         'landmark': 'account_balance', 'bridge': 'emergency', 'hospital': 'local_hospital',
         'coffee': 'local_cafe', 'shopping': 'shopping_cart', 'traffic': 'traffic',
         'construction': 'construction', 'restaurant': 'restaurant', 'atm': 'atm',
-        'fuel': 'local_gas_station', 'police': 'local_police', 'poi': 'place', 'incident': 'warning'
+        'fuel': 'local_gas_station', 'police': 'local_police', 'poi': 'place', 'incident': 'warning',
+        'road_status': 'info' // New category
     };
 
     categories.forEach(category => {
         const icon = categoryIcons[category] || 'place';
-        const title = category.charAt(0).toUpperCase() + category.slice(1);
+        const title = category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
         filterButtonsHTML += `<button class="filter-btn" data-filter="${category}" title="${title}"><span class="material-icons">${icon}</span></button>`;
     });
 
@@ -857,24 +969,41 @@ function setupDynamicFilters() {
 
 function updateDisplayedItems() {
     poisLayer.clearLayers();
-    incidentsLayer.clearLayers();
+    alertsLayer.clearLayers();
 
     const allItems = [...allPois, ...allIncidents];
 
     allItems.forEach(item => {
         const icon = createMapIcon(item.category);
         const marker = L.marker([item.lat, item.lng], { icon: icon });
+        (marker as any).itemId = item.id; // Attach our app-specific ID for easy lookups
         
-        const popupContent = `
-            <div class="custom-popup">
-                <h3 class="popup-title">${item.name}</h3>
-                <p class="popup-status">${translate(item.status_key)}</p>
-                <button class="popup-directions-btn" data-name="${item.name}">
-                    <span class="material-icons">directions</span>
-                    <span>${translate('get_directions')}</span>
-                </button>
-            </div>
-        `;
+        let popupContent;
+        // Create a richer popup for the live road status markers
+        if (item.category === 'road_status') {
+            const details = item.fullDetails;
+            popupContent = `
+                <div class="custom-popup">
+                    <h3 class="popup-title">${details.name}</h3>
+                    <p class="popup-subtitle">Section: ${details.section || 'N/A'}</p>
+                    <p class="popup-status">Status: ${translate(item.status_key)} (Cause: ${details.cause || 'N/A'})</p>
+                    <p class="popup-description">${details.description || 'No additional details.'}</p>
+                    <p class="popup-contact">Contact: ${details.contactName || 'N/A'} (${details.contactNumber || 'N/A'})</p>
+                </div>
+            `;
+        } else {
+            // Standard popup for other POIs
+            popupContent = `
+                <div class="custom-popup">
+                    <h3 class="popup-title">${item.name}</h3>
+                    <p class="popup-status">${translate(item.status_key)}</p>
+                    <button class="popup-directions-btn" data-name="${item.name}">
+                        <span class="material-icons">directions</span>
+                        <span>${translate('get_directions')}</span>
+                    </button>
+                </div>
+            `;
+        }
         marker.bindPopup(popupContent);
         
         // Associate item ID with the marker's DOM element for highlighting
@@ -885,7 +1014,7 @@ function updateDisplayedItems() {
         if (item.type === 'poi' || item.type === 'bridge') {
             poisLayer.addLayer(marker);
         } else if (item.type === 'incident') {
-            incidentsLayer.addLayer(marker);
+            alertsLayer.addLayer(marker);
         }
     });
 
@@ -926,7 +1055,7 @@ function filterAndDisplayItems(filter: string) {
     });
 }
 
-function highlightMarker(itemId: number, shouldHighlight: boolean) {
+function highlightMarker(itemId: number | string, shouldHighlight: boolean) {
     const markerElement = document.querySelector(`.leaflet-marker-icon[data-item-id="${itemId}"]`) as HTMLElement;
     if (markerElement) {
         markerElement.classList.toggle('map-marker-highlight', shouldHighlight);
@@ -934,16 +1063,26 @@ function highlightMarker(itemId: number, shouldHighlight: boolean) {
 }
 
 
+/**
+ * Pans and zooms the map to a specific item and opens its popup.
+ * This is triggered by clicking an item in the side panel.
+ * @param item The POI or incident object to focus on.
+ */
 function panToItem(item: any) {
     map.flyTo([item.lat, item.lng], 16);
-    // Find the corresponding marker and open its popup
-    const targetLayer = (item.type === 'poi' || item.type === 'bridge') ? poisLayer : incidentsLayer;
+
+    // Determine which layer group the item belongs to.
+    const targetLayer = (item.type === 'poi' || item.type === 'bridge') ? poisLayer : alertsLayer;
+
+    // Iterate through the layers to find the matching marker by its unique ID.
     targetLayer.eachLayer((layer: any) => {
-        if (layer.getLatLng().lat === item.lat && layer.getLatLng().lng === item.lng) {
-            // A short delay ensures the flyTo animation is smooth before the popup opens
+        // Refactored: Use a robust ID match instead of fragile coordinate comparison.
+        // The `itemId` custom property is attached when the marker is created.
+        if (layer.itemId === item.id) {
+            // A short delay ensures the flyTo animation is smooth before the popup opens.
             setTimeout(() => {
-                 layer.openPopup();
-            }, 300);
+                layer.openPopup();
+            }, 300); // 300ms delay to wait for pan animation
         }
     });
 }
@@ -953,13 +1092,15 @@ function createMapIcon(category: string): L.DivIcon {
         'landmark': 'account_balance', 'bridge': 'emergency', 'hospital': 'local_hospital',
         'coffee': 'local_cafe', 'shopping': 'shopping_cart', 'traffic': 'traffic',
         'construction': 'construction', 'restaurant': 'restaurant', 'atm': 'atm',
-        'fuel': 'local_gas_station', 'police': 'local_police', 'default': 'place'
+        'fuel': 'local_gas_station', 'police': 'local_police', 'default': 'place',
+        'road_status': 'info'
     };
     const colors: { [key: string]: string } = {
         'landmark': '#9b59b6', 'bridge': '#e74c3c', 'hospital': '#c0392b',
         'coffee': '#e67e22', 'shopping': '#3498db', 'traffic': '#f39c12',
         'construction': '#f1c40f', 'restaurant': '#16a085', 'atm': '#27ae60',
-        'fuel': '#2c3e50', 'police': '#2980b9', 'default': '#7f8c8d'
+        'fuel': '#2c3e50', 'police': '#2980b9', 'default': '#7f8c8d',
+        'road_status': '#8e44ad'
     };
     const iconName = icons[category] || icons['default'];
     const iconColor = colors[category] || colors['default'];
@@ -1307,14 +1448,16 @@ Your task is to generate up to 3 route alternatives from "${fromName}" to "${toN
 2.  **Generate Diverse Alternatives**:
     - After establishing the fastest route, you may generate up to two additional, distinct alternatives.
     - These alternatives can use 'One-Lane' roads (but never 'Blocked' roads) or cater to user preferences (e.g., scenic, avoid tolls).
-3.  **MANDATORY Evidence-Based Explanations**:
-    - Every route explanation MUST be data-driven and transparent.
-    - **For the Fastest Route**: Your explanation is a mandatory report. It MUST explicitly state:
-        - **WHICH** major traffic incidents it successfully avoids.
-        - **THAT** it prioritizes 'Resumed' roads (mentioning one by name or code, e.g., 'Prithvi Highway (H04)') for maximum speed.
-    - **For Other Alternatives**: Clearly state the primary benefit or trade-off.
-        - Example: "This route is more direct but uses a 'One-Lane' section on the Araniko Highway, expect significant delays."
-        - Example: "This scenic route avoids all tolls, as requested."
+3.  **MANDATORY Evidence-Based Explanations - Your response will be rejected if this is not followed:**
+    - Every single route alternative in your response MUST have a clear, data-driven explanation. Do not use generic phrases.
+    - **For the "Fastest Route"**:
+        - The explanation is a mandatory report. It MUST explicitly name which major traffic incidents (from the provided data) it avoids.
+        - It MUST state that it prioritizes 'Resumed' status roads for speed. For example: "This is the fastest option because it avoids the Major Jam on Ring Road and primarily uses the Prithvi Highway (H04), which currently has a 'Resumed' status."
+    - **For Other Alternatives (e.g., Scenic, Toll-Free)**:
+        - The explanation MUST clearly state the main benefit and connect it to the provided data or user preferences.
+        - If the route is scenic and the user prefers scenic routes, state: "This route is suggested for its scenic value, aligning with your preference for scenic drives."
+        - If the route avoids tolls and the user wants to avoid tolls, state: "This option avoids all tolls, as requested in your preferences."
+        - If there is a trade-off, you MUST state it. For example: "This route is more direct but uses a 'One-Lane' section on the Araniko Highway, which may cause significant delays."
 
 **PROVIDED DATA:**
 1.  **User Preferences**: ${prefs}
@@ -1420,7 +1563,20 @@ function selectAndDrawRoute(alternative: any, coordinates: L.LatLng[], fromPOI: 
     routeEndMarker = L.marker([toPOI.lat, toPOI.lng], { icon: endIcon }).addTo(map).bindPopup(`<b>${translate('route_destination')}:</b> ${toPOI.name}`);
 
     const bounds = L.latLngBounds(coordinates.length > 0 ? coordinates : [fromPOI, toPOI]);
-    map.flyToBounds(bounds.pad(0.2));
+    
+    // --- NEW: Cinematic "Fly-in" Animation ---
+    const isLocalUser = userMarker && nepalBounds.contains(userMarker.getLatLng());
+    if (isLocalUser) {
+        // Standard zoom for local users
+        map.flyToBounds(bounds.pad(0.2));
+    } else {
+        // Dramatic fly-in for international users or users without GPS
+        map.flyTo([28.3949, 84.1240], 7, { duration: 1.5 }); // Fly to center of Nepal
+        setTimeout(() => {
+            map.flyToBounds(bounds.pad(0.2), { duration: 1.5 }); // Then zoom to the route
+        }, 1600); // Wait for the first animation to be near completion
+    }
+
 
     showToast(alternative.explanation, 'info', 6000);
 
@@ -1628,9 +1784,9 @@ function checkSession() {
 
 function openAdminPanel() {
     (document.getElementById('admin-road-data-url') as HTMLInputElement).value = ROAD_DATA_URL;
-    // In the future, the traffic URL would also come from a config
     (document.getElementById('admin-traffic-data-url') as HTMLInputElement).placeholder = "Future Waze/Firebase URL";
-    
+    (document.getElementById('admin-ip-cam-url') as HTMLInputElement).value = localStorage.getItem('ipCamUrl') || '';
+
     (document.getElementById('profile-modal') as HTMLElement).classList.add('hidden');
     (document.getElementById('admin-panel-modal') as HTMLElement).classList.remove('hidden');
 }
@@ -1707,6 +1863,12 @@ function setupEventListeners() {
     document.getElementById('logout-btn')!.addEventListener('click', handleLogout);
     document.getElementById('admin-panel-btn')!.addEventListener('click', openAdminPanel);
     adminPanelModal.querySelector('.modal-close-btn')!.addEventListener('click', () => adminPanelModal.classList.add('hidden'));
+    document.getElementById('save-ip-cam-btn')!.addEventListener('click', () => {
+        const url = (document.getElementById('admin-ip-cam-url') as HTMLInputElement).value;
+        localStorage.setItem('ipCamUrl', url);
+        showToast(translate('admin_ip_cam_url_saved'), 'success');
+        adminPanelModal.classList.add('hidden');
+    });
 
     
     // Redesigned Language Selector
@@ -1943,27 +2105,18 @@ function setupEventListeners() {
 
     document.getElementById('toggle-roads')!.addEventListener('change', (e) => {
         const checkbox = e.target as HTMLInputElement;
-        if (checkbox.checked) {
-            map.addLayer(roadsLayer);
-        } else {
-            map.removeLayer(roadsLayer);
-        }
+        if (checkbox.checked) map.addLayer(roadsLayer);
+        else map.removeLayer(roadsLayer);
     });
     document.getElementById('toggle-pois')!.addEventListener('change', (e) => {
         const checkbox = e.target as HTMLInputElement;
-        if (checkbox.checked) {
-            map.addLayer(poisLayer);
-        } else {
-            map.removeLayer(poisLayer);
-        }
+        if (checkbox.checked) map.addLayer(poisLayer);
+        else map.removeLayer(poisLayer);
     });
     document.getElementById('toggle-incidents')!.addEventListener('change', (e) => {
         const checkbox = e.target as HTMLInputElement;
-        if (checkbox.checked) {
-            map.addLayer(incidentsLayer);
-        } else {
-            map.removeLayer(incidentsLayer);
-        }
+        if (checkbox.checked) map.addLayer(alertsLayer);
+        else map.removeLayer(alertsLayer);
     });
 
     document.querySelectorAll('.style-option').forEach(btn => {
@@ -2084,11 +2237,34 @@ function findClosestPOI(latlng: L.LatLng): any | null {
 
 async function startLiveCam(enable: boolean) {
     const videoElement = document.getElementById('live-cam-video') as HTMLVideoElement;
+    const ipCamElement = document.getElementById('ip-cam-stream') as HTMLImageElement;
     const placeholder = document.getElementById('live-cam-placeholder')!.parentElement!;
     const panel = document.getElementById('live-cam-panel') as HTMLElement;
+    const flipCamBtn = document.getElementById('flip-cam-btn') as HTMLButtonElement;
+
+    const ipCamUrl = localStorage.getItem('ipCamUrl');
 
     if (enable) {
         panel.classList.remove('hidden');
+
+        // --- NEW: IP Camera Logic ---
+        if (ipCamUrl) {
+            console.log("Starting IP Camera stream:", ipCamUrl);
+            videoElement.classList.add('hidden');
+            ipCamElement.src = ipCamUrl;
+            ipCamElement.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+            flipCamBtn.style.display = 'none'; // Hide flip button for IP cams
+            stopAnalysisLoop(); // Analysis not supported for IP cams in this version
+            document.getElementById('toggle-cam-analysis-btn')!.style.display = 'none';
+            return; // Exit here for IP camera
+        }
+
+        // --- Fallback to Device Camera ---
+        flipCamBtn.style.display = 'flex';
+        document.getElementById('toggle-cam-analysis-btn')!.style.display = 'flex';
+        ipCamElement.classList.add('hidden');
+
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             console.warn('Camera API not available.');
             placeholder.classList.remove('hidden');
@@ -2124,6 +2300,7 @@ async function startLiveCam(enable: boolean) {
             cameraStream = null;
             videoElement.srcObject = null;
         }
+        ipCamElement.src = ''; // Stop IP cam stream
         stopAnalysisLoop();
         clearAnalysisOverlay();
         panel.classList.add('hidden');
