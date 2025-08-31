@@ -1495,6 +1495,28 @@ Generate the JSON response now.
     }
 }
 
+/**
+ * Calculates distance and estimated travel time for a route.
+ * @param coordinates An array of L.LatLng points.
+ * @returns An object with distance in km and time in minutes.
+ */
+function calculateRouteMetrics(coordinates: L.LatLng[]): { distanceKm: number, timeMinutes: number } {
+    let totalDistanceMeters = 0;
+    if (coordinates.length > 1) {
+        for (let i = 0; i < coordinates.length - 1; i++) {
+            totalDistanceMeters += coordinates[i].distanceTo(coordinates[i + 1]);
+        }
+    }
+    const distanceKm = totalDistanceMeters / 1000;
+
+    // An average speed for varied routes in Nepal.
+    const AVERAGE_SPEED_KMPH = 40; 
+    const timeMinutes = Math.round((distanceKm / AVERAGE_SPEED_KMPH) * 60);
+
+    return { distanceKm, timeMinutes };
+}
+
+
 function displayRouteOptions(alternatives: any[], fromPOI: any, toPOI: any) {
     const modal = document.getElementById('route-options-modal')!;
     const list = document.getElementById('route-options-list')!;
@@ -1513,17 +1535,8 @@ function displayRouteOptions(alternatives: any[], fromPOI: any, toPOI: any) {
             }
         });
 
-        // --- NEW: Calculate distance and time from coordinates for the preview card ---
-        let totalDistanceMeters = 0;
-        if (routeCoordinates.length > 1) {
-            for (let i = 0; i < routeCoordinates.length - 1; i++) {
-                totalDistanceMeters += routeCoordinates[i].distanceTo(routeCoordinates[i + 1]);
-            }
-        }
-        const distanceKm = totalDistanceMeters / 1000;
-        
-        const AVERAGE_SPEED_KMPH = 35; // Consistent average speed
-        const timeMinutes = Math.round((distanceKm / AVERAGE_SPEED_KMPH) * 60);
+        // --- REFACTORED: Use the new helper function ---
+        const { distanceKm, timeMinutes } = calculateRouteMetrics(routeCoordinates);
 
         const card = document.createElement('div');
         card.className = 'route-option-card';
@@ -1597,23 +1610,12 @@ function displayRouteDetails(roadNames: string[], coordinates: L.LatLng[]) {
     const timeEl = document.getElementById('route-time')!;
     const directionsList = document.getElementById('route-directions-list')!;
 
-    // --- NEW: Calculate distance and time from coordinates ---
-    let totalDistanceMeters = 0;
-    if (coordinates.length > 1) {
-        for (let i = 0; i < coordinates.length - 1; i++) {
-            // L.LatLng.distanceTo() returns meters
-            totalDistanceMeters += coordinates[i].distanceTo(coordinates[i + 1]);
-        }
-    }
-    const totalDistanceKm = (totalDistanceMeters / 1000);
+    // --- REFACTORED: Use the new helper function ---
+    const { distanceKm, timeMinutes } = calculateRouteMetrics(coordinates);
 
-    // Estimate time based on an average speed (heuristic)
-    const AVERAGE_SPEED_KMPH = 35; // km/h
-    const travelTimeHours = totalDistanceKm / AVERAGE_SPEED_KMPH;
-    const travelTimeMinutes = Math.round(travelTimeHours * 60);
-
-    distanceEl.textContent = `${totalDistanceKm.toFixed(1)} km`;
-    timeEl.textContent = `${travelTimeMinutes} min`;
+    distanceEl.textContent = `${distanceKm.toFixed(1)} km`;
+    // Add tilde for consistency with the options modal
+    timeEl.textContent = `~${timeMinutes} min`;
     
     directionsList.innerHTML = roadNames.map((name, index) => `
         <div class="direction-item">

@@ -1482,12 +1482,14 @@ html, body {
     opacity: 0.7;
 }
 
-/* Nepal Border Style */
+/* Enhanced Nepal Border Style */
 .nepal-border {
     stroke: var(--primary-color);
     stroke-width: 2;
-    stroke-opacity: 0.8;
+    stroke-opacity: 0.9;
+    stroke-dasharray: 10, 5;
     fill: var(--primary-color);
-    fill-opacity: 0.1;
+    fill-opacity: 0.15;
     pointer-events: none; /* Make it non-interactive */
+    filter: drop-shadow(0 0 8px var(--primary-color-dark));
 }
