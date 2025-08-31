@@ -238,6 +238,8 @@ const englishTranslations = {
     error_speech_not_allowed: "Microphone access was denied. Please enable it in your browser settings.",
     error_speech_network: "A network error occurred during speech recognition.",
     error_speech_generic: "An unknown speech recognition error occurred.",
+    route_options_title: "Route Options",
+    select_route: "Select Route",
 };
 
 const spanishTranslations = {
@@ -331,6 +333,8 @@ const spanishTranslations = {
     error_speech_not_allowed: "Se denegó el acceso al micrófono. Por favor, actívalo en la configuración de tu navegador.",
     error_speech_network: "Ocurrió un error de red durante el reconocimiento de voz.",
     error_speech_generic: "Ocurrió un error desconocido en el reconocimiento de voz.",
+    route_options_title: "Opciones de Ruta",
+    select_route: "Seleccionar Ruta",
 };
 
 const frenchTranslations = {
@@ -424,6 +428,8 @@ const frenchTranslations = {
     error_speech_not_allowed: "L'accès au microphone a été refusé. Veuillez l'activer dans les paramètres de votre navigateur.",
     error_speech_network: "Une erreur réseau est survenue lors de la reconnaissance vocale.",
     error_speech_generic: "Une erreur de reconnaissance vocale inconnue est survenue.",
+    route_options_title: "Options d'Itinéraire",
+    select_route: "Sélectionner l'Itinéraire",
 };
 
 const nepaliTranslations = {
@@ -517,6 +523,8 @@ const nepaliTranslations = {
     error_speech_not_allowed: "माइक्रोफोन पहुँच अस्वीकार गरियो। कृपया आफ्नो ब्राउजर सेटिङहरूमा सक्षम गर्नुहोस्।",
     error_speech_network: "वाक् पहिचानको क्रममा नेटवर्क त्रुटि भयो।",
     error_speech_generic: "एक अज्ञात वाक् पहिचान त्रुटि भयो।",
+    route_options_title: "मार्ग विकल्पहरू",
+    select_route: "मार्ग चयन गर्नुहोस्",
 };
 
 const translations: { [key: string]: any } = {
@@ -1041,7 +1049,7 @@ async function handleAIChat(prompt: string, isFunctionResponse = false, function
                     name: "findRoute",
                     response: {
                         name: "findRoute",
-                        content: { result: success ? "Route found and displayed." : "Failed to find the route." },
+                        content: { result: success ? "Route options found and displayed to the user." : "Failed to find any routes." },
                     },
                 };
                 await handleAIChat("", true, functionResponse as any);
@@ -1094,8 +1102,9 @@ function speak(text: string) {
  * Toggles voice recognition for a given input field.
  * @param button The microphone button that was clicked.
  * @param targetInput The input element to populate with the transcript.
+ * @param onResultCallback An optional callback to run after a result is successfully received.
  */
-function toggleVoiceRecognition(button: HTMLElement, targetInput: HTMLInputElement) {
+function toggleVoiceRecognition(button: HTMLElement, targetInput: HTMLInputElement, onResultCallback?: (transcript: string) => void) {
     if (!SpeechRecognition) {
         showToast(translate('error_speech_recognition_unsupported'), "error");
         return;
@@ -1107,6 +1116,7 @@ function toggleVoiceRecognition(button: HTMLElement, targetInput: HTMLInputEleme
     }
 
     recognition = new SpeechRecognition();
+    recognition.lang = currentLang; // Use current app language for better accuracy
     recognition.interimResults = false;
     recognition.continuous = false;
 
@@ -1148,6 +1158,10 @@ function toggleVoiceRecognition(button: HTMLElement, targetInput: HTMLInputEleme
     recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         targetInput.value = transcript;
+        // Execute the callback if it exists
+        if (onResultCallback) {
+            onResultCallback(transcript);
+        }
     };
 
     recognition.onerror = (event: any) => {
@@ -1177,13 +1191,36 @@ function toggleVoiceRecognition(button: HTMLElement, targetInput: HTMLInputEleme
 // =================================================================================
 // Route Finding
 // =================================================================================
+const routeAlternativesSchema = {
+    type: Type.OBJECT,
+    properties: {
+        alternatives: {
+            type: Type.ARRAY,
+            description: "An array of up to 3 diverse route options.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    name: { type: Type.STRING, description: "A short, catchy name for the route (e.g., 'Fastest Route', 'Scenic Path', 'Toll-Free Way')." },
+                    explanation: { type: Type.STRING, description: "A brief, user-friendly explanation of why this route is suggested, mentioning key benefits like speed, scenery, or cost." },
+                    route: {
+                        type: Type.ARRAY,
+                        description: "An array of road names in sequential order for this route.",
+                        items: { type: Type.STRING }
+                    }
+                },
+                required: ["name", "explanation", "route"]
+            }
+        }
+    },
+    required: ["alternatives"]
+};
+
 async function handleFindRoute(calledFromAI = false) {
     const fromInput = document.getElementById('from-input') as HTMLInputElement;
     const toInput = document.getElementById('to-input') as HTMLInputElement;
-    const findRouteBtn = document.getElementById('find-route-btn') as HTMLButtonElement;
-    const originalButtonText = findRouteBtn.textContent;
-    findRouteBtn.textContent = translate('calculating_route');
-    findRouteBtn.disabled = true;
+    const loadingOverlay = document.querySelector('#route-finder-panel .loading-overlay') as HTMLElement;
+
+    loadingOverlay.classList.remove('hidden');
 
     try {
         const fromName = fromInput.value.trim();
@@ -1202,36 +1239,63 @@ async function handleFindRoute(calledFromAI = false) {
             return false;
         }
 
-        const prefs = `Preferences: ${routePreferences.preferHighways ? "Prefer highways" : "No highway preference"}, ${routePreferences.avoidTolls ? "Avoid tolls" : "Tolls are acceptable"}, ${routePreferences.preferScenic ? "Prefer scenic routes" : "No scenic preference"}.`;
-        const prompt = `Given the following GeoJSON road data, find the best route from "${fromName}" to "${toName}". All available roads are in the data. Consider the road status ('good', 'fair', 'poor'). ${prefs}. Your response MUST be a JSON object containing a single key "route" which is an array of road names in sequential order, like {"route": ["Road A", "Road B", "Local Road"]}. Do not include any other text or explanation. Road data: ${JSON.stringify(allRoadsData)}`;
+        const prefs = `User preferences: ${routePreferences.preferHighways ? "Prefer highways" : "No highway preference"}, ${routePreferences.avoidTolls ? "Avoid tolls" : "Tolls are acceptable"}, ${routePreferences.preferScenic ? "Prefer scenic routes" : "No scenic preference"}.`;
+        const incidentsInfo = `Current traffic incidents to consider: ${JSON.stringify(allIncidents.map(i => ({ name: i.name, location: i.lat + ',' + i.lng })))}.`;
+        
+        const prompt = `
+CRITICAL INSTRUCTIONS: Your primary function is to act as an expert route planning engine. You must adhere to the following rules without exception:
+1.  Generate up to three distinct route alternatives from "${fromName}" to "${toName}".
+2.  Your absolute top priority is to identify the single FASTEST route. This requires a thorough analysis of current traffic incidents and road statuses ('good' > 'fair' > 'poor').
+3.  For EVERY route alternative, you MUST provide a clear, evidence-based 'explanation'. This is not optional.
+    -   **For the Fastest Route**: The explanation MUST explicitly mention which traffic incidents are being avoided (by name from the data) and which roads with 'good' status are being used. Example: "This is the fastest option because it bypasses the Traffic Jam at Baneshwor and primarily uses the Araniko Highway, which is in 'good' condition."
+    -   **For Other Alternatives (e.g., Scenic, Toll-Free)**: The explanation MUST clearly state the primary benefit. Example: "This route is suggested because it avoids all tolls, as you requested." or "This path is suggested for its potential scenic value."
 
+You are provided with the following data:
+- User Preferences: ${prefs}
+- Current Traffic Incidents: ${incidentsInfo}
+- Available Roads Data: ${JSON.stringify(allRoadsData)}
+
+Your response MUST be a JSON object that strictly conforms to the provided schema. Do not add any conversational text outside of the JSON structure.
+        `;
+        
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        route: {
-                            type: Type.ARRAY,
-                            items: { type: Type.STRING }
-                        }
-                    }
-                }
+                responseSchema: routeAlternativesSchema
             }
         });
 
-        const routeData = JSON.parse(response.text);
-        const roadNames = routeData.route;
-
-        if (!roadNames || roadNames.length === 0) {
+        const result = JSON.parse(response.text);
+        
+        if (!result.alternatives || result.alternatives.length === 0) {
             showToast(translate('error_no_route'), 'error');
             return false;
         }
+        
+        displayRouteOptions(result.alternatives, fromPOI, toPOI);
+        return true;
+
+    } catch (error) {
+        console.error("Error finding route alternatives:", error);
+        showToast(translate('error_generic_route'), 'error');
+        return false;
+    } finally {
+        loadingOverlay.classList.add('hidden');
+    }
+}
+
+function displayRouteOptions(alternatives: any[], fromPOI: any, toPOI: any) {
+    const modal = document.getElementById('route-options-modal')!;
+    const list = document.getElementById('route-options-list')!;
+    list.innerHTML = '';
+
+    alternatives.forEach(alt => {
+        if (!alt.route || alt.route.length === 0) return; // Skip invalid alternatives
 
         const routeCoordinates: L.LatLng[] = [];
-        roadNames.forEach((roadName: string) => {
+        alt.route.forEach((roadName: string) => {
             const roadFeature = allRoadsData.features.find((f: any) => f.properties.name === roadName);
             if (roadFeature) {
                 roadFeature.geometry.coordinates.forEach((coord: number[]) => {
@@ -1239,40 +1303,62 @@ async function handleFindRoute(calledFromAI = false) {
                 });
             }
         });
+
+        // Simulate distance and time for the card
+        const distance = (routeCoordinates.length * 0.15).toFixed(1);
+        const time = Math.round(parseFloat(distance) * 2.5);
+
+        const card = document.createElement('div');
+        card.className = 'route-option-card';
         
-        if (routeCoordinates.length === 0) {
-             showToast(translate('error_no_geometry'), 'error');
-             return false;
-        }
+        // Use an icon based on the route name
+        let icon = 'alt_route';
+        if (alt.name.toLowerCase().includes('fast')) icon = 'bolt';
+        if (alt.name.toLowerCase().includes('scenic')) icon = 'landscape';
+        if (alt.name.toLowerCase().includes('toll')) icon = 'money_off';
+        if (alt.name.toLowerCase().includes('avoid')) icon = 'shield';
 
-        clearRoute(); // Clear previous route
-        routeLine = L.polyline(routeCoordinates, { color: '#e74c3c', weight: 5, opacity: 0.8, dashArray: '10, 5' }).addTo(map);
+        card.innerHTML = `
+            <div class="route-option-header">
+                <h4><span class="material-icons">${icon}</span> ${alt.name}</h4>
+                <div class="route-option-details">
+                    <span>${distance} km</span>
+                    <span>~${time} min</span>
+                </div>
+            </div>
+            <p>${alt.explanation}</p>
+            <button class="primary-btn" style="width: 100%;">${translate('select_route')}</button>
+        `;
 
-        const startIcon = L.divIcon({ html: `<span class="material-icons" style="color: #2ecc71; font-size: 36px;">place</span>`, className: 'route-marker-icon', iconAnchor: [18, 36] });
-        const endIcon = L.divIcon({ html: `<span class="material-icons" style="color: #e74c3c; font-size: 36px;">flag</span>`, className: 'route-marker-icon', iconAnchor: [18, 36] });
+        card.querySelector('button')!.addEventListener('click', () => {
+            selectAndDrawRoute(alt, routeCoordinates, fromPOI, toPOI);
+            modal.classList.add('hidden');
+        });
 
-        routeStartMarker = L.marker([fromPOI.lat, fromPOI.lng], { icon: startIcon }).addTo(map).bindPopup(`<b>${translate('route_start')}:</b> ${fromName}`);
-        routeEndMarker = L.marker([toPOI.lat, toPOI.lng], { icon: endIcon }).addTo(map).bindPopup(`<b>${translate('route_destination')}:</b> ${toName}`);
+        list.appendChild(card);
+    });
+    
+    document.getElementById('route-finder-panel')!.classList.add('hidden');
+    modal.classList.remove('hidden');
+}
 
-        const bounds = L.latLngBounds([fromPOI, toPOI]);
-        map.flyToBounds(bounds.pad(0.2));
+function selectAndDrawRoute(alternative: any, coordinates: L.LatLng[], fromPOI: any, toPOI: any) {
+    clearRoute();
 
-        (document.getElementById('route-finder-panel') as HTMLElement).classList.add('hidden');
-        
-        if(!calledFromAI) {
-            showProactiveAlert(translate('route_success_message', { fromName, toName }));
-        }
-        displayRouteDetails(roadNames, routeCoordinates);
-        return true;
+    routeLine = L.polyline(coordinates, { color: '#e74c3c', weight: 5, opacity: 0.8, dashArray: '10, 5' }).addTo(map);
 
-    } catch (error) {
-        console.error("Error finding route:", error);
-        showToast(translate('error_generic_route'), 'error');
-        return false;
-    } finally {
-        findRouteBtn.textContent = originalButtonText;
-        findRouteBtn.disabled = false;
-    }
+    const startIcon = L.divIcon({ html: `<span class="material-icons" style="color: #2ecc71; font-size: 36px;">place</span>`, className: 'route-marker-icon', iconAnchor: [18, 36] });
+    const endIcon = L.divIcon({ html: `<span class="material-icons" style="color: #e74c3c; font-size: 36px;">flag</span>`, className: 'route-marker-icon', iconAnchor: [18, 36] });
+
+    routeStartMarker = L.marker([fromPOI.lat, fromPOI.lng], { icon: startIcon }).addTo(map).bindPopup(`<b>${translate('route_start')}:</b> ${fromPOI.name}`);
+    routeEndMarker = L.marker([toPOI.lat, toPOI.lng], { icon: endIcon }).addTo(map).bindPopup(`<b>${translate('route_destination')}:</b> ${toPOI.name}`);
+
+    const bounds = L.latLngBounds(coordinates.length > 0 ? coordinates : [fromPOI, toPOI]);
+    map.flyToBounds(bounds.pad(0.2));
+
+    showToast(alternative.explanation, 'info', 6000);
+
+    displayRouteDetails(alternative.route, coordinates);
 }
 
 function displayRouteDetails(roadNames: string[], coordinates: L.LatLng[]) {
@@ -1484,6 +1570,7 @@ function setupEventListeners() {
     const settingsPanel = document.getElementById('settings-panel')!;
     const centerBtn = document.getElementById('center-location-btn')!;
     const aiAssistantBtn = document.getElementById('ai-assistant-btn')!;
+    const headerAiChatBtn = document.getElementById('header-ai-chat-btn')!;
     const chatModal = document.getElementById('ai-chat-modal')!;
     const closeChatBtn = document.getElementById('close-chat-btn')!;
     const chatForm = document.getElementById('chat-form')!;
@@ -1497,6 +1584,7 @@ function setupEventListeners() {
     const appModeModal = document.getElementById('app-mode-modal')!;
     const displayPanelHeader = document.getElementById('display-panel-header')!;
     const displayPanel = document.getElementById('display-panel')!;
+    const routeOptionsModal = document.getElementById('route-options-modal')!;
 
     // Theme Toggle (moved to header)
     const themeToggle = document.getElementById('theme-toggle')!;
@@ -1577,6 +1665,7 @@ function setupEventListeners() {
 
     // AI Chat
     aiAssistantBtn.addEventListener('click', () => chatModal.classList.remove('hidden'));
+    headerAiChatBtn.addEventListener('click', () => chatModal.classList.remove('hidden'));
     closeChatBtn.addEventListener('click', () => chatModal.classList.add('hidden'));
     chatForm.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -1664,6 +1753,11 @@ function setupEventListeners() {
     document.getElementById('share-route-btn')!.addEventListener('click', handleShareRoute);
     document.getElementById('view-gmaps-btn')!.addEventListener('click', handleViewOnGoogleMaps);
 
+    // Route Options Modal
+    routeOptionsModal.querySelector('.modal-close-btn')!.addEventListener('click', () => {
+        routeOptionsModal.classList.add('hidden');
+    });
+
     // App Mode
     appModeBtn.addEventListener('click', () => appModeModal.classList.remove('hidden'));
     appModeModal.addEventListener('click', (e) => {
@@ -1730,13 +1824,28 @@ function setupEventListeners() {
     const fromInput = document.getElementById('from-input') as HTMLInputElement;
     const toInput = document.getElementById('to-input') as HTMLInputElement;
     document.getElementById('from-voice-btn')!.addEventListener('click', (e) => {
-        toggleVoiceRecognition(e.currentTarget as HTMLElement, fromInput);
+        toggleVoiceRecognition(e.currentTarget as HTMLElement, fromInput, () => {
+            // After filling 'From', automatically focus the 'To' input
+            toInput.focus();
+        });
     });
     document.getElementById('to-voice-btn')!.addEventListener('click', (e) => {
-        toggleVoiceRecognition(e.currentTarget as HTMLElement, toInput);
+        toggleVoiceRecognition(e.currentTarget as HTMLElement, toInput, () => {
+            // After filling 'To', if 'From' is also filled, find the route
+            if (fromInput.value.trim() !== '') {
+                handleFindRoute();
+            }
+        });
     });
     document.getElementById('voice-command-btn')!.addEventListener('click', (e) => {
-        toggleVoiceRecognition(e.currentTarget as HTMLElement, chatInput);
+        // For chat, we don't just fill the input, we submit the message directly.
+        toggleVoiceRecognition(e.currentTarget as HTMLElement, chatInput, (transcript) => {
+            if (transcript) {
+                addMessageToChat(transcript, 'user');
+                handleAIChat(transcript);
+                chatInput.value = ''; // Clear input after sending
+            }
+        });
     });
 
     // NEW MAP CONTROLS

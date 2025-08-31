@@ -33,6 +33,10 @@
             <div class="header-right">
                 <div id="gps-status-indicator" data-lang-key-title="gps_searching" title="GPS Status: Searching..."></div>
                 
+                <button id="header-ai-chat-btn" class="icon-button" data-lang-key-aria-label="ai_chat_title" aria-label="AI Assistant">
+                    <span class="material-icons">auto_awesome</span>
+                </button>
+                
                 <!-- Redesigned Language Selector -->
                 <div id="language-selector-container">
                     <button id="language-selector-btn" class="icon-button" aria-label="Select Language" aria-haspopup="true" aria-expanded="false">
@@ -277,6 +281,10 @@
                     <button id="find-route-btn" data-lang-key="find_route_btn">Find Optimal Route</button>
                     <button id="clear-route-btn" class="secondary" data-lang-key="clear_route_btn">Clear Route</button>
                 </div>
+                <div class="loading-overlay hidden">
+                    <div class="spinner"></div>
+                    <p data-lang-key="calculating_route">Calculating...</p>
+                </div>
             </div>
         </div>
 
@@ -390,6 +398,17 @@
                         <span class="material-icons">people</span>
                         <span data-lang-key="mode_connect">Connect</span>
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW Route Options Modal -->
+        <div id="route-options-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <h3 data-lang-key="route_options_title">Route Options</h3>
+                <button class="modal-close-btn icon-button" data-lang-key-aria-label="close" aria-label="Close"><span class="material-icons">close</span></button>
+                <div id="route-options-list">
+                    <!-- Route option cards will be injected here -->
                 </div>
             </div>
         </div>
