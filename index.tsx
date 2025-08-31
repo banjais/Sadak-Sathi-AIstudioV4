@@ -76,7 +76,7 @@ const api = {
             { id: 8, name: "Bota Restaurant", lat: 27.701, lng: 85.315, type: 'poi', status_key: 'status_open', category: 'restaurant' },
             { id: 9, name: "Nabil Bank ATM", lat: 27.692, lng: 85.318, type: 'poi', status_key: 'status_open_247', category: 'atm' },
             { id: 10, name: "Sajha Petrol Pump", lat: 27.675, lng: 85.319, type: 'poi', status_key: 'status_open', category: 'fuel' },
-            { id: 11, name: "Police Station, Jawalakhel", lat: 27.674, lng: 85.311, type: 'poi', status_key: 'status_open_247', category: 'police' }
+            { id: 11, "name": "Police Station, Jawalakhel", lat: 27.674, lng: 85.311, type: 'poi', status_key: 'status_open_247', category: 'police' }
         ]);
     },
     getIncidents: async (): Promise<any[]> => {
@@ -1243,19 +1243,33 @@ async function handleFindRoute(calledFromAI = false) {
         const incidentsInfo = `Current traffic incidents to consider: ${JSON.stringify(allIncidents.map(i => ({ name: i.name, location: i.lat + ',' + i.lng })))}.`;
         
         const prompt = `
-CRITICAL INSTRUCTIONS: Your primary function is to act as an expert route planning engine. You must adhere to the following rules without exception:
-1.  Generate up to three distinct route alternatives from "${fromName}" to "${toName}".
-2.  Your absolute top priority is to identify the single FASTEST route. This requires a thorough analysis of current traffic incidents and road statuses ('good' > 'fair' > 'poor').
-3.  For EVERY route alternative, you MUST provide a clear, evidence-based 'explanation'. This is not optional.
-    -   **For the Fastest Route**: The explanation MUST explicitly mention which traffic incidents are being avoided (by name from the data) and which roads with 'good' status are being used. Example: "This is the fastest option because it bypasses the Traffic Jam at Baneshwor and primarily uses the Araniko Highway, which is in 'good' condition."
-    -   **For Other Alternatives (e.g., Scenic, Toll-Free)**: The explanation MUST clearly state the primary benefit. Example: "This route is suggested because it avoids all tolls, as you requested." or "This path is suggested for its potential scenic value."
+CRITICAL INSTRUCTIONS: You are an expert route planning AI. Your response MUST be a JSON object adhering to the schema. Follow these rules meticulously to generate route alternatives from "${fromName}" to "${toName}":
+
+1.  **Analyze All Data**: You are given User Preferences, Traffic Incidents, and Road Data. You MUST use all three data sources to generate the routes.
+
+2.  **Generate Diverse Alternatives**: Create up to three distinct route options (e.g., fastest, scenic, avoids tolls).
+
+3.  **PRIORITIZE THE FASTEST ROUTE**:
+    - Your most important task is to identify the single fastest route.
+    - To do this, you MUST analyze the provided traffic incidents to find paths that avoid them.
+    - You MUST also analyze the road status, prioritizing roads in 'good' condition over 'fair' or 'poor'.
+
+4.  **PROVIDE EVIDENCE-BASED EXPLANATIONS**:
+    - Every route alternative you provide MUST have a clear 'explanation'. This is not optional.
+    - **For the Fastest Route**: Your explanation is a conclusion based on data. It MUST explicitly state:
+        - Which specific traffic jams (by name from the provided data) it avoids.
+        - Which major roads with a 'good' status it utilizes.
+        - Example: "This is the fastest route as it avoids the 'Traffic Jam at Baneshwor' and uses the 'Araniko Highway' which is in 'good' condition."
+    - **For Other Alternatives**: Clearly state the main benefit, linking it to user preferences if applicable.
+        - Example (if user wants to avoid tolls): "This route avoids all tolls as per your preference."
+        - Example (scenic): "This route is recommended for its potential scenic views."
 
 You are provided with the following data:
 - User Preferences: ${prefs}
 - Current Traffic Incidents: ${incidentsInfo}
 - Available Roads Data: ${JSON.stringify(allRoadsData)}
 
-Your response MUST be a JSON object that strictly conforms to the provided schema. Do not add any conversational text outside of the JSON structure.
+Generate the JSON response now.
         `;
         
         const response = await ai.models.generateContent({
