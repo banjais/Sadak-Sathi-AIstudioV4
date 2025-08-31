@@ -1245,24 +1245,22 @@ async function handleFindRoute(calledFromAI = false) {
         const prompt = `
 CRITICAL INSTRUCTIONS: You are an expert route planning AI. Your response MUST be a JSON object adhering to the schema. Follow these rules meticulously to generate route alternatives from "${fromName}" to "${toName}":
 
-1.  **Analyze All Data**: You are given User Preferences, Traffic Incidents, and Road Data. You MUST use all three data sources to generate the routes.
+1.  **Top Priority: The Fastest Route**: Your absolute top priority is to identify the single fastest route. This is not just an option; it is the primary goal. To achieve this, you MUST perform a rigorous analysis of:
+    - **Traffic Incidents**: Systematically find a path that bypasses all listed traffic incidents.
+    - **Road Status**: Give strong preference to roads with a 'good' status. A route using 'good' roads is almost always faster than one using 'fair' or 'poor' roads.
 
-2.  **Generate Diverse Alternatives**: Create up to three distinct route options (e.g., fastest, scenic, avoids tolls).
+2.  **Generate Diverse Alternatives**: After identifying the fastest route, create up to two other distinct options based on user preferences (e.g., scenic, avoids tolls).
 
-3.  **PRIORITIZE THE FASTEST ROUTE**:
-    - Your most important task is to identify the single fastest route.
-    - To do this, you MUST analyze the provided traffic incidents to find paths that avoid them.
-    - You MUST also analyze the road status, prioritizing roads in 'good' condition over 'fair' or 'poor'.
+3.  **MANDATORY Evidence-Based Explanations**: Every route alternative MUST have a clear 'explanation' grounded in the data provided.
+    - **For the Fastest Route**: Your explanation is your proof of analysis. It is not a suggestion, but a conclusion. It MUST explicitly state:
+        - The specific traffic incidents (by name) it successfully avoids.
+        - The specific high-quality roads (by name and their 'good' status) it utilizes.
+        - Example: "This is the fastest route because it bypasses the 'Traffic Jam at Baneshwor' and primarily uses the 'Ring Road' which is in 'good' condition."
+    - **For Other Alternatives**: Clearly state the primary benefit and link it to user preferences if applicable.
+        - Example (if user wants to avoid tolls): "This route avoids all tolls as requested in your preferences."
+        - Example (scenic): "A more leisurely option, this route is suggested for its potential scenic views."
 
-4.  **PROVIDE EVIDENCE-BASED EXPLANATIONS**:
-    - Every route alternative you provide MUST have a clear 'explanation'. This is not optional.
-    - **For the Fastest Route**: Your explanation is a conclusion based on data. It MUST explicitly state:
-        - Which specific traffic jams (by name from the provided data) it avoids.
-        - Which major roads with a 'good' status it utilizes.
-        - Example: "This is the fastest route as it avoids the 'Traffic Jam at Baneshwor' and uses the 'Araniko Highway' which is in 'good' condition."
-    - **For Other Alternatives**: Clearly state the main benefit, linking it to user preferences if applicable.
-        - Example (if user wants to avoid tolls): "This route avoids all tolls as per your preference."
-        - Example (scenic): "This route is recommended for its potential scenic views."
+4.  **Data Adherence**: You MUST use the provided User Preferences, Traffic Incidents, and Road Data. Do not invent information. Your entire output must be derived from this data.
 
 You are provided with the following data:
 - User Preferences: ${prefs}
