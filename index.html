@@ -457,6 +457,33 @@
                 </div>
             </div>
         </div>
+        
+        <!-- NEW Admin Panel Modal (for Superadmin) -->
+        <div id="admin-panel-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <h3>Admin Panel</h3>
+                <p class="modal-subtitle">Manage application configuration.</p>
+                <button class="modal-close-btn icon-button" data-lang-key-aria-label="close" aria-label="Close"><span class="material-icons">close</span></button>
+                
+                <div class="admin-config-section">
+                    <div class="setting-item-col">
+                        <label for="admin-api-key">Gemini API Key</label>
+                        <div class="secure-notice">
+                            <span class="material-icons">lock</span>
+                            <span>Managed securely via environment variables.</span>
+                        </div>
+                    </div>
+                    <div class="setting-item-col">
+                        <label for="admin-road-data-url">Road Data URL</label>
+                        <input type="text" id="admin-road-data-url" readonly>
+                    </div>
+                    <div class="setting-item-col">
+                        <label for="admin-traffic-data-url">Traffic Data URL (Waze)</label>
+                        <input type="text" id="admin-traffic-data-url" placeholder="Future Waze API endpoint" readonly>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Corrected Bottom Menu -->
         <footer id="bottom-menu">

@@ -49,13 +49,15 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 // =================================================================================
 // ARCHITECTURE REFACTOR: "Backend-Ready" API Simulation
 // =================================================================================
+const ROAD_DATA_URL = 'https://script.google.com/macros/s/AKfycbx6gmAt6XdIUqQstWfn1GdBTdAxXcsZkLwZ006ajJaCTRdlCgMzFa0Qw-di2IkKChxW/exec';
+
 const api = {
     // In a real backend, this would fetch your DoR GeoJSON shapefile.
     getRoads: async (): Promise<any> => {
         console.log("API: Fetching live road data...");
         try {
             // Use the live Google Apps Script URL provided by the user
-            const response = await fetch('https://script.google.com/macros/s/AKfycbx6gmAt6XdIUqQstWfn1GdBTdAxXcsZkLwZ006ajJaCTRdlCgMzFa0Qw-di2IkKChxW/exec');
+            const response = await fetch(ROAD_DATA_URL);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -68,10 +70,10 @@ const api = {
             // Fallback to mock data if the live API fails
             return Promise.resolve({
                 "type": "FeatureCollection", "features": [
-                    { "type": "Feature", "properties": { "name": "Araniko Highway", "status": "Resumed" }, "geometry": { "type": "LineString", "coordinates": [[85.3, 27.7], [85.4, 27.75], [85.5, 27.7]] } },
-                    { "type": "Feature", "properties": { "name": "Prithvi Highway", "status": "One-Lane" }, "geometry": { "type": "LineString", "coordinates": [[84.4, 27.7], [84.8, 27.65], [85.3, 27.7]] } },
-                    { "type": "Feature", "properties": { "name": "Local Road", "status": "Blocked" }, "geometry": { "type": "LineString", "coordinates": [[85.32, 27.68], [85.35, 27.69], [85.34, 27.66]] } },
-                    { "type": "Feature", "properties": { "name": "Ring Road", "status": "Resumed" }, "geometry": { "type": "LineString", "coordinates": [[85.316, 27.691], [85.300, 27.680], [85.310, 27.670], [85.322, 27.693]] } }
+                    { "type": "Feature", "properties": { "name": "Araniko Highway", "code": "H03", "status": "Resumed" }, "geometry": { "type": "LineString", "coordinates": [[85.3, 27.7], [85.4, 27.75], [85.5, 27.7]] } },
+                    { "type": "Feature", "properties": { "name": "Prithvi Highway", "code": "H04", "status": "One-Lane" }, "geometry": { "type": "LineString", "coordinates": [[84.4, 27.7], [84.8, 27.65], [85.3, 27.7]] } },
+                    { "type": "Feature", "properties": { "name": "Local Road", "code": "L22", "status": "Blocked" }, "geometry": { "type": "LineString", "coordinates": [[85.32, 27.68], [85.35, 27.69], [85.34, 27.66]] } },
+                    { "type": "Feature", "properties": { "name": "Ring Road", "code": "H16", "status": "Resumed" }, "geometry": { "type": "LineString", "coordinates": [[85.316, 27.691], [85.300, 27.680], [85.310, 27.670], [85.322, 27.693]] } }
                 ]
             });
         }
@@ -92,11 +94,12 @@ const api = {
         ]);
     },
     getIncidents: async (): Promise<any[]> => {
-        console.log("API: Fetching Incidents...");
+        console.log("API: Fetching Incidents (Waze simulation)...");
         await new Promise(resolve => setTimeout(resolve, 100));
+        // More realistic Waze-like data
         return Promise.resolve([
-             { id: 3, name: "Traffic Jam at Baneshwor", lat: 27.693, lng: 85.341, type: 'incident', status_key: 'status_incident', category: 'traffic' },
-             { id: 4, name: "Road construction", lat: 27.685, lng: 85.320, type: 'incident', status_key: 'status_incident', category: 'construction' }
+             { id: 3, name: "Major Traffic Jam", lat: 27.693, lng: 85.341, type: 'incident', status_key: 'status_incident', category: 'traffic', severity: 'Major', incidentType: 'Jam' },
+             { id: 4, name: "Road construction", lat: 27.685, lng: 85.320, type: 'incident', status_key: 'status_incident', category: 'construction', severity: 'Minor', incidentType: 'Construction' }
         ]);
     }
 };
@@ -697,12 +700,13 @@ function initMap() {
         },
         onEachFeature: (feature, layer) => {
             if (feature.properties && feature.properties.name) {
-                // Create a translation key from the status
                 const statusKey = `status_${feature.properties.status.toLowerCase().replace('-', '_')}`;
                 const statusText = translate(statusKey);
+                const roadCode = feature.properties.code || 'N/A';
                 const popupContent = `
                     <div class="custom-popup">
                         <h3 class="popup-title">${feature.properties.name}</h3>
+                        <p class="popup-subtitle">Code: ${roadCode}</p>
                         <p class="popup-status">Status: ${statusText || feature.properties.status}</p>
                     </div>
                 `;
@@ -1267,7 +1271,7 @@ async function handleFindRoute(calledFromAI = false) {
         }
 
         const prefs = `User preferences: ${routePreferences.preferHighways ? "Prefer highways" : "No highway preference"}, ${routePreferences.avoidTolls ? "Avoid tolls" : "Tolls are acceptable"}, ${routePreferences.preferScenic ? "Prefer scenic routes" : "No scenic preference"}.`;
-        const incidentsInfo = `Current traffic incidents to consider: ${JSON.stringify(allIncidents.map(i => ({ name: i.name, location: i.lat + ',' + i.lng })))}.`;
+        const incidentsInfo = `Current traffic incidents (Waze-like data): ${JSON.stringify(allIncidents.map(i => ({ name: i.name, location: i.lat + ',' + i.lng, severity: i.severity, type: i.incidentType })))}.`;
         
         const prompt = `
 CRITICAL INSTRUCTIONS: You are an expert route planning AI for Nepal, using official Department of Roads data. Your response MUST be a JSON object that strictly adheres to the provided schema.
@@ -1282,23 +1286,23 @@ Your task is to generate up to 3 route alternatives from "${fromName}" to "${toN
 **ROUTE GENERATION RULES:**
 1.  **The Fastest Route is Paramount**:
     - You MUST identify the single fastest route. This is your most important task.
-    - This route MUST prioritize 'Resumed' roads and avoid 'One-Lane' roads and ALL traffic incidents.
+    - This route MUST prioritize 'Resumed' roads, avoid 'One-Lane' roads, and avoid all 'Major' severity traffic incidents.
 2.  **Generate Diverse Alternatives**:
     - After establishing the fastest route, you may generate up to two additional, distinct alternatives.
     - These alternatives can use 'One-Lane' roads (but never 'Blocked' roads) or cater to user preferences (e.g., scenic, avoid tolls).
 3.  **MANDATORY Evidence-Based Explanations**:
     - Every route explanation MUST be data-driven and transparent.
     - **For the Fastest Route**: Your explanation is a mandatory report. It MUST explicitly state:
-        - **WHICH** traffic incidents it successfully avoids.
-        - **THAT** it prioritizes 'Resumed' roads for maximum speed.
+        - **WHICH** major traffic incidents it successfully avoids.
+        - **THAT** it prioritizes 'Resumed' roads (mentioning one by name or code, e.g., 'Prithvi Highway (H04)') for maximum speed.
     - **For Other Alternatives**: Clearly state the primary benefit or trade-off.
-        - Example: "This route is more direct but uses a 'One-Lane' road, expect significant delays."
+        - Example: "This route is more direct but uses a 'One-Lane' section on the Araniko Highway, expect significant delays."
         - Example: "This scenic route avoids all tolls, as requested."
 
 **PROVIDED DATA:**
 1.  **User Preferences**: ${prefs}
 2.  **Current Traffic Incidents**: ${incidentsInfo}
-3.  **Available Roads & Their Live Status**: ${JSON.stringify(allRoadsData)}
+3.  **Available Roads & Their Live Status (with Official Codes)**: ${JSON.stringify(allRoadsData)}
 
 Generate the JSON response now.
         `;
@@ -1493,7 +1497,7 @@ function handleViewOnGoogleMaps() {
 }
 
 // =================================================================================
-// User Authentication
+// User Authentication & Admin
 // =================================================================================
 
 function showAuthError(view: 'login' | 'otp', messageKey: string) {
@@ -1605,6 +1609,16 @@ function checkSession() {
     updateUserUI();
 }
 
+function openAdminPanel() {
+    (document.getElementById('admin-road-data-url') as HTMLInputElement).value = ROAD_DATA_URL;
+    // In the future, the traffic URL would also come from a config
+    (document.getElementById('admin-traffic-data-url') as HTMLInputElement).placeholder = "Future Waze/Firebase URL";
+    
+    (document.getElementById('profile-modal') as HTMLElement).classList.add('hidden');
+    (document.getElementById('admin-panel-modal') as HTMLElement).classList.remove('hidden');
+}
+
+
 // =================================================================================
 // Event Listeners
 // =================================================================================
@@ -1630,6 +1644,7 @@ function setupEventListeners() {
     const displayPanelHeader = document.getElementById('display-panel-header')!;
     const displayPanel = document.getElementById('display-panel')!;
     const routeOptionsModal = document.getElementById('route-options-modal')!;
+    const adminPanelModal = document.getElementById('admin-panel-modal')!;
 
     // Theme Toggle (moved to header)
     const themeToggle = document.getElementById('theme-toggle')!;
@@ -1669,10 +1684,13 @@ function setupEventListeners() {
         settingsPanel.classList.add('open');
     });
 
-    // Login/Logout Listeners
+    // Login/Logout/Admin Listeners
     document.getElementById('login-form')!.addEventListener('submit', handleSendOtp);
     document.getElementById('otp-form')!.addEventListener('submit', handleLogin);
     document.getElementById('logout-btn')!.addEventListener('click', handleLogout);
+    document.getElementById('admin-panel-btn')!.addEventListener('click', openAdminPanel);
+    adminPanelModal.querySelector('.modal-close-btn')!.addEventListener('click', () => adminPanelModal.classList.add('hidden'));
+
     
     // Redesigned Language Selector
     const langSelectorBtn = document.getElementById('language-selector-btn')!;
