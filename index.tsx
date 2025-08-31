@@ -1513,9 +1513,17 @@ function displayRouteOptions(alternatives: any[], fromPOI: any, toPOI: any) {
             }
         });
 
-        // Simulate distance and time for the card
-        const distance = (routeCoordinates.length * 0.15).toFixed(1);
-        const time = Math.round(parseFloat(distance) * 2.5);
+        // --- NEW: Calculate distance and time from coordinates for the preview card ---
+        let totalDistanceMeters = 0;
+        if (routeCoordinates.length > 1) {
+            for (let i = 0; i < routeCoordinates.length - 1; i++) {
+                totalDistanceMeters += routeCoordinates[i].distanceTo(routeCoordinates[i + 1]);
+            }
+        }
+        const distanceKm = totalDistanceMeters / 1000;
+        
+        const AVERAGE_SPEED_KMPH = 35; // Consistent average speed
+        const timeMinutes = Math.round((distanceKm / AVERAGE_SPEED_KMPH) * 60);
 
         const card = document.createElement('div');
         card.className = 'route-option-card';
@@ -1531,8 +1539,8 @@ function displayRouteOptions(alternatives: any[], fromPOI: any, toPOI: any) {
             <div class="route-option-header">
                 <h4><span class="material-icons">${icon}</span> ${alt.name}</h4>
                 <div class="route-option-details">
-                    <span>${distance} km</span>
-                    <span>~${time} min</span>
+                    <span>${distanceKm.toFixed(1)} km</span>
+                    <span>~${timeMinutes} min</span>
                 </div>
             </div>
             <p>${alt.explanation}</p>
@@ -1589,12 +1597,23 @@ function displayRouteDetails(roadNames: string[], coordinates: L.LatLng[]) {
     const timeEl = document.getElementById('route-time')!;
     const directionsList = document.getElementById('route-directions-list')!;
 
-    // Simulate distance and time
-    const distance = (coordinates.length * 0.15).toFixed(1); // Rough simulation
-    const time = Math.round(parseFloat(distance) * 2.5); // Rough simulation
+    // --- NEW: Calculate distance and time from coordinates ---
+    let totalDistanceMeters = 0;
+    if (coordinates.length > 1) {
+        for (let i = 0; i < coordinates.length - 1; i++) {
+            // L.LatLng.distanceTo() returns meters
+            totalDistanceMeters += coordinates[i].distanceTo(coordinates[i + 1]);
+        }
+    }
+    const totalDistanceKm = (totalDistanceMeters / 1000);
 
-    distanceEl.textContent = `${distance} km`;
-    timeEl.textContent = `${time} min`;
+    // Estimate time based on an average speed (heuristic)
+    const AVERAGE_SPEED_KMPH = 35; // km/h
+    const travelTimeHours = totalDistanceKm / AVERAGE_SPEED_KMPH;
+    const travelTimeMinutes = Math.round(travelTimeHours * 60);
+
+    distanceEl.textContent = `${totalDistanceKm.toFixed(1)} km`;
+    timeEl.textContent = `${travelTimeMinutes} min`;
     
     directionsList.innerHTML = roadNames.map((name, index) => `
         <div class="direction-item">
