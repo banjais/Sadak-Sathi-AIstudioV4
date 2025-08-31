@@ -230,6 +230,8 @@ const englishTranslations = {
     error_copy_route: "Failed to copy route.",
     voice_input_start: "Use voice for start location",
     voice_input_end: "Use voice for destination",
+    view_on_gmaps: "View on Google Maps",
+    error_gmaps_link_incomplete_route: "Cannot generate map link: route is not fully defined.",
 };
 
 const spanishTranslations = {
@@ -315,6 +317,8 @@ const spanishTranslations = {
     error_copy_route: "Error al copiar la ruta.",
     voice_input_start: "Usar voz para origen",
     voice_input_end: "Usar voz para destino",
+    view_on_gmaps: "Ver en Google Maps",
+    error_gmaps_link_incomplete_route: "No se puede generar el enlace del mapa: la ruta no está completamente definida.",
 };
 
 const frenchTranslations = {
@@ -400,6 +404,8 @@ const frenchTranslations = {
     error_copy_route: "Échec de la copie de l'itinéraire.",
     voice_input_start: "Utiliser la voix pour le départ",
     voice_input_end: "Utiliser la voix pour la destination",
+    view_on_gmaps: "Voir sur Google Maps",
+    error_gmaps_link_incomplete_route: "Impossible de générer le lien de la carte : l'itinéraire n'est pas entièrement défini.",
 };
 
 const nepaliTranslations = {
@@ -485,6 +491,8 @@ const nepaliTranslations = {
     error_copy_route: "मार्ग प्रतिलिपि गर्न असफल भयो।",
     voice_input_start: "सुरु स्थानको लागि आवाज प्रयोग गर्नुहोस्",
     voice_input_end: "गन्तव्यको लागि आवाज प्रयोग गर्नुहोस्",
+    view_on_gmaps: "Google नक्सामा हेर्नुहोस्",
+    error_gmaps_link_incomplete_route: "नक्सा लिङ्क उत्पन्न गर्न सकिँदैन: मार्ग पूर्ण रूपमा परिभाषित छैन।",
 };
 
 const translations: { [key: string]: any } = {
@@ -1292,6 +1300,21 @@ function handleShareRoute() {
     });
 }
 
+function handleViewOnGoogleMaps() {
+    if (!routeStartMarker || !routeEndMarker) {
+        console.warn("Cannot view route on maps, start or end marker is missing.");
+        showToast(translate('error_gmaps_link_incomplete_route'), 'error');
+        return;
+    }
+
+    const startLatLng = routeStartMarker.getLatLng();
+    const endLatLng = routeEndMarker.getLatLng();
+
+    const googleMapsUrl = `https://maps.google.com/?saddr=${startLatLng.lat},${startLatLng.lng}&daddr=${endLatLng.lat},${endLatLng.lng}`;
+    
+    window.open(googleMapsUrl, '_blank', 'noopener,noreferrer');
+}
+
 // =================================================================================
 // User Authentication
 // =================================================================================
@@ -1593,6 +1616,7 @@ function setupEventListeners() {
     // Route Details Panel
     document.getElementById('route-details-close')!.addEventListener('click', clearRoute);
     document.getElementById('share-route-btn')!.addEventListener('click', handleShareRoute);
+    document.getElementById('view-gmaps-btn')!.addEventListener('click', handleViewOnGoogleMaps);
 
     // App Mode
     appModeBtn.addEventListener('click', () => appModeModal.classList.remove('hidden'));
