@@ -1110,28 +1110,35 @@ function toggleVoiceRecognition(button: HTMLElement, targetInput: HTMLInputEleme
     recognition.interimResults = false;
     recognition.continuous = false;
 
+    // Store original state to restore it later
+    let originalAriaLabel: string | null = null;
+    let originalIcon: string | null = null;
     const micIcon = button.querySelector('.material-icons');
     
     recognition.onstart = () => {
         isListening = true;
         activeVoiceButton = button;
         button.classList.add('listening');
-        // Specific UI changes for the chat button when it starts listening
-        if (button.id === 'voice-command-btn' && micIcon) {
+        
+        // Generalize UI feedback for any voice button
+        if (micIcon) {
+            originalIcon = micIcon.textContent;
             micIcon.textContent = 'mic_off';
-            button.setAttribute('aria-label', translate('stop_listening'));
         }
+        originalAriaLabel = button.getAttribute('aria-label');
+        button.setAttribute('aria-label', translate('stop_listening'));
     };
 
     recognition.onend = () => {
         isListening = false;
         if (activeVoiceButton) {
             activeVoiceButton.classList.remove('listening');
-            // Specific UI reset for the chat button when it stops
-            if (activeVoiceButton.id === 'voice-command-btn') {
-                const activeMicIcon = activeVoiceButton.querySelector('.material-icons');
-                if (activeMicIcon) activeMicIcon.textContent = 'mic';
-                activeVoiceButton.setAttribute('aria-label', translate('use_microphone'));
+             // Generalize UI reset for any voice button
+            if (micIcon && originalIcon) {
+                micIcon.textContent = originalIcon;
+            }
+            if (originalAriaLabel) {
+                activeVoiceButton.setAttribute('aria-label', originalAriaLabel);
             }
         }
         activeVoiceButton = null;
