@@ -232,6 +232,7 @@ const englishTranslations = {
     voice_input_end: "Use voice for destination",
     view_on_gmaps: "View on Google Maps",
     error_gmaps_link_incomplete_route: "Cannot generate map link: route is not fully defined.",
+    error_speech_recognition_unsupported: "Speech Recognition is not supported in this browser.",
 };
 
 const spanishTranslations = {
@@ -319,6 +320,7 @@ const spanishTranslations = {
     voice_input_end: "Usar voz para destino",
     view_on_gmaps: "Ver en Google Maps",
     error_gmaps_link_incomplete_route: "No se puede generar el enlace del mapa: la ruta no está completamente definida.",
+    error_speech_recognition_unsupported: "El reconocimiento de voz no es compatible con este navegador.",
 };
 
 const frenchTranslations = {
@@ -406,6 +408,7 @@ const frenchTranslations = {
     voice_input_end: "Utiliser la voix pour la destination",
     view_on_gmaps: "Voir sur Google Maps",
     error_gmaps_link_incomplete_route: "Impossible de générer le lien de la carte : l'itinéraire n'est pas entièrement défini.",
+    error_speech_recognition_unsupported: "La reconnaissance vocale n'est pas prise en charge par ce navigateur.",
 };
 
 const nepaliTranslations = {
@@ -493,6 +496,7 @@ const nepaliTranslations = {
     voice_input_end: "गन्तव्यको लागि आवाज प्रयोग गर्नुहोस्",
     view_on_gmaps: "Google नक्सामा हेर्नुहोस्",
     error_gmaps_link_incomplete_route: "नक्सा लिङ्क उत्पन्न गर्न सकिँदैन: मार्ग पूर्ण रूपमा परिभाषित छैन।",
+    error_speech_recognition_unsupported: "यस ब्राउजरमा वाक् पहिचान समर्थित छैन।",
 };
 
 const translations: { [key: string]: any } = {
@@ -1073,7 +1077,7 @@ function speak(text: string) {
  */
 function toggleVoiceRecognition(button: HTMLElement, targetInput: HTMLInputElement) {
     if (!SpeechRecognition) {
-        showToast("Speech Recognition is not supported in this browser.", "error");
+        showToast(translate('error_speech_recognition_unsupported'), "error");
         return;
     }
 
