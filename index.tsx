@@ -1243,29 +1243,36 @@ async function handleFindRoute(calledFromAI = false) {
         const incidentsInfo = `Current traffic incidents to consider: ${JSON.stringify(allIncidents.map(i => ({ name: i.name, location: i.lat + ',' + i.lng })))}.`;
         
         const prompt = `
-CRITICAL INSTRUCTIONS: You are an expert route planning AI. Your response MUST be a JSON object adhering to the schema. Follow these rules meticulously to generate route alternatives from "${fromName}" to "${toName}":
+CRITICAL INSTRUCTIONS: You are an expert route planning AI. Your response MUST be a JSON object that strictly adheres to the provided schema.
 
-1.  **Top Priority: The Fastest Route**: Your absolute top priority is to identify the single fastest route. This is not just an option; it is the primary goal. To achieve this, you MUST perform a rigorous analysis of:
-    - **Traffic Incidents**: Systematically find a path that bypasses all listed traffic incidents.
-    - **Road Status**: Give strong preference to roads with a 'good' status. A route using 'good' roads is almost always faster than one using 'fair' or 'poor' roads.
+Your task is to generate up to 3 route alternatives from "${fromName}" to "${toName}" using the data provided below.
 
-2.  **Generate Diverse Alternatives**: After identifying the fastest route, create up to two other distinct options based on user preferences (e.g., scenic, avoids tolls).
+**RULE 1: The Fastest Route is Paramount**
+- You MUST identify the single fastest route. This is your most important task.
+- To determine the fastest route, you MUST perform a detailed analysis:
+    a. **Traffic Avoidance**: The fastest route MUST find a path that bypasses ALL known traffic incidents.
+    b. **Road Quality Analysis**: The fastest route MUST prioritize roads with a 'good' status. A route using primarily 'good' roads is significantly faster than one using 'fair' or 'poor' roads. Treat 'poor' roads as a last resort.
 
-3.  **MANDATORY Evidence-Based Explanations**: Every route alternative MUST have a clear 'explanation' grounded in the data provided.
-    - **For the Fastest Route**: Your explanation is your proof of analysis. It is not a suggestion, but a conclusion. It MUST explicitly state:
-        - The specific traffic incidents (by name) it successfully avoids.
-        - The specific high-quality roads (by name and their 'good' status) it utilizes.
-        - Example: "This is the fastest route because it bypasses the 'Traffic Jam at Baneshwor' and primarily uses the 'Ring Road' which is in 'good' condition."
-    - **For Other Alternatives**: Clearly state the primary benefit and link it to user preferences if applicable.
-        - Example (if user wants to avoid tolls): "This route avoids all tolls as requested in your preferences."
-        - Example (scenic): "A more leisurely option, this route is suggested for its potential scenic views."
+**RULE 2: Generate Diverse Alternatives**
+- After establishing the fastest route, you may generate up to two additional, distinct alternatives.
+- These alternatives should cater to the user's preferences (e.g., a scenic route if requested, a toll-free route). If no specific preferences are set, you can offer a balanced or alternative option.
 
-4.  **Data Adherence**: You MUST use the provided User Preferences, Traffic Incidents, and Road Data. Do not invent information. Your entire output must be derived from this data.
+**RULE 3: MANDATORY Evidence-Based Explanations**
+- Every route you generate MUST have a clear, data-driven 'explanation'. Do not use vague language.
+- **For the Fastest Route**: Your explanation is your proof of analysis. It is a mandatory report. It MUST explicitly name:
+    - **WHICH** traffic incidents (by name) it avoids (e.g., "...avoids the 'Traffic Jam at Baneshwor'...").
+    - **WHICH** high-quality roads (by name) it uses and their status (e.g., "...and primarily uses the 'Ring Road' which is in 'good' condition.").
+- **For Other Alternatives**: Clearly state the primary benefit.
+    - Example: "This route avoids all tolls, as requested in your preferences."
+    - Example: "This is a more direct route but uses roads in 'fair' condition, so it may be slower."
 
-You are provided with the following data:
-- User Preferences: ${prefs}
-- Current Traffic Incidents: ${incidentsInfo}
-- Available Roads Data: ${JSON.stringify(allRoadsData)}
+**RULE 4: Adhere Strictly to Provided Data**
+- Your entire output must be derived ONLY from the data provided here. Do not invent road names, traffic incidents, or statuses.
+
+**PROVIDED DATA:**
+1.  **User Preferences**: ${prefs}
+2.  **Current Traffic Incidents**: ${incidentsInfo}
+3.  **Available Roads Data**: ${JSON.stringify(allRoadsData)}
 
 Generate the JSON response now.
         `;
