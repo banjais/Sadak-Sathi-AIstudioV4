@@ -52,17 +52,29 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 const api = {
     // In a real backend, this would fetch your DoR GeoJSON shapefile.
     getRoads: async (): Promise<any> => {
-        console.log("API: Fetching road data...");
-        // Simulate network delay
-        await new Promise(resolve => setTimeout(resolve, 200));
-        return Promise.resolve({
-            "type": "FeatureCollection", "features": [
-                { "type": "Feature", "properties": { "name": "Araniko Highway", "status": "good" }, "geometry": { "type": "LineString", "coordinates": [[85.3, 27.7], [85.4, 27.75], [85.5, 27.7]] } },
-                { "type": "Feature", "properties": { "name": "Prithvi Highway", "status": "fair" }, "geometry": { "type": "LineString", "coordinates": [[84.4, 27.7], [84.8, 27.65], [85.3, 27.7]] } },
-                { "type": "Feature", "properties": { "name": "Local Road", "status": "poor" }, "geometry": { "type": "LineString", "coordinates": [[85.32, 27.68], [85.35, 27.69], [85.34, 27.66]] } },
-                { "type": "Feature", "properties": { "name": "Ring Road", "status": "good" }, "geometry": { "type": "LineString", "coordinates": [[85.316, 27.691], [85.300, 27.680], [85.310, 27.670], [85.322, 27.693]] } }
-            ]
-        });
+        console.log("API: Fetching live road data...");
+        try {
+            // Use the live Google Apps Script URL provided by the user
+            const response = await fetch('https://script.google.com/macros/s/AKfycbx6gmAt6XdIUqQstWfn1GdBTdAxXcsZkLwZ006ajJaCTRdlCgMzFa0Qw-di2IkKChxW/exec');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            // Assuming the script returns data in GeoJSON FeatureCollection format
+            console.log("API: Successfully fetched live road data.");
+            return data;
+        } catch (error) {
+            console.error("API: Failed to fetch live road data, falling back to mock data.", error);
+            // Fallback to mock data if the live API fails
+            return Promise.resolve({
+                "type": "FeatureCollection", "features": [
+                    { "type": "Feature", "properties": { "name": "Araniko Highway", "status": "Resumed" }, "geometry": { "type": "LineString", "coordinates": [[85.3, 27.7], [85.4, 27.75], [85.5, 27.7]] } },
+                    { "type": "Feature", "properties": { "name": "Prithvi Highway", "status": "One-Lane" }, "geometry": { "type": "LineString", "coordinates": [[84.4, 27.7], [84.8, 27.65], [85.3, 27.7]] } },
+                    { "type": "Feature", "properties": { "name": "Local Road", "status": "Blocked" }, "geometry": { "type": "LineString", "coordinates": [[85.32, 27.68], [85.35, 27.69], [85.34, 27.66]] } },
+                    { "type": "Feature", "properties": { "name": "Ring Road", "status": "Resumed" }, "geometry": { "type": "LineString", "coordinates": [[85.316, 27.691], [85.300, 27.680], [85.310, 27.670], [85.322, 27.693]] } }
+                ]
+            });
+        }
     },
     getPOIs: async (): Promise<any[]> => {
         console.log("API: Fetching POIs...");
@@ -204,6 +216,9 @@ const englishTranslations = {
     status_open_247: "Open 24/7",
     status_open: "Open",
     status_incident: "Incident",
+    status_resumed: "Resumed",
+    status_one_lane: "One-Lane",
+    status_blocked: "Blocked",
     fuel_low_alert: "Fuel level is critically low. I can search for nearby petrol stations.",
     pressure_low_alert: "Tire pressure is low. I can find the nearest repair shop for you.",
     planning_route: "Okay, planning a route from {start} to {end}.",
@@ -299,6 +314,9 @@ const spanishTranslations = {
     status_open_247: "Abierto 24/7",
     status_open: "Abierto",
     status_incident: "Incidente",
+    status_resumed: "Reanudado",
+    status_one_lane: "Un Carril",
+    status_blocked: "Bloqueado",
     fuel_low_alert: "El nivel de combustible es críticamente bajo. Puedo buscar gasolineras cercanas.",
     pressure_low_alert: "La presión de los neumáticos es baja. Puedo encontrar el taller de reparación más cercano para ti.",
     planning_route: "De acuerdo, planeando una ruta de {start} a {end}.",
@@ -394,6 +412,9 @@ const frenchTranslations = {
     status_open_247: "Ouvert 24/7",
     status_open: "Ouvert",
     status_incident: "Incident",
+    status_resumed: "Repris",
+    status_one_lane: "Une Voie",
+    status_blocked: "Bloqué",
     fuel_low_alert: "Le niveau de carburant est très bas. Je peux rechercher des stations-service à proximité.",
     pressure_low_alert: "La pression des pneus est basse. Je peux trouver le garage le plus proche pour vous.",
     planning_route: "D'accord, planification d'un itinéraire de {start} à {end}.",
@@ -489,6 +510,9 @@ const nepaliTranslations = {
     status_open_247: "२४/७ खुला",
     status_open: "खुला",
     status_incident: "घटना",
+    status_resumed: "सुचारु",
+    status_one_lane: "एक-लेन",
+    status_blocked: "अवरुद्ध",
     fuel_low_alert: "इन्धनको स्तर एकदमै कम छ। म नजिकैको पेट्रोल स्टेशनहरू खोज्न सक्छु।",
     pressure_low_alert: "टायर प्रेसर कम छ। म तपाईंको लागि नजिकैको मर्मत पसल फेला पार्न सक्छु।",
     planning_route: "ठीक छ, {start} देखि {end} सम्मको मार्ग योजना गर्दै।",
@@ -665,18 +689,21 @@ function initMap() {
     roadsLayer = L.geoJSON(undefined, {
         style: (feature) => {
             switch (feature?.properties.status) {
-                case 'good': return { color: "#2ecc71", weight: 4, opacity: 0.8 };
-                case 'fair': return { color: "#f1c40f", weight: 4, opacity: 0.8 };
-                case 'poor': return { color: "#e74c3c", weight: 4, opacity: 0.8, dashArray: '5, 5' };
-                default: return { color: "#3498db" };
+                case 'Resumed': return { color: "#2ecc71", weight: 4, opacity: 0.8 }; // Green
+                case 'One-Lane': return { color: "#f39c12", weight: 4, opacity: 0.8, dashArray: '8, 8' }; // Orange, dashed
+                case 'Blocked': return { color: "#e74c3c", weight: 6, opacity: 0.9 }; // Red, thick
+                default: return { color: "#95a5a6", weight: 3, opacity: 0.7 }; // Grey for unknown
             }
         },
         onEachFeature: (feature, layer) => {
             if (feature.properties && feature.properties.name) {
+                // Create a translation key from the status
+                const statusKey = `status_${feature.properties.status.toLowerCase().replace('-', '_')}`;
+                const statusText = translate(statusKey);
                 const popupContent = `
                     <div class="custom-popup">
                         <h3 class="popup-title">${feature.properties.name}</h3>
-                        <p class="popup-status">Status: ${feature.properties.status}</p>
+                        <p class="popup-status">Status: ${statusText || feature.properties.status}</p>
                     </div>
                 `;
                 layer.bindPopup(popupContent);
@@ -1243,36 +1270,35 @@ async function handleFindRoute(calledFromAI = false) {
         const incidentsInfo = `Current traffic incidents to consider: ${JSON.stringify(allIncidents.map(i => ({ name: i.name, location: i.lat + ',' + i.lng })))}.`;
         
         const prompt = `
-CRITICAL INSTRUCTIONS: You are an expert route planning AI. Your response MUST be a JSON object that strictly adheres to the provided schema.
+CRITICAL INSTRUCTIONS: You are an expert route planning AI for Nepal, using official Department of Roads data. Your response MUST be a JSON object that strictly adheres to the provided schema.
 
-Your task is to generate up to 3 route alternatives from "${fromName}" to "${toName}" using the data provided below.
+Your task is to generate up to 3 route alternatives from "${fromName}" to "${toName}" using the live data provided below.
 
-**RULE 1: The Fastest Route is Paramount**
-- You MUST identify the single fastest route. This is your most important task.
-- To determine the fastest route, you MUST perform a detailed analysis:
-    a. **Traffic Avoidance**: The fastest route MUST find a path that bypasses ALL known traffic incidents.
-    b. **Road Quality Analysis**: The fastest route MUST prioritize roads with a 'good' status. A route using primarily 'good' roads is significantly faster than one using 'fair' or 'poor' roads. Treat 'poor' roads as a last resort.
+**DATA INTERPRETATION RULES - THIS IS MANDATORY:**
+1.  **Road Status 'Blocked'**: This road is IMPASSABLE. You MUST NOT include any road with a 'Blocked' status in ANY route suggestion. This is a non-negotiable safety and logistics rule.
+2.  **Road Status 'One-Lane'**: This road is open but has significantly reduced capacity, causing major delays. You MUST AVOID 'One-Lane' roads when calculating the 'Fastest Route'. They can be used for alternative routes, but you must state in the explanation that this road will be slow.
+3.  **Road Status 'Resumed'**: This is a normal, fully operational road. These are the BEST roads to use and should be prioritized for all routes, especially the fastest one.
 
-**RULE 2: Generate Diverse Alternatives**
-- After establishing the fastest route, you may generate up to two additional, distinct alternatives.
-- These alternatives should cater to the user's preferences (e.g., a scenic route if requested, a toll-free route). If no specific preferences are set, you can offer a balanced or alternative option.
-
-**RULE 3: MANDATORY Evidence-Based Explanations**
-- Every route you generate MUST have a clear, data-driven 'explanation'. Do not use vague language.
-- **For the Fastest Route**: Your explanation is your proof of analysis. It is a mandatory report. It MUST explicitly name:
-    - **WHICH** traffic incidents (by name) it avoids (e.g., "...avoids the 'Traffic Jam at Baneshwor'...").
-    - **WHICH** high-quality roads (by name) it uses and their status (e.g., "...and primarily uses the 'Ring Road' which is in 'good' condition.").
-- **For Other Alternatives**: Clearly state the primary benefit.
-    - Example: "This route avoids all tolls, as requested in your preferences."
-    - Example: "This is a more direct route but uses roads in 'fair' condition, so it may be slower."
-
-**RULE 4: Adhere Strictly to Provided Data**
-- Your entire output must be derived ONLY from the data provided here. Do not invent road names, traffic incidents, or statuses.
+**ROUTE GENERATION RULES:**
+1.  **The Fastest Route is Paramount**:
+    - You MUST identify the single fastest route. This is your most important task.
+    - This route MUST prioritize 'Resumed' roads and avoid 'One-Lane' roads and ALL traffic incidents.
+2.  **Generate Diverse Alternatives**:
+    - After establishing the fastest route, you may generate up to two additional, distinct alternatives.
+    - These alternatives can use 'One-Lane' roads (but never 'Blocked' roads) or cater to user preferences (e.g., scenic, avoid tolls).
+3.  **MANDATORY Evidence-Based Explanations**:
+    - Every route explanation MUST be data-driven and transparent.
+    - **For the Fastest Route**: Your explanation is a mandatory report. It MUST explicitly state:
+        - **WHICH** traffic incidents it successfully avoids.
+        - **THAT** it prioritizes 'Resumed' roads for maximum speed.
+    - **For Other Alternatives**: Clearly state the primary benefit or trade-off.
+        - Example: "This route is more direct but uses a 'One-Lane' road, expect significant delays."
+        - Example: "This scenic route avoids all tolls, as requested."
 
 **PROVIDED DATA:**
 1.  **User Preferences**: ${prefs}
 2.  **Current Traffic Incidents**: ${incidentsInfo}
-3.  **Available Roads Data**: ${JSON.stringify(allRoadsData)}
+3.  **Available Roads & Their Live Status**: ${JSON.stringify(allRoadsData)}
 
 Generate the JSON response now.
         `;
