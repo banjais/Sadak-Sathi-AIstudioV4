@@ -225,6 +225,8 @@ const englishTranslations = {
     error_geolocation_unavailable: "Could not determine your location. Please check your connection and try again.",
     error_no_user_location: "Your current location is not available. Cannot find the nearest starting point.",
     language_proposal: "It looks like you're speaking {language}. Would you like to switch the app to {language}?",
+    route_copied_toast: "Route copied to clipboard!",
+    error_copy_route: "Failed to copy route.",
 };
 
 const spanishTranslations = {
@@ -306,6 +308,8 @@ const spanishTranslations = {
     error_geolocation_unavailable: "No se pudo determinar tu ubicación. Por favor, comprueba tu conexión e inténtalo de nuevo.",
     error_no_user_location: "Tu ubicación actual no está disponible. No se puede encontrar el punto de partida más cercano.",
     language_proposal: "Parece que estás hablando {language}. ¿Te gustaría cambiar el idioma de la app a {language}?",
+    route_copied_toast: "¡Ruta copiada al portapapeles!",
+    error_copy_route: "Error al copiar la ruta.",
 };
 
 const frenchTranslations = {
@@ -387,6 +391,8 @@ const frenchTranslations = {
     error_geolocation_unavailable: "Impossible de déterminer votre position. Veuillez vérifier votre connexion et réessayer.",
     error_no_user_location: "Votre position actuelle n'est pas disponible. Impossible de trouver le point de départ le plus proche.",
     language_proposal: "Il semble que vous parlez {language}. Souhaitez-vous basculer l'application en {language} ?",
+    route_copied_toast: "Itinéraire copié dans le presse-papiers !",
+    error_copy_route: "Échec de la copie de l'itinéraire.",
 };
 
 const nepaliTranslations = {
@@ -468,6 +474,8 @@ const nepaliTranslations = {
     error_geolocation_unavailable: "तपाईंको स्थान निर्धारण गर्न सकिएन। कृपया आफ्नो जडान जाँच गर्नुहोस् र फेरि प्रयास गर्नुहोस्।",
     error_no_user_location: "तपाईंको हालको स्थान उपलब्ध छैन। नजिकको सुरूवात बिन्दु फेला पार्न सकिँदैन।",
     language_proposal: "तपाईं {language} बोल्दै हुनुहुन्छ जस्तो छ। के तपाईं एपलाई {language} मा स्विच गर्न चाहनुहुन्छ?",
+    route_copied_toast: "मार्ग क्लिपबोर्डमा प्रतिलिपि गरियो!",
+    error_copy_route: "मार्ग प्रतिलिपि गर्न असफल भयो।",
 };
 
 const translations: { [key: string]: any } = {
@@ -1239,6 +1247,33 @@ function clearRoute() {
     document.getElementById('route-details-panel')!.classList.add('hidden');
 }
 
+function handleShareRoute() {
+    if (!routeStartMarker || !routeEndMarker) {
+        console.warn("Cannot share route, start or end marker is missing.");
+        return;
+    }
+
+    const fromInput = document.getElementById('from-input') as HTMLInputElement;
+    const toInput = document.getElementById('to-input') as HTMLInputElement;
+
+    const fromName = fromInput.value;
+    const toName = toInput.value;
+
+    const startLatLng = routeStartMarker.getLatLng();
+    const endLatLng = routeEndMarker.getLatLng();
+
+    const googleMapsUrl = `https://maps.google.com/?saddr=${startLatLng.lat},${startLatLng.lng}&daddr=${endLatLng.lat},${endLatLng.lng}`;
+    
+    const shareText = `Route from ${fromName} to ${toName} via Sadak Sathi.\n\nView here: ${googleMapsUrl}`;
+    
+    navigator.clipboard.writeText(shareText).then(() => {
+        showToast(translate('route_copied_toast'), 'success');
+    }).catch(err => {
+        console.error('Failed to copy route to clipboard:', err);
+        showToast(translate('error_copy_route'), 'error');
+    });
+}
+
 // =================================================================================
 // User Authentication
 // =================================================================================
@@ -1537,8 +1572,9 @@ function setupEventListeners() {
         toInput.value = temp;
     });
 
-    // Route Details Panel Close
+    // Route Details Panel
     document.getElementById('route-details-close')!.addEventListener('click', clearRoute);
+    document.getElementById('share-route-btn')!.addEventListener('click', handleShareRoute);
 
     // App Mode
     appModeBtn.addEventListener('click', () => appModeModal.classList.remove('hidden'));
