@@ -251,6 +251,9 @@
                         <div class="input-wrapper">
                             <span class="material-icons input-icon">trip_origin</span>
                             <input type="text" id="from-input" list="locations-datalist" data-lang-key-placeholder="from_placeholder" placeholder="Start location">
+                            <button type="button" id="from-voice-btn" class="icon-button voice-input-btn" data-lang-key-aria-label="voice_input_start" aria-label="Use voice for start location">
+                                <span class="material-icons">mic</span>
+                            </button>
                         </div>
                     </div>
                      <div class="swap-locations-container">
@@ -263,6 +266,9 @@
                         <div class="input-wrapper">
                             <span class="material-icons input-icon">place</span>
                             <input type="text" id="to-input" list="locations-datalist" data-lang-key-placeholder="to_placeholder" placeholder="Destination">
+                             <button type="button" id="to-voice-btn" class="icon-button voice-input-btn" data-lang-key-aria-label="voice_input_end" aria-label="Use voice for destination">
+                                <span class="material-icons">mic</span>
+                            </button>
                         </div>
                     </div>
                     <datalist id="locations-datalist"></datalist>

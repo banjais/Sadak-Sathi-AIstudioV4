@@ -117,6 +117,7 @@ let routePreferences = {
 };
 let recognition: any | null = null;
 let isListening = false;
+let activeVoiceButton: HTMLElement | null = null;
 let baseLayers: { [key: string]: L.TileLayer } = {};
 let currentBaseLayer: L.TileLayer | null = null;
 let lastLightBaseLayer = 'streets'; // To remember the last used light theme map
@@ -227,6 +228,8 @@ const englishTranslations = {
     language_proposal: "It looks like you're speaking {language}. Would you like to switch the app to {language}?",
     route_copied_toast: "Route copied to clipboard!",
     error_copy_route: "Failed to copy route.",
+    voice_input_start: "Use voice for start location",
+    voice_input_end: "Use voice for destination",
 };
 
 const spanishTranslations = {
@@ -310,6 +313,8 @@ const spanishTranslations = {
     language_proposal: "Parece que estás hablando {language}. ¿Te gustaría cambiar el idioma de la app a {language}?",
     route_copied_toast: "¡Ruta copiada al portapapeles!",
     error_copy_route: "Error al copiar la ruta.",
+    voice_input_start: "Usar voz para origen",
+    voice_input_end: "Usar voz para destino",
 };
 
 const frenchTranslations = {
@@ -393,6 +398,8 @@ const frenchTranslations = {
     language_proposal: "Il semble que vous parlez {language}. Souhaitez-vous basculer l'application en {language} ?",
     route_copied_toast: "Itinéraire copié dans le presse-papiers !",
     error_copy_route: "Échec de la copie de l'itinéraire.",
+    voice_input_start: "Utiliser la voix pour le départ",
+    voice_input_end: "Utiliser la voix pour la destination",
 };
 
 const nepaliTranslations = {
@@ -476,6 +483,8 @@ const nepaliTranslations = {
     language_proposal: "तपाईं {language} बोल्दै हुनुहुन्छ जस्तो छ। के तपाईं एपलाई {language} मा स्विच गर्न चाहनुहुन्छ?",
     route_copied_toast: "मार्ग क्लिपबोर्डमा प्रतिलिपि गरियो!",
     error_copy_route: "मार्ग प्रतिलिपि गर्न असफल भयो।",
+    voice_input_start: "सुरु स्थानको लागि आवाज प्रयोग गर्नुहोस्",
+    voice_input_end: "गन्तव्यको लागि आवाज प्रयोग गर्नुहोस्",
 };
 
 const translations: { [key: string]: any } = {
@@ -1049,53 +1058,62 @@ function speak(text: string) {
     SpeechSynthesis.speak(utterance);
 }
 
-
-function handleVoiceCommand() {
+/**
+ * Toggles voice recognition for a given input field.
+ * @param button The microphone button that was clicked.
+ * @param targetInput The input element to populate with the transcript.
+ */
+function toggleVoiceRecognition(button: HTMLElement, targetInput: HTMLInputElement) {
     if (!SpeechRecognition) {
-        alert("Speech Recognition is not supported in your browser.");
+        showToast("Speech Recognition is not supported in this browser.", "error");
         return;
     }
 
-    if (isListening) {
+    if (isListening && recognition) {
         recognition.stop();
         return;
     }
 
     recognition = new SpeechRecognition();
-    // CRITICAL CHANGE: Do not set a specific language. Let the Gemini model detect it.
-    // recognition.lang = recognitionLangCodeMap[currentLang] || 'en-US';
-    recognition.interimResults = true;
+    recognition.interimResults = false;
     recognition.continuous = false;
 
-    const micButton = document.getElementById('voice-command-btn') as HTMLElement;
-    const micIcon = micButton.querySelector('.material-icons') as HTMLElement;
-    const originalAriaLabel = micButton.getAttribute('aria-label');
-
+    const micIcon = button.querySelector('.material-icons');
+    
     recognition.onstart = () => {
         isListening = true;
-        micButton.classList.add('listening');
-        micIcon.textContent = 'mic_off';
-        micButton.setAttribute('aria-label', translate('stop_listening'));
+        activeVoiceButton = button;
+        button.classList.add('listening');
+        // Specific UI changes for the chat button when it starts listening
+        if (button.id === 'voice-command-btn' && micIcon) {
+            micIcon.textContent = 'mic_off';
+            button.setAttribute('aria-label', translate('stop_listening'));
+        }
     };
 
     recognition.onend = () => {
         isListening = false;
-        micButton.classList.remove('listening');
-        micIcon.textContent = 'mic';
-        micButton.setAttribute('aria-label', originalAriaLabel || translate('use_microphone'));
+        if (activeVoiceButton) {
+            activeVoiceButton.classList.remove('listening');
+            // Specific UI reset for the chat button when it stops
+            if (activeVoiceButton.id === 'voice-command-btn') {
+                const activeMicIcon = activeVoiceButton.querySelector('.material-icons');
+                if (activeMicIcon) activeMicIcon.textContent = 'mic';
+                activeVoiceButton.setAttribute('aria-label', translate('use_microphone'));
+            }
+        }
+        activeVoiceButton = null;
+        recognition = null; // Clean up the instance
     };
 
     recognition.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-            .map((result: any) => result[0])
-            .map(result => result.transcript)
-            .join('');
-        (document.getElementById('chat-input') as HTMLInputElement).value = transcript;
+        const transcript = event.results[0][0].transcript;
+        targetInput.value = transcript;
     };
 
     recognition.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error);
-        isListening = false;
+        showToast(`Speech recognition error: ${event.error}`, 'error');
     };
 
     recognition.start();
@@ -1638,8 +1656,18 @@ function setupEventListeners() {
         }
     }, { once: true });
     
-    // Voice Command Button
-    document.getElementById('voice-command-btn')!.addEventListener('click', handleVoiceCommand);
+    // Voice Command Buttons
+    const fromInput = document.getElementById('from-input') as HTMLInputElement;
+    const toInput = document.getElementById('to-input') as HTMLInputElement;
+    document.getElementById('from-voice-btn')!.addEventListener('click', (e) => {
+        toggleVoiceRecognition(e.currentTarget as HTMLElement, fromInput);
+    });
+    document.getElementById('to-voice-btn')!.addEventListener('click', (e) => {
+        toggleVoiceRecognition(e.currentTarget as HTMLElement, toInput);
+    });
+    document.getElementById('voice-command-btn')!.addEventListener('click', (e) => {
+        toggleVoiceRecognition(e.currentTarget as HTMLElement, chatInput);
+    });
 
     // NEW MAP CONTROLS
     const mapOptionsBtn = document.getElementById('map-options-btn')!;
