@@ -233,6 +233,11 @@ const englishTranslations = {
     view_on_gmaps: "View on Google Maps",
     error_gmaps_link_incomplete_route: "Cannot generate map link: route is not fully defined.",
     error_speech_recognition_unsupported: "Speech Recognition is not supported in this browser.",
+    error_speech_no_speech: "No speech was detected. Please try again.",
+    error_speech_audio_capture: "Could not start audio capture. Please check your microphone.",
+    error_speech_not_allowed: "Microphone access was denied. Please enable it in your browser settings.",
+    error_speech_network: "A network error occurred during speech recognition.",
+    error_speech_generic: "An unknown speech recognition error occurred.",
 };
 
 const spanishTranslations = {
@@ -321,6 +326,11 @@ const spanishTranslations = {
     view_on_gmaps: "Ver en Google Maps",
     error_gmaps_link_incomplete_route: "No se puede generar el enlace del mapa: la ruta no está completamente definida.",
     error_speech_recognition_unsupported: "El reconocimiento de voz no es compatible con este navegador.",
+    error_speech_no_speech: "No se detectó voz. Por favor, inténtalo de nuevo.",
+    error_speech_audio_capture: "No se pudo iniciar la captura de audio. Por favor, comprueba tu micrófono.",
+    error_speech_not_allowed: "Se denegó el acceso al micrófono. Por favor, actívalo en la configuración de tu navegador.",
+    error_speech_network: "Ocurrió un error de red durante el reconocimiento de voz.",
+    error_speech_generic: "Ocurrió un error desconocido en el reconocimiento de voz.",
 };
 
 const frenchTranslations = {
@@ -409,6 +419,11 @@ const frenchTranslations = {
     view_on_gmaps: "Voir sur Google Maps",
     error_gmaps_link_incomplete_route: "Impossible de générer le lien de la carte : l'itinéraire n'est pas entièrement défini.",
     error_speech_recognition_unsupported: "La reconnaissance vocale n'est pas prise en charge par ce navigateur.",
+    error_speech_no_speech: "Aucune parole n'a été détectée. Veuillez réessayer.",
+    error_speech_audio_capture: "Impossible de démarrer la capture audio. Veuillez vérifier votre microphone.",
+    error_speech_not_allowed: "L'accès au microphone a été refusé. Veuillez l'activer dans les paramètres de votre navigateur.",
+    error_speech_network: "Une erreur réseau est survenue lors de la reconnaissance vocale.",
+    error_speech_generic: "Une erreur de reconnaissance vocale inconnue est survenue.",
 };
 
 const nepaliTranslations = {
@@ -497,6 +512,11 @@ const nepaliTranslations = {
     view_on_gmaps: "Google नक्सामा हेर्नुहोस्",
     error_gmaps_link_incomplete_route: "नक्सा लिङ्क उत्पन्न गर्न सकिँदैन: मार्ग पूर्ण रूपमा परिभाषित छैन।",
     error_speech_recognition_unsupported: "यस ब्राउजरमा वाक् पहिचान समर्थित छैन।",
+    error_speech_no_speech: "कुनै आवाज फेला परेन। कृपया फेरि प्रयास गर्नुहोस्।",
+    error_speech_audio_capture: "अडियो क्याप्चर सुरु गर्न सकिएन। कृपया आफ्नो माइक्रोफोन जाँच गर्नुहोस्।",
+    error_speech_not_allowed: "माइक्रोफोन पहुँच अस्वीकार गरियो। कृपया आफ्नो ब्राउजर सेटिङहरूमा सक्षम गर्नुहोस्।",
+    error_speech_network: "वाक् पहिचानको क्रममा नेटवर्क त्रुटि भयो।",
+    error_speech_generic: "एक अज्ञात वाक् पहिचान त्रुटि भयो।",
 };
 
 const translations: { [key: string]: any } = {
@@ -1125,7 +1145,22 @@ function toggleVoiceRecognition(button: HTMLElement, targetInput: HTMLInputEleme
 
     recognition.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error);
-        showToast(`Speech recognition error: ${event.error}`, 'error');
+        let errorKey = 'error_speech_generic';
+        switch (event.error) {
+            case 'no-speech':
+                errorKey = 'error_speech_no_speech';
+                break;
+            case 'audio-capture':
+                errorKey = 'error_speech_audio_capture';
+                break;
+            case 'not-allowed':
+                errorKey = 'error_speech_not_allowed';
+                break;
+            case 'network':
+                errorKey = 'error_speech_network';
+                break;
+        }
+        showToast(translate(errorKey), 'error');
     };
 
     recognition.start();
