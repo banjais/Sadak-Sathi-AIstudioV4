@@ -1,5 +1,4 @@
 
-
 /**
  * @license
  * Copyright (c) 2024 Your Company or Name. All Rights Reserved.
@@ -132,6 +131,9 @@ class SadakSathiApp {
             const data = await response.json();
             this.allRoadData = data.data;
             this.processAndDisplayData(this.allRoadData);
+
+            // Now, load locally stored incidents on top
+            this.loadLocalIncidents();
 
             // Populate datalist for route finder
             const datalist = document.getElementById('locations-datalist') as HTMLDataListElement;
@@ -374,9 +376,21 @@ class SadakSathiApp {
         document.getElementById('pref-no-tolls')?.addEventListener('change', () => this.saveRoutePreferences());
         document.getElementById('pref-scenic')?.addEventListener('change', () => this.saveRoutePreferences());
 
+        // Report Incident
+        document.getElementById('report-incident-fab')?.addEventListener('click', () => this.toggleReportIncidentModal(true));
+        document.getElementById('report-incident-close')?.addEventListener('click', () => this.toggleReportIncidentModal(false));
+        document.getElementById('report-incident-form')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleIncidentReportSubmit();
+        });
 
         // Modals
         document.querySelectorAll('.modal-close-btn').forEach(btn => btn.addEventListener('click', (e) => this.toggleModal((e.currentTarget as HTMLElement).closest('.modal-overlay')!.id, false)));
+        document.getElementById('report-incident-modal')?.addEventListener('click', (e) => {
+            if ((e.target as HTMLElement).id === 'report-incident-modal') {
+                this.toggleReportIncidentModal(false);
+            }
+        });
 
         // Admin Panel
         document.getElementById('admin-panel-btn')?.addEventListener('click', () => this.toggleModal('admin-panel-modal', true));
@@ -990,6 +1004,88 @@ class SadakSathiApp {
 
     toggleRouteDetails(show: boolean) {
         document.getElementById('route-details-panel')?.classList.toggle('hidden', !show);
+    }
+
+    // --- Incident Reporting ---
+    toggleReportIncidentModal(show: boolean) {
+        const modal = document.getElementById('report-incident-modal')!;
+        this.toggleModal('report-incident-modal', show);
+
+        if (show) {
+            const form = document.getElementById('report-incident-form')!;
+            const unavailableMsg = document.getElementById('report-location-unavailable')!;
+            
+            if (this.userLocationEntity) {
+                form.classList.remove('hidden');
+                unavailableMsg.classList.add('hidden');
+                (document.getElementById('incident-location') as HTMLInputElement).value = 'Using Current Location';
+            } else {
+                form.classList.add('hidden');
+                unavailableMsg.classList.remove('hidden');
+            }
+        }
+    }
+
+    handleIncidentReportSubmit() {
+        if (!this.userLocationEntity) {
+            this.showToast('Cannot submit report without a valid location.', 'error');
+            return;
+        }
+
+        const incidentType = (document.getElementById('incident-type') as HTMLSelectElement).value;
+        const description = (document.getElementById('incident-description') as HTMLTextAreaElement).value;
+
+        const cartesianPosition = this.userLocationEntity.position.getValue(this.viewer.clock.currentTime);
+        if (!cartesianPosition) {
+            this.showToast('Could not retrieve current position.', 'error');
+            return;
+        }
+        const cartographic = Cesium.Cartographic.fromCartesian(cartesianPosition);
+        const lon = Cesium.Math.toDegrees(cartographic.longitude);
+        const lat = Cesium.Math.toDegrees(cartographic.latitude);
+        
+        const newIncident = {
+            title: `User Reported: ${incidentType}`,
+            incident_type: incidentType,
+            description: description || 'No description provided.',
+            lon,
+            lat,
+            timestamp: new Date().toISOString()
+        };
+
+        this.addLocalIncident(newIncident);
+    }
+    
+    addLocalIncident(incident: any) {
+        // 1. Add to map visually
+        const newEntity = this.incidentDataSource.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(incident.lon, incident.lat),
+            properties: { ...incident, type: 'incident' }
+        });
+        this.styleEntityAsBillboard(newEntity, 'warning', 'incident');
+
+        // 2. Save to localStorage
+        const localIncidents = JSON.parse(localStorage.getItem('sadakSathiLocalIncidents') || '[]');
+        localIncidents.push(incident);
+        localStorage.setItem('sadakSathiLocalIncidents', JSON.stringify(localIncidents));
+
+        // 3. Show feedback & close
+        this.showToast('Incident reported successfully. Thank you!', 'success');
+        this.toggleReportIncidentModal(false);
+        (document.getElementById('report-incident-form') as HTMLFormElement).reset();
+    }
+    
+    loadLocalIncidents() {
+        const localIncidents = JSON.parse(localStorage.getItem('sadakSathiLocalIncidents') || '[]');
+        if (localIncidents.length === 0) return;
+
+        localIncidents.forEach((incident: any) => {
+             const entity = this.incidentDataSource.entities.add({
+                position: Cesium.Cartesian3.fromDegrees(incident.lon, incident.lat),
+                properties: { ...incident, type: 'incident' }
+            });
+            this.styleEntityAsBillboard(entity, 'warning', 'incident');
+        });
     }
     
     // --- Translation ---

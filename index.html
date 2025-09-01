@@ -486,12 +486,57 @@
             </div>
         </div>
 
+        <div id="report-incident-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <div class="panel-header" style="padding: 0 0 1.5rem 0;">
+                    <h3 data-lang-key="report_incident_title">Report New Road Incident</h3>
+                    <button id="report-incident-close" class="modal-close-btn icon-button" data-lang-key-aria-label="close">
+                        <span class="material-icons">close</span>
+                    </button>
+                </div>
+                <div id="report-incident-content">
+                    <div id="report-location-unavailable" class="hidden">
+                        <p data-lang-key="report_location_unavailable">Your current location is not available. Please enable GPS to report an incident.</p>
+                    </div>
+                    <form id="report-incident-form">
+                        <div class="input-group">
+                            <label for="incident-location" class="input-label" data-lang-key="location">Location</label>
+                            <div class="input-wrapper">
+                                <span class="material-icons input-icon">my_location</span>
+                                <input type="text" id="incident-location" disabled data-lang-key-placeholder="current_location">
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="incident-type" class="input-label" data-lang-key="incident_type">Type of Incident</label>
+                            <select id="incident-type" required>
+                                <option value="Accident" data-lang-key="incident_type_accident">Accident</option>
+                                <option value="Roadblock" data-lang-key="incident_type_roadblock">Roadblock</option>
+                                <option value="Construction" data-lang-key="incident_type_construction">Construction</option>
+                                <option value="Hazard" data-lang-key="incident_type_hazard">Hazard</option>
+                                <option value="Traffic Jam" data-lang-key="incident_type_traffic">Traffic Jam</option>
+                                <option value="Other" data-lang-key="incident_type_other">Other</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="incident-description" class="input-label" data-lang-key="description">Description (Optional)</label>
+                            <textarea id="incident-description" rows="3" data-lang-key-placeholder="incident_desc_placeholder"></textarea>
+                        </div>
+                        <button type="submit" class="primary-btn" style="width: 100%;" data-lang-key="submit_report">Submit Report</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         <!-- Toast Notification -->
         <div id="toast-notification" class="hidden" role="alert">
             <span id="toast-icon" class="material-icons">info</span>
             <p id="toast-message"></p>
         </div>
-
+        
+        <!-- Report Incident FAB -->
+        <button id="report-incident-fab" class="icon-button" data-lang-key-title="report_incident_title">
+            <span class="material-icons">add_alert</span>
+        </button>
     </div>
     <script type="module" src="index.js"></script>
 </body>

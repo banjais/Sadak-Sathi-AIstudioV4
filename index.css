@@ -1,9 +1,4 @@
 
-
-
-
-
-
 /**
  * @license
  * Copyright (c) 2024 Your Company or Name. All Rights Reserved.
@@ -533,7 +528,7 @@ html, body {
     outline: none;
 }
 
-#route-finder-panel {
+#route-finder-panel, #report-incident-modal {
     position: fixed;
     top: 0;
     left: 0;
@@ -546,7 +541,7 @@ html, body {
     padding-top: 10vh;
     z-index: 1500;
 }
-#route-finder-panel .panel-content {
+#route-finder-panel .panel-content, #report-incident-modal .modal-content {
     background-color: var(--panel-bg-color);
     padding: 2rem;
     border-radius: var(--border-radius);
@@ -701,14 +696,20 @@ html, body {
     display: block;
     margin-bottom: 0.5rem;
 }
-.setting-item-col input, .setting-item-col textarea {
+.setting-item-col input, .setting-item-col textarea, .setting-item-col select {
     width: 100%;
     padding: 0.75rem;
     border: 1px solid var(--border-color);
     background-color: var(--bg-color);
     border-radius: var(--border-radius);
     color: var(--text-color);
+    font-size: 1rem;
+    font-family: var(--font-family);
 }
+.setting-item-col textarea {
+    resize: vertical;
+}
+
 
 /* Toggle Switch */
 .toggle-switch {
@@ -802,6 +803,48 @@ html, body {
 #toast-notification.warning { background-color: var(--warning-color); color: white; }
 #toast-notification.error { background-color: var(--danger-color); color: white; }
 
+/* Report Incident */
+#report-incident-fab {
+    position: absolute;
+    bottom: 100px;
+    right: 1.5rem;
+    width: 56px;
+    height: 56px;
+    background-color: var(--danger-color);
+    color: var(--text-color-light);
+    border-radius: 50%;
+    box-shadow: 0 4px 12px var(--shadow-color);
+    z-index: 999;
+    font-size: 1.5rem;
+}
+#report-incident-fab:hover {
+    background-color: #c0392b; /* Darker red */
+}
+#report-incident-modal .modal-content {
+    align-items: flex-start;
+}
+#report-incident-form select,
+#report-incident-form textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-color);
+    border-radius: var(--border-radius);
+    color: var(--text-color);
+    font-size: 1rem;
+    font-family: var(--font-family);
+}
+#report-incident-form textarea {
+    resize: vertical;
+}
+#report-location-unavailable {
+    text-align: center;
+    padding: 1rem;
+    background-color: var(--bg-color);
+    border-radius: var(--border-radius);
+    color: var(--text-color-muted);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     #app-header { padding: 0.5rem 1rem; }
@@ -820,5 +863,9 @@ html, body {
         right: 0;
         border-radius: 0;
         max-height: none;
+    }
+    #report-incident-fab {
+        bottom: 90px;
+        right: 1rem;
     }
 }
