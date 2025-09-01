@@ -1,6 +1,9 @@
 
 
 
+
+
+
 /**
  * @license
  * Copyright (c) 2024 Your Company or Name. All Rights Reserved.
@@ -411,26 +414,25 @@ class SadakSathiApp {
     }
 
     async changeMapStyle(style: string) {
+        this.viewer.imageryLayers.removeAll();
+        let newLayer;
         try {
-            let provider;
             switch(style) {
                 case 'satellite':
-                    provider = await Cesium.IonImageryProvider.fromAssetId(3);
+                    newLayer = new Cesium.ImageryLayer(await Cesium.createWorldImageryAsync());
                     break;
                 case 'dark':
-                    provider = await Cesium.IonImageryProvider.fromAssetId(3812);
+                    newLayer = new Cesium.ImageryLayer(await Cesium.CartoDBImageryProvider.fromUrl(
+                        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+                        subdomains: ['a', 'b', 'c', 'd']
+                    }));
                     break;
                 case 'streets':
                 default:
-                    provider = await Cesium.IonImageryProvider.fromAssetId(2);
+                    newLayer = new Cesium.ImageryLayer(await Cesium.createOpenStreetMapImageryProviderAsync());
                     break;
             }
-            
-            const newLayer = new Cesium.ImageryLayer(provider);
-
-            this.viewer.imageryLayers.removeAll();
             this.viewer.imageryLayers.add(newLayer);
-
             document.querySelectorAll('.style-option.active').forEach(btn => btn.classList.remove('active'));
             document.querySelector(`.style-option[data-style="${style}"]`)?.classList.add('active');
         } catch (error) {
@@ -444,32 +446,67 @@ class SadakSathiApp {
         const contentDiv = document.getElementById('cesium-infobox-content')!;
         let html = '';
 
+        // Determine entity type and generate appropriate HTML content.
         if (props.type === 'road') {
-            const status = props.status || 'N/A';
-            const details = props.details || 'No details available.';
-            const lastUpdated = props.last_updated ? new Date(props.last_updated).toLocaleString() : 'Not available';
-
-            // Sanitize status for use in a CSS class name
-            const statusClass = status.toLowerCase().replace(/[^a-z0-9-]/g, '');
-
-            html = `<h3>${props.name || 'Unnamed Road'}</h3>
-                    <p><strong>Status:</strong> <span class="status-${statusClass}">${status}</span></p>
-                    <p>${details}</p>
-                    <small>Last Updated: ${lastUpdated}</small>`;
+            html = this.createRoadInfoHtml(props);
         } else if (props.type === 'poi') {
-            html = `<h3>${props.name}</h3>
-                    <p><strong>Category:</strong> ${props.category}</p>
-                    ${props.contact ? `<p><strong>Contact:</strong> ${props.contact}</p>` : ''}
-                    ${props.services ? `<p><strong>Services:</strong> ${props.services.join(', ')}</p>` : ''}`;
+            html = this.createPoiInfoHtml(props);
         } else if (props.type === 'incident') {
-             html = `<h3>${props.title}</h3>
-                    <p><strong>Type:</strong> ${props.incident_type}</p>
-                    <p>${props.description}</p>
-                     <small>Reported: ${new Date(props.timestamp).toLocaleString()}</small>`;
+            html = this.createIncidentInfoHtml(props);
         }
 
-        contentDiv.innerHTML = html;
-        document.getElementById('cesium-infobox')?.classList.remove('hidden');
+        // Only show the box if we have content to display.
+        if (html) {
+            contentDiv.innerHTML = html;
+            document.getElementById('cesium-infobox')?.classList.remove('hidden');
+        } else {
+            this.hideInfoBox();
+        }
+    }
+
+    private createRoadInfoHtml(props: any): string {
+        // Gracefully handle potentially missing properties by providing default values.
+        const name = props.name || 'Unnamed Road';
+        const status = props.status || 'N/A';
+        const details = props.details || 'No details available.';
+        const lastUpdated = props.last_updated ? new Date(props.last_updated).toLocaleString() : 'N/A';
+        
+        // Sanitize the status to create a safe CSS class name (e.g., "Open" -> "open")
+        const statusClass = status.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+        // Construct the HTML to be displayed in the InfoBox.
+        return `
+            <h3>${name}</h3>
+            <p><strong>Status:</strong> <span class="status-${statusClass}">${status}</span></p>
+            <p>${details}</p>
+            <small>Last Updated: ${lastUpdated}</small>
+        `;
+    }
+    
+    private createPoiInfoHtml(props: any): string {
+        const name = props.name || 'Unnamed POI';
+        const category = props.category || 'N/A';
+        const contact = props.contact ? `<p><strong>Contact:</strong> ${props.contact}</p>` : '';
+        const services = props.services ? `<p><strong>Services:</strong> ${props.services.join(', ')}</p>` : '';
+        return `
+            <h3>${name}</h3>
+            <p><strong>Category:</strong> ${category}</p>
+            ${contact}
+            ${services}
+        `;
+    }
+    
+    private createIncidentInfoHtml(props: any): string {
+        const title = props.title || 'Incident Report';
+        const type = props.incident_type || 'N/A';
+        const description = props.description || 'No description provided.';
+        const timestamp = props.timestamp ? new Date(props.timestamp).toLocaleString() : 'N/A';
+        return `
+            <h3>${title}</h3>
+            <p><strong>Type:</strong> ${type}</p>
+            <p>${description}</p>
+            <small>Reported: ${timestamp}</small>
+        `;
     }
 
     hideInfoBox() {

@@ -1,5 +1,9 @@
 
 
+
+
+
+
 /**
  * @license
  * Copyright (c) 2024 Your Company or Name. All Rights Reserved.
@@ -336,26 +340,25 @@ html, body {
 #cesium-infobox-content h3 { margin-bottom: 0.5rem; color: var(--primary-color); }
 #cesium-infobox-content p { margin-bottom: 0.25rem; }
 #cesium-infobox-content small { color: var(--text-color-muted); }
-/* Status text in InfoBox */
+
+/* Status text in InfoBox - Refactored for efficiency */
+#cesium-infobox-content [class^="status-"] {
+    font-weight: 700;
+}
 #cesium-infobox-content .status-open {
     color: var(--success-color);
-    font-weight: 700;
 }
 #cesium-infobox-content .status-blocked {
     color: var(--danger-color);
-    font-weight: 700;
 }
 #cesium-infobox-content .status-restricted {
     color: var(--warning-color);
-    font-weight: 700;
 }
 #cesium-infobox-content .status-construction {
     color: #e67e22; /* From JS */
-    font-weight: 700;
 }
 #cesium-infobox-content .status-na {
     color: var(--text-color-muted);
-    font-weight: 700;
 }
 
 
