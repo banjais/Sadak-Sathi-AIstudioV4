@@ -1,4 +1,5 @@
 
+
 /**
  * @license
  * Copyright (c) 2024 Your Company or Name. All Rights Reserved.
@@ -894,12 +895,16 @@ class SadakSathiApp {
         const preferScenic = (document.getElementById('pref-scenic') as HTMLInputElement).checked;
 
         // This is a placeholder for a proper routing engine.
-        // For this demo, it will just draw a straight line, but change style based on prefs.
+        // For this demo, it will just draw a straight line, but change style and time estimate based on prefs.
         let routeColor = Cesium.Color.DODGERBLUE;
+        let averageSpeedKmh = 40; // Normal route speed
+
         if (preferScenic) {
             routeColor = Cesium.Color.FORESTGREEN;
+            averageSpeedKmh = 30; // Scenic routes are slower
         } else if (preferHighways) {
             routeColor = Cesium.Color.ROYALBLUE;
+            averageSpeedKmh = 60; // Highways are faster
         }
 
         this.routeDataSource.entities.removeAll();
@@ -922,8 +927,10 @@ class SadakSathiApp {
         this.toggleRouteDetails(true);
 
         const distance = this.calculateDistance(startCoords, endCoords);
+        const estimatedTimeMin = Math.round(distance / averageSpeedKmh * 60);
+
         (document.getElementById('route-distance') as HTMLElement).textContent = `${distance.toFixed(1)} km`;
-        (document.getElementById('route-time') as HTMLElement).textContent = `${Math.round(distance / 40 * 60)} min`;
+        (document.getElementById('route-time') as HTMLElement).textContent = `${estimatedTimeMin} min`;
         (document.getElementById('route-directions-list') as HTMLElement).innerHTML = `<div class="direction-step">Follow the highlighted route from ${from} to ${to}.</div>`;
     
         // Display preferences used
