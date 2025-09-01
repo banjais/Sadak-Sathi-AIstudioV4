@@ -1,5 +1,3 @@
-
-
 /**
  * @license
  * Copyright (c) 2024 Your Company or Name. All Rights Reserved.
@@ -479,6 +477,31 @@ class SadakSathiApp {
         if (html) {
             contentDiv.innerHTML = html;
             document.getElementById('cesium-infobox')?.classList.remove('hidden');
+
+            // Add event listener for the directions button if it exists
+            const getDirectionsBtn = document.getElementById('get-incident-directions-btn');
+            if (getDirectionsBtn) {
+                getDirectionsBtn.addEventListener('click', (e) => {
+                    const btn = e.currentTarget as HTMLElement;
+                    const lat = btn.dataset.lat!;
+                    const lon = btn.dataset.lon!;
+                    const type = btn.dataset.type!;
+
+                    if (this.userLocationEntity) {
+                        this.hideInfoBox();
+                        this.toggleRouteFinder(true);
+
+                        (document.getElementById('from-input') as HTMLInputElement).value = 'My Current Location';
+                        // Use a special, parsable string for the destination
+                        (document.getElementById('to-input') as HTMLInputElement).value = `Incident:${type}:${lat}:${lon}`;
+
+                        this.findRoute();
+                    } else {
+                        this.showToast('Please enable GPS to get directions.', 'warning');
+                    }
+                });
+            }
+
         } else {
             this.hideInfoBox();
         }
@@ -533,11 +556,22 @@ class SadakSathiApp {
         const description = this.getLocalisedString(props.description, 'No description provided.');
         const timestamp = props.timestamp ? new Date(props.timestamp).toLocaleString() : 'N/A';
         
+        const directionsButtonHtml = `
+            <button id="get-incident-directions-btn" class="primary-btn" style="width: 100%; margin-top: 1rem;" 
+                data-lat="${props.lat}" 
+                data-lon="${props.lon}" 
+                data-type="${type}">
+                <span class="material-icons">directions</span>
+                <span data-lang-key="get_directions">Get Directions</span>
+            </button>
+        `;
+
         return `
             <h3>${title}</h3>
             <p><strong>Type:</strong> ${type}</p>
             <p>${description}</p>
             <small>Reported: ${timestamp}</small>
+            ${(props.lat && props.lon) ? directionsButtonHtml : ''}
         `;
     }
 
@@ -966,10 +1000,19 @@ class SadakSathiApp {
 
         const distance = this.calculateDistance(startCoords, endCoords);
         const estimatedTimeMin = Math.round(distance / averageSpeedKmh * 60);
+        
+        // Prettify names for display
+        let fromDisplay = from;
+        let toDisplay = to;
+        if (to.startsWith('Incident:')) {
+            const parts = to.split(':');
+            toDisplay = `Reported ${parts[1]}`;
+        }
+
 
         (document.getElementById('route-distance') as HTMLElement).textContent = `${distance.toFixed(1)} km`;
         (document.getElementById('route-time') as HTMLElement).textContent = `${estimatedTimeMin} min`;
-        (document.getElementById('route-directions-list') as HTMLElement).innerHTML = `<div class="direction-step">Follow the highlighted route from ${from} to ${to}.</div>`;
+        (document.getElementById('route-directions-list') as HTMLElement).innerHTML = `<div class="direction-step">Follow the highlighted route from ${fromDisplay} to ${toDisplay}.</div>`;
     
         // Display preferences used
         const prefsSummaryContainer = document.getElementById('route-preferences-summary')!;
@@ -1002,6 +1045,32 @@ class SadakSathiApp {
 
     findCoordsForLocation(locationName: string): { lat: number, lon: number } | null {
          const lowerLoc = locationName.toLowerCase();
+
+         if (lowerLoc === 'my current location') {
+            if (this.userLocationEntity) {
+                const cartesianPosition = this.userLocationEntity.position.getValue(this.viewer.clock.currentTime);
+                if (cartesianPosition) {
+                    const cartographic = Cesium.Cartographic.fromCartesian(cartesianPosition);
+                    return {
+                        lon: Cesium.Math.toDegrees(cartographic.longitude),
+                        lat: Cesium.Math.toDegrees(cartographic.latitude)
+                    };
+                }
+            }
+            return null;
+         }
+
+         if (locationName.startsWith('Incident:')) {
+             const parts = locationName.split(':');
+             if (parts.length === 4) {
+                 const lat = parseFloat(parts[2]);
+                 const lon = parseFloat(parts[3]);
+                 if (!isNaN(lat) && !isNaN(lon)) {
+                     return { lat, lon };
+                 }
+             }
+         }
+
          for (const road of this.allRoadData) {
             if (road.points_of_interest) {
                 for (const poi of road.points_of_interest) {
@@ -1151,11 +1220,34 @@ class SadakSathiApp {
 
     // --- Helpers ---
     private getLocalisedString(prop: any, fallback: string): string {
-        if (typeof prop === 'string') return prop;
-        if (prop && typeof prop === 'object') {
-            return prop[this.currentLang] || prop['en'] || fallback;
+        // Priority 1: Direct primitive values (string, number, boolean).
+        if (typeof prop === 'string' || typeof prop === 'number' || typeof prop === 'boolean') {
+            return String(prop);
         }
-        if (prop !== null && prop !== undefined) return String(prop);
+        
+        // If it's not a valid object for translation, we can't handle it.
+        if (typeof prop !== 'object' || prop === null || Array.isArray(prop)) {
+            return fallback;
+        }
+    
+        // Now we know 'prop' is a dictionary-like object. Try to find a translation.
+        let translatedValue: any;
+    
+        // Try current language first, checking for own property to handle falsy values correctly.
+        if (Object.prototype.hasOwnProperty.call(prop, this.currentLang)) {
+            translatedValue = prop[this.currentLang];
+        } 
+        // If not found, fall back to English.
+        else if (Object.prototype.hasOwnProperty.call(prop, 'en')) {
+            translatedValue = prop['en'];
+        }
+    
+        // If we found a translation, it MUST be a primitive type to be displayed.
+        if (typeof translatedValue === 'string' || typeof translatedValue === 'number' || typeof translatedValue === 'boolean') {
+            return String(translatedValue);
+        }
+    
+        // If the translation itself is an object, or no valid translation was found, we cannot display it.
         return fallback;
     }
     
