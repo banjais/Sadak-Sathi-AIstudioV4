@@ -139,6 +139,37 @@
             </div>
         </div>
 
+        <!-- NEW: Top Search Panel (replaces route finder modal) -->
+        <div id="top-search-panel">
+            <div class="route-inputs">
+                <div class="input-group">
+                    <div class="input-wrapper">
+                         <span class="material-icons input-icon">trip_origin</span>
+                        <input type="text" id="from-input" data-lang-key-placeholder="from_placeholder" list="locations-datalist">
+                        <button id="from-voice-btn" class="icon-button voice-input-btn" data-lang-key-aria-label="voice_input_start"><span class="material-icons">mic</span></button>
+                    </div>
+                </div>
+                 <div class="swap-locations-container">
+                    <button id="swap-locations-btn" class="icon-button" data-lang-key-aria-label="swap_locations" title="Swap Locations">
+                        <span class="material-icons">swap_vert</span>
+                    </button>
+                </div>
+                <div class="input-group">
+                    <div class="input-wrapper">
+                        <span class="material-icons input-icon">flag</span>
+                        <input type="text" id="to-input" data-lang-key-placeholder="to_placeholder" list="locations-datalist">
+                         <button id="to-voice-btn" class="icon-button voice-input-btn" data-lang-key-aria-label="voice_input_end"><span class="material-icons">mic</span></button>
+                    </div>
+                </div>
+            </div>
+            <div class="route-actions">
+                <button id="find-route-btn" class="primary-btn" data-lang-key="find_route_btn">Find Route</button>
+                <button id="clear-route-btn" class="secondary-btn hidden" data-lang-key="clear_route_btn">Clear Route</button>
+            </div>
+            <datalist id="locations-datalist"></datalist>
+        </div>
+
+
         <!-- NEW: Cesium InfoBox Replacement -->
         <div id="cesium-infobox" class="hidden">
             <button id="cesium-infobox-close" class="icon-button">&times;</button>
@@ -219,29 +250,6 @@
             </div>
         </div>
         
-        <!-- Bottom Menu Bar -->
-        <nav id="bottom-menu">
-            <button id="app-mode-btn" class="menu-item active">
-                <span class="material-icons">directions_car</span>
-                <span class="label" data-lang-key="mode_driving">Driving</span>
-            </button>
-            <button id="route-finder-trigger" class="menu-item">
-                <span class="material-icons">route</span>
-                <span class="label" data-lang-key="route_finder">Route Finder</span>
-            </button>
-            <button id="ai-assistant-btn" class="ai-fab">
-                <span class="material-icons">auto_awesome</span>
-            </button>
-            <button id="header-ai-chat-btn" class="menu-item">
-                <span class="material-icons">chat</span>
-                <span class="label" data-lang-key="ai_chat_title">AI Assistant</span>
-            </button>
-            <button id="profile-btn" class="menu-item">
-                <span class="material-icons">login</span>
-                <span class="label" data-lang-key="profile">Profile</span>
-            </button>
-        </nav>
-
         <!-- Settings Panel (Off-canvas) -->
         <aside id="settings-panel">
             <div class="panel-header">
@@ -252,25 +260,35 @@
             </div>
             <div class="settings-content">
                  <div class="settings-section">
-                    <h3>AI Persona</h3>
+                    <h3 data-lang-key="ai_persona_title">AI Persona</h3>
                      <div class="persona-avatar-uploader">
-                        <label for="persona-avatar-upload">
+                        <label for="persona-avatar-upload" data-lang-key-title="change_ai_avatar">
                             <img id="persona-avatar-preview" src="https://i.imgur.com/r33W56s.png" alt="AI Avatar">
                             <div class="upload-icon"><span class="material-icons">edit</span></div>
                         </label>
-                        <input type="file" id="persona-avatar-upload" accept="image/*" class="hidden">
+                        <input type="file" id="persona-avatar-upload" accept="image/png, image/jpeg, image/svg+xml" class="hidden">
                     </div>
                     <div class="setting-item-col">
-                        <label for="persona-name-input">AI Name</label>
-                        <input type="text" id="persona-name-input" value="Sadak Sathi">
+                        <label for="persona-personality-select" data-lang-key="ai_personality_label">Personality</label>
+                        <select id="persona-personality-select">
+                            <option value="friendly" data-lang-key="personality_friendly">Friendly</option>
+                            <option value="formal" data-lang-key="personality_formal">Formal</option>
+                            <option value="guide" data-lang-key="personality_guide">Travel Guide</option>
+                            <option value="buddy" data-lang-key="personality_buddy">Driver's Buddy</option>
+                        </select>
+                        <p id="persona-personality-description" class="setting-description"></p>
                     </div>
                     <div class="setting-item-col">
-                        <label for="persona-desc-input">AI Persona Description</label>
-                        <textarea id="persona-desc-input" rows="5"></textarea>
+                        <label for="persona-voice-select" data-lang-key="ai_voice_label">Voice</label>
+                        <select id="persona-voice-select">
+                            <option value="female" data-lang-key="voice_female">Female</option>
+                            <option value="male" data-lang-key="voice_male">Male</option>
+                            <option value="neutral" data-lang-key="voice_neutral">Neutral</option>
+                        </select>
                     </div>
                  </div>
                  <div class="settings-section">
-                    <h3>Preferences</h3>
+                    <h3 data-lang-key="preferences_title">Preferences</h3>
                     <div class="setting-item">
                         <label for="toggle-voice-response" data-lang-key="ai_voice_response">AI Voice Response</label>
                         <input type="checkbox" id="toggle-voice-response" class="toggle-switch" checked>
@@ -328,48 +346,6 @@
                             <span class="material-icons">send</span>
                         </button>
                     </form>
-                </div>
-            </div>
-        </div>
-
-        <div id="route-finder-panel" class="hidden">
-            <div class="panel-content">
-                 <div class="panel-header" style="padding: 0 0 1.5rem 0;">
-                    <h2 data-lang-key="route_finder">Route Finder</h2>
-                    <button id="route-finder-close" class="icon-button" data-lang-key-aria-label="close">
-                        <span class="material-icons">close</span>
-                    </button>
-                </div>
-                <div class="route-inputs">
-                    <div class="input-group">
-                        <label for="from-input" class="input-label" data-lang-key="from">From</label>
-                        <div class="input-wrapper">
-                             <span class="material-icons input-icon">trip_origin</span>
-                            <input type="text" id="from-input" data-lang-key-placeholder="from_placeholder" list="locations-datalist">
-                            <button id="from-voice-btn" class="icon-button voice-input-btn" data-lang-key-aria-label="voice_input_start"><span class="material-icons">mic</span></button>
-                        </div>
-                    </div>
-                     <div class="swap-locations-container">
-                        <button id="swap-locations-btn" class="icon-button" data-lang-key-aria-label="swap_locations" title="Swap Locations">
-                            <span class="material-icons">swap_vert</span>
-                        </button>
-                    </div>
-                    <div class="input-group">
-                        <label for="to-input" class="input-label" data-lang-key="to">To</label>
-                        <div class="input-wrapper">
-                            <span class="material-icons input-icon">flag</span>
-                            <input type="text" id="to-input" data-lang-key-placeholder="to_placeholder" list="locations-datalist">
-                             <button id="to-voice-btn" class="icon-button voice-input-btn" data-lang-key-aria-label="voice_input_end"><span class="material-icons">mic</span></button>
-                        </div>
-                    </div>
-                </div>
-                <div class="route-actions">
-                    <button id="find-route-btn" data-lang-key="find_route_btn">Find Optimal Route</button>
-                </div>
-                <datalist id="locations-datalist"></datalist>
-                <div class="loading-overlay hidden">
-                    <div class="spinner"></div>
-                    <p data-lang-key="calculating_route">Calculating...</p>
                 </div>
             </div>
         </div>
@@ -537,6 +513,25 @@
         <button id="report-incident-fab" class="icon-button" data-lang-key-title="report_incident_title">
             <span class="material-icons">add_alert</span>
         </button>
+
+        <!-- NEW: FAB Menu (Replaces Bottom Menu) -->
+        <div id="fab-container">
+            <div id="fab-menu-items" class="hidden">
+                <button id="fab-ai-btn" class="fab-menu-item" data-lang-key-title="ai_chat_title">
+                    <span class="material-icons">auto_awesome</span>
+                </button>
+                <button id="fab-settings-btn" class="fab-menu-item" data-lang-key-title="app_settings">
+                    <span class="material-icons">settings</span>
+                </button>
+                <button id="fab-profile-btn" class="fab-menu-item" data-lang-key-title="profile">
+                    <span class="material-icons">person</span>
+                </button>
+            </div>
+            <button id="fab-main-btn" class="fab-main" data-lang-key-aria-label="main_menu">
+                <span class="material-icons">menu</span>
+            </button>
+        </div>
+
     </div>
     <script type="module" src="index.js"></script>
 </body>

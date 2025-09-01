@@ -1,3 +1,5 @@
+
+
 /**
  * @license
  * Copyright (c) 2024 Your Company or Name. All Rights Reserved.
@@ -63,6 +65,12 @@ class SadakSathiApp {
     private currentLang: string = 'en';
     private translations: any = {};
     private ipCamUrl: string = '';
+    
+    // AI Persona State
+    private aiAvatarUrl: string = 'https://i.imgur.com/r33W56s.png';
+    private aiPersonality: string = 'friendly';
+    private aiVoice: string = 'female';
+    private availableVoices: SpeechSynthesisVoice[] = [];
 
     constructor() {
         this.init();
@@ -70,6 +78,7 @@ class SadakSathiApp {
 
     async init() {
         await this.initCesium();
+        this.loadVoices();
         await this.loadInitialData();
         this.setupEventListeners();
         this.initSpeechRecognition();
@@ -348,13 +357,19 @@ class SadakSathiApp {
         document.getElementById('close-cam-btn')?.addEventListener('click', () => this.toggleLiveCamPanel(false));
         document.getElementById('save-ip-cam-btn')?.addEventListener('click', () => this.saveIpCamUrl());
 
-        // Bottom Menu
-        document.getElementById('ai-assistant-btn')?.addEventListener('click', () => this.toggleChat(true));
-        document.getElementById('header-ai-chat-btn')?.addEventListener('click', () => this.toggleChat(true));
-        document.getElementById('route-finder-trigger')?.addEventListener('click', () => this.toggleRouteFinder(true));
-        document.getElementById('app-mode-btn')?.addEventListener('click', () => this.toggleModal('app-mode-modal', true));
-        document.getElementById('profile-btn')?.addEventListener('click', () => this.toggleModal('profile-modal', true));
-        document.getElementById('open-settings-btn')?.addEventListener('click', () => this.toggleSettings(true));
+        // FAB Menu
+        document.getElementById('fab-main-btn')?.addEventListener('click', () => {
+            const mainBtn = document.getElementById('fab-main-btn')!;
+            const menuItems = document.getElementById('fab-menu-items')!;
+            const icon = mainBtn.querySelector('.material-icons')!;
+            
+            const isOpen = mainBtn.classList.toggle('open');
+            menuItems.classList.toggle('hidden', !isOpen);
+            icon.textContent = isOpen ? 'close' : 'menu';
+        });
+        document.getElementById('fab-ai-btn')?.addEventListener('click', () => this.toggleChat(true));
+        document.getElementById('fab-settings-btn')?.addEventListener('click', () => this.toggleSettings(true));
+        document.getElementById('fab-profile-btn')?.addEventListener('click', () => this.toggleModal('profile-modal', true));
 
         // Chat
         document.getElementById('close-chat-btn')?.addEventListener('click', () => this.toggleChat(false));
@@ -364,9 +379,9 @@ class SadakSathiApp {
         });
         document.getElementById('voice-command-btn')?.addEventListener('click', () => this.toggleVoiceRecognition());
 
-        // Route Finder
-        document.getElementById('route-finder-close')?.addEventListener('click', () => this.toggleRouteFinder(false));
+        // Top Search Panel (formerly Route Finder)
         document.getElementById('find-route-btn')?.addEventListener('click', () => this.findRoute());
+        document.getElementById('clear-route-btn')?.addEventListener('click', () => this.clearRoute());
         document.getElementById('swap-locations-btn')?.addEventListener('click', () => this.swapRouteLocations());
         document.getElementById('from-voice-btn')?.addEventListener('click', (e) => this.startVoiceInputFor(document.getElementById('from-input') as HTMLInputElement));
         document.getElementById('to-voice-btn')?.addEventListener('click', (e) => this.startVoiceInputFor(document.getElementById('to-input') as HTMLInputElement));
@@ -379,6 +394,17 @@ class SadakSathiApp {
         document.getElementById('pref-highways')?.addEventListener('change', () => this.saveRoutePreferences());
         document.getElementById('pref-no-tolls')?.addEventListener('change', () => this.saveRoutePreferences());
         document.getElementById('pref-scenic')?.addEventListener('change', () => this.saveRoutePreferences());
+        // AI Persona Settings
+        document.getElementById('persona-avatar-upload')?.addEventListener('change', (e) => this.handleAvatarChange(e));
+        document.getElementById('persona-personality-select')?.addEventListener('change', (e) => {
+            this.aiPersonality = (e.target as HTMLSelectElement).value;
+            this.saveAiSettings();
+            this.updatePersonalityDescription();
+        });
+        document.getElementById('persona-voice-select')?.addEventListener('change', (e) => {
+            this.aiVoice = (e.target as HTMLSelectElement).value;
+            this.saveAiSettings();
+        });
 
         // Report Incident
         document.getElementById('report-incident-fab')?.addEventListener('click', () => this.toggleReportIncidentModal(true));
@@ -489,8 +515,7 @@ class SadakSathiApp {
 
                     if (this.userLocationEntity) {
                         this.hideInfoBox();
-                        this.toggleRouteFinder(true);
-
+                        
                         (document.getElementById('from-input') as HTMLInputElement).value = 'My Current Location';
                         // Use a special, parsable string for the destination
                         (document.getElementById('to-input') as HTMLInputElement).value = `Incident:${type}:${lat}:${lon}`;
@@ -646,6 +671,26 @@ class SadakSathiApp {
                 console.error("Error parsing route preferences from localStorage", error);
             }
         }
+
+        // Load AI Persona Settings
+        const personaSettingsString = localStorage.getItem('sadakSathiAiPersona');
+        if (personaSettingsString) {
+            try {
+                const persona = JSON.parse(personaSettingsString);
+                this.aiAvatarUrl = persona.avatarUrl || this.aiAvatarUrl;
+                this.aiPersonality = persona.personality || this.aiPersonality;
+                this.aiVoice = persona.voice || this.aiVoice;
+
+                // Update UI
+                (document.getElementById('persona-avatar-preview') as HTMLImageElement).src = this.aiAvatarUrl;
+                (document.getElementById('chat-ai-avatar') as HTMLImageElement).src = this.aiAvatarUrl;
+                (document.getElementById('persona-personality-select') as HTMLSelectElement).value = this.aiPersonality;
+                (document.getElementById('persona-voice-select') as HTMLSelectElement).value = this.aiVoice;
+                this.updatePersonalityDescription();
+            } catch (error) {
+                console.error("Error parsing AI persona settings from localStorage", error);
+            }
+        }
     }
 
     saveRoutePreferences() {
@@ -718,8 +763,19 @@ class SadakSathiApp {
         const modal = document.getElementById('ai-chat-modal')!;
         modal.classList.toggle('hidden', !show);
         this.isChatOpen = show;
-        if (show && this.chatHistory.length === 0) {
-             this.addMessageToChat('Sadak Sathi', this.translations['ai_welcome_message'] || "Hello! I'm Sadak Sathi, your road companion. How can I assist you today? Ask me about road conditions, points of interest, or help you find a route.", false);
+
+        if (show) {
+             // Update avatar in chat header when opening
+            (document.getElementById('chat-ai-avatar') as HTMLImageElement).src = this.aiAvatarUrl;
+
+            if(this.chatHistory.length === 0) {
+                const welcomeMessage = this.translations['ai_welcome_message'];
+                const messageText = (welcomeMessage && typeof welcomeMessage === 'string')
+                    ? welcomeMessage
+                    : "Hello! I'm Sadak Sathi, your road companion. How can I assist you today? Ask me about road conditions, points of interest, or help you find a route.";
+                this.addMessageToChat('Sadak Sathi', messageText, false);
+                this.chatHistory.push({ role: 'model', parts: [{ text: messageText }] });
+            }
         }
     }
     
@@ -764,13 +820,14 @@ class SadakSathiApp {
                 }
             ];
 
+            const systemInstruction = this.getSystemInstructionForPersonality();
             const response: GenerateContentResponse = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
-                contents: {
-                     role: "user",
-                     parts: [{ text: `Current user language is ${this.currentLang}. All textual responses should be in this language. Here is my prompt: ${message}`}]
-                 },
-                config: { tools }
+                contents: this.chatHistory, // Pass the entire conversation history
+                config: { 
+                    tools,
+                    systemInstruction: `You MUST respond in the language with this ISO code: "${this.currentLang}". ${systemInstruction}`
+                }
             });
 
             this.setTypingIndicator(false);
@@ -790,7 +847,11 @@ class SadakSathiApp {
         } catch (error) {
             console.error("Gemini API error:", error);
             this.setTypingIndicator(false);
-            this.addMessageToChat('Sadak Sathi', "Sorry, I encountered an error. Please try again.", false);
+            const errorMessageKey = 'ai_error_message';
+            const errorMessage = (this.translations[errorMessageKey] && typeof this.translations[errorMessageKey] === 'string')
+                ? this.translations[errorMessageKey]
+                : "Sorry, I encountered an error. Please try again.";
+            this.addMessageToChat('Sadak Sathi', errorMessage, false);
         }
     }
 
@@ -798,7 +859,6 @@ class SadakSathiApp {
         if (name === 'find_route') {
             this.addMessageToChat('Sadak Sathi', `Okay, finding the best route from ${args.start} to ${args.end}.`, false);
             this.toggleChat(false);
-            this.toggleRouteFinder(true);
             (document.getElementById('from-input') as HTMLInputElement).value = args.start;
             (document.getElementById('to-input') as HTMLInputElement).value = args.end;
             this.findRoute();
@@ -844,7 +904,7 @@ class SadakSathiApp {
         
         const avatar = document.createElement('img');
         avatar.classList.add('message-avatar');
-        avatar.src = isUser ? 'https://i.imgur.com/SNdke3E.png' : (document.getElementById('chat-ai-avatar') as HTMLImageElement).src;
+        avatar.src = isUser ? 'https://i.imgur.com/SNdke3E.png' : this.aiAvatarUrl;
         
         const messageContent = document.createElement('div');
         messageContent.classList.add('message-content');
@@ -931,14 +991,28 @@ class SadakSathiApp {
         }
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = this.currentLang;
+
+        // Find a matching voice
+        const langVoices = this.availableVoices.filter(v => v.lang.startsWith(this.currentLang));
+        if (langVoices.length > 0) {
+            let selectedVoice = langVoices[0]; // Default to first available
+            if (this.aiVoice === 'female') {
+                const femaleVoice = langVoices.find(v => v.name.toLowerCase().includes('female'));
+                if (femaleVoice) selectedVoice = femaleVoice;
+            } else if (this.aiVoice === 'male') {
+                const maleVoice = langVoices.find(v => v.name.toLowerCase().includes('male'));
+                if (maleVoice) selectedVoice = maleVoice;
+            } else { // Neutral or other
+                const neutralVoice = langVoices.find(v => !v.name.toLowerCase().includes('female') && !v.name.toLowerCase().includes('male'));
+                 if (neutralVoice) selectedVoice = neutralVoice;
+            }
+            utterance.voice = selectedVoice;
+        }
+
         SpeechSynthesis.speak(utterance);
     }
     
     // --- Routing ---
-    toggleRouteFinder(show: boolean) {
-        document.getElementById('route-finder-panel')?.classList.toggle('hidden', !show);
-    }
-
     swapRouteLocations() {
         const fromInput = document.getElementById('from-input') as HTMLInputElement;
         const toInput = document.getElementById('to-input') as HTMLInputElement;
@@ -995,7 +1069,6 @@ class SadakSathiApp {
         });
 
         this.viewer.flyTo(this.routeDataSource);
-        this.toggleRouteFinder(false);
         this.toggleRouteDetails(true);
 
         const distance = this.calculateDistance(startCoords, endCoords);
@@ -1021,7 +1094,7 @@ class SadakSathiApp {
         let prefsUsed = false;
 
         const addPrefItem = (icon: string, key: string) => {
-            const text = this.translations[key] || key.replace(/_/g, ' ');
+            const text = (this.translations[key] && typeof this.translations[key] === 'string') ? this.translations[key] : key.replace(/_/g, ' ');
             const li = document.createElement('li');
             li.innerHTML = `<span class="material-icons" style="font-size: 1rem;">${icon}</span> <span data-lang-key="${key}">${text}</span>`;
             prefsList.appendChild(li);
@@ -1041,7 +1114,23 @@ class SadakSathiApp {
         }
         
         prefsSummaryContainer.classList.toggle('hidden', !prefsUsed);
+        
+        // Toggle route buttons
+        document.getElementById('find-route-btn')?.classList.add('hidden');
+        document.getElementById('clear-route-btn')?.classList.remove('hidden');
     }
+
+    clearRoute() {
+        this.routeDataSource.entities.removeAll();
+        this.toggleRouteDetails(false);
+        (document.getElementById('from-input') as HTMLInputElement).value = '';
+        (document.getElementById('to-input') as HTMLInputElement).value = '';
+
+        // Toggle route buttons
+        document.getElementById('find-route-btn')?.classList.remove('hidden');
+        document.getElementById('clear-route-btn')?.classList.add('hidden');
+    }
+
 
     findCoordsForLocation(locationName: string): { lat: number, lon: number } | null {
          const lowerLoc = locationName.toLowerCase();
@@ -1200,54 +1289,133 @@ class SadakSathiApp {
     updateUIForLanguage() {
         document.querySelectorAll('[data-lang-key]').forEach(el => {
             const key = (el as HTMLElement).dataset.langKey!;
-            if (this.translations[key]) {
-                el.textContent = this.translations[key];
+            const translation = this.translations[key];
+            if (translation && typeof translation === 'string') {
+                el.textContent = translation;
             }
         });
         document.querySelectorAll('[data-lang-key-placeholder]').forEach(el => {
             const key = (el as HTMLElement).dataset.langKeyPlaceholder!;
-            if (this.translations[key]) {
-                (el as HTMLInputElement).placeholder = this.translations[key];
+            const translation = this.translations[key];
+            if (translation && typeof translation === 'string') {
+                (el as HTMLInputElement).placeholder = translation;
             }
         });
         document.querySelectorAll('[data-lang-key-title]').forEach(el => {
             const key = (el as HTMLElement).dataset.langKeyTitle!;
-            if (this.translations[key]) {
-                (el as HTMLElement).title = this.translations[key];
+            const translation = this.translations[key];
+            if (translation && typeof translation === 'string') {
+                (el as HTMLElement).title = translation;
             }
         });
+        this.updatePersonalityDescription();
     }
+
+    // --- AI Persona & Settings ---
+    private saveAiSettings() {
+        const settings = {
+            avatarUrl: this.aiAvatarUrl,
+            personality: this.aiPersonality,
+            voice: this.aiVoice
+        };
+        localStorage.setItem('sadakSathiAiPersona', JSON.stringify(settings));
+        this.showToast('AI persona settings saved!', 'success');
+    }
+
+    private handleAvatarChange(event: Event) {
+        const input = event.target as HTMLInputElement;
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.aiAvatarUrl = e.target?.result as string;
+                (document.getElementById('persona-avatar-preview') as HTMLImageElement).src = this.aiAvatarUrl;
+                (document.getElementById('chat-ai-avatar') as HTMLImageElement).src = this.aiAvatarUrl;
+                this.saveAiSettings();
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    private getSystemInstructionForPersonality(): string {
+        const baseName = "Your name is Sadak Sathi.";
+        switch (this.aiPersonality) {
+            case 'formal':
+                return `${baseName} You are a formal and precise assistant. Provide clear, concise, and accurate information.`;
+            case 'guide':
+                return `${baseName} You are an enthusiastic and knowledgeable travel guide for Nepal. Provide rich details about culture, history, and attractions.`;
+            case 'buddy':
+                return `${baseName} You are a calm, reliable, and friendly co-pilot. Focus on road safety, clear directions, and immediate hazards. Keep responses short and easy to understand while driving.`;
+            case 'friendly':
+            default:
+                return `${baseName} You are a friendly, cheerful, and helpful road companion.`;
+        }
+    }
+    
+    private loadVoices() {
+        // The 'voiceschanged' event is the reliable way to get voices.
+        SpeechSynthesis.onvoiceschanged = () => {
+            this.availableVoices = SpeechSynthesis.getVoices();
+        };
+        // For browsers that load them immediately
+        this.availableVoices = SpeechSynthesis.getVoices();
+    }
+
+    private updatePersonalityDescription() {
+        const personalitySelect = document.getElementById('persona-personality-select') as HTMLSelectElement;
+        if (!personalitySelect) return;
+        const personality = personalitySelect.value;
+        const descriptionEl = document.getElementById('persona-personality-description') as HTMLParagraphElement;
+        if (!descriptionEl) return;
+    
+        const descriptions: { [key: string]: { key: string, fallback: string } } = {
+            friendly: { key: 'personality_desc_friendly', fallback: 'A cheerful and helpful road companion for general use.' },
+            formal: { key: 'personality_desc_formal', fallback: 'A precise assistant providing clear, concise information.' },
+            guide: { key: 'personality_desc_guide', fallback: 'An enthusiastic guide with rich details on culture and attractions.' },
+            buddy: { key: 'personality_desc_buddy', fallback: 'A calm co-pilot focused on safety and clear directions.' },
+        };
+    
+        const selectedPersonalityInfo = descriptions[personality] || descriptions['friendly'];
+        const translation = this.translations[selectedPersonalityInfo.key];
+    
+        if (translation && typeof translation === 'string') {
+            descriptionEl.textContent = translation;
+        } else {
+            descriptionEl.textContent = selectedPersonalityInfo.fallback;
+        }
+    }
+
 
     // --- Helpers ---
     private getLocalisedString(prop: any, fallback: string): string {
-        // Priority 1: Direct primitive values (string, number, boolean).
+        // Rule 1: If prop is a string, number, or boolean, return it as a string.
         if (typeof prop === 'string' || typeof prop === 'number' || typeof prop === 'boolean') {
             return String(prop);
         }
-        
-        // If it's not a valid object for translation, we can't handle it.
+    
+        // Rule 2: If prop is NOT a plain object (e.g., null, undefined, array), return the fallback.
         if (typeof prop !== 'object' || prop === null || Array.isArray(prop)) {
             return fallback;
         }
     
-        // Now we know 'prop' is a dictionary-like object. Try to find a translation.
-        let translatedValue: any;
-    
-        // Try current language first, checking for own property to handle falsy values correctly.
+        // Rule 3: Now we know prop is an object. Check for a translation in the current language.
         if (Object.prototype.hasOwnProperty.call(prop, this.currentLang)) {
-            translatedValue = prop[this.currentLang];
-        } 
-        // If not found, fall back to English.
-        else if (Object.prototype.hasOwnProperty.call(prop, 'en')) {
-            translatedValue = prop['en'];
+            const translatedValue = prop[this.currentLang];
+            // The translated value MUST be a primitive to be valid.
+            if (typeof translatedValue === 'string' || typeof translatedValue === 'number' || typeof translatedValue === 'boolean') {
+                return String(translatedValue);
+            }
         }
     
-        // If we found a translation, it MUST be a primitive type to be displayed.
-        if (typeof translatedValue === 'string' || typeof translatedValue === 'number' || typeof translatedValue === 'boolean') {
-            return String(translatedValue);
+        // Rule 4: If no valid translation was found, check for an English fallback.
+        if (Object.prototype.hasOwnProperty.call(prop, 'en')) {
+            const fallbackValue = prop['en'];
+            // The fallback value MUST also be a primitive.
+            if (typeof fallbackValue === 'string' || typeof fallbackValue === 'number' || typeof fallbackValue === 'boolean') {
+                return String(fallbackValue);
+            }
         }
-    
-        // If the translation itself is an object, or no valid translation was found, we cannot display it.
+        
+        // Rule 5: If the object is not a translation object or contains non-primitive translations, return the fallback.
         return fallback;
     }
     
