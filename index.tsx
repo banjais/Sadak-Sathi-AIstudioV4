@@ -1,9 +1,4 @@
 
-
-
-
-
-
 /**
  * @license
  * Copyright (c) 2024 Your Company or Name. All Rights Reserved.
@@ -422,8 +417,8 @@ class SadakSathiApp {
                     newLayer = new Cesium.ImageryLayer(await Cesium.createWorldImageryAsync());
                     break;
                 case 'dark':
-                    newLayer = new Cesium.ImageryLayer(await Cesium.CartoDBImageryProvider.fromUrl(
-                        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+                    newLayer = new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
+                        url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
                         subdomains: ['a', 'b', 'c', 'd']
                     }));
                     break;
