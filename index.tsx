@@ -1,4 +1,5 @@
 
+
 /**
  * @license
  * Copyright (c) 2024 Your Company or Name. All Rights Reserved.
@@ -140,7 +141,10 @@ class SadakSathiApp {
             const locations = new Set<string>();
             this.allRoadData.forEach(item => {
                 if(item.points_of_interest) {
-                    item.points_of_interest.forEach((poi: any) => locations.add(poi.name));
+                    item.points_of_interest.forEach((poi: any) => {
+                        const poiName = this.getLocalisedString(poi.name, '');
+                        if (poiName) locations.add(poiName);
+                    });
                 }
             });
             datalist.innerHTML = '';
@@ -239,8 +243,10 @@ class SadakSathiApp {
         });
     }
 
-    getRoadColor(status: string) {
-        switch (status.toLowerCase()) {
+    getRoadColor(status: any) {
+        // Handle cases where status might be an object due to i18n
+        const statusString = this.getLocalisedString(status, 'unknown').toLowerCase();
+        switch (statusString) {
             case 'open': return Cesium.Color.fromCssColorString('#2ecc71');
             case 'blocked': return Cesium.Color.fromCssColorString('#e74c3c');
             case 'restricted': return Cesium.Color.fromCssColorString('#f39c12');
@@ -249,8 +255,8 @@ class SadakSathiApp {
         }
     }
 
-    getIconForPoi(category: string): string {
-        const cat = category.toLowerCase();
+    getIconForPoi(category: any): string {
+        const cat = this.getLocalisedString(category, '').toLowerCase();
         if (cat.includes('fuel') || cat.includes('petrol')) return 'local_gas_station';
         if (cat.includes('food') || cat.includes('hotel') || cat.includes('restaurant')) return 'restaurant';
         if (cat.includes('atm')) return 'atm';
@@ -479,22 +485,18 @@ class SadakSathiApp {
     }
 
     private createRoadInfoHtml(props: any): string {
-        // Gracefully handle potentially missing properties by providing default values.
-        const name = props.name || 'Unnamed Road';
-        const status = props.status || 'N/A';
-        const details = props.details || 'No details available.';
+        const name = this.getLocalisedString(props.name, 'Unnamed Road');
+        const status = this.getLocalisedString(props.status, 'N/A');
+        const details = this.getLocalisedString(props.details, 'No details available.');
         const lastUpdated = props.last_updated ? new Date(props.last_updated).toLocaleString() : 'N/A';
         
-        // Sanitize the status to create a safe CSS class name (e.g., "Open" -> "open")
         const statusClass = String(status).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
-        // Construct the HTML parts
         const nameHtml = `<h3>${name}</h3>`;
         const statusHtml = `<p><strong>Status:</strong> <span class="status-${statusClass}">${status}</span></p>`;
         const detailsHtml = `<p>${details}</p>`;
         const lastUpdatedHtml = `<small>Last Updated: ${lastUpdated}</small>`;
         
-        // Assemble the final HTML, ensuring the name is always first.
         return `
             ${nameHtml}
             ${statusHtml}
@@ -504,10 +506,19 @@ class SadakSathiApp {
     }
     
     private createPoiInfoHtml(props: any): string {
-        const name = props.name || 'Unnamed POI';
-        const category = props.category || 'N/A';
-        const contact = props.contact ? `<p><strong>Contact:</strong> ${props.contact}</p>` : '';
-        const services = props.services ? `<p><strong>Services:</strong> ${props.services.join(', ')}</p>` : '';
+        const name = this.getLocalisedString(props.name, 'Unnamed POI');
+        const category = this.getLocalisedString(props.category, 'N/A');
+        const contactValue = this.getLocalisedString(props.contact, '');
+        const contact = contactValue ? `<p><strong>Contact:</strong> ${contactValue}</p>` : '';
+        
+        let services = '';
+        if (Array.isArray(props.services) && props.services.length > 0) {
+            const serviceStrings = props.services.map((service: any) => this.getLocalisedString(service, '')).filter(s => s);
+            if (serviceStrings.length > 0) {
+                services = `<p><strong>Services:</strong> ${serviceStrings.join(', ')}</p>`;
+            }
+        }
+
         return `
             <h3>${name}</h3>
             <p><strong>Category:</strong> ${category}</p>
@@ -517,10 +528,11 @@ class SadakSathiApp {
     }
     
     private createIncidentInfoHtml(props: any): string {
-        const title = props.title || 'Incident Report';
-        const type = props.incident_type || 'N/A';
-        const description = props.description || 'No description provided.';
+        const title = this.getLocalisedString(props.title, 'Incident Report');
+        const type = this.getLocalisedString(props.incident_type, 'N/A');
+        const description = this.getLocalisedString(props.description, 'No description provided.');
         const timestamp = props.timestamp ? new Date(props.timestamp).toLocaleString() : 'N/A';
+        
         return `
             <h3>${title}</h3>
             <p><strong>Type:</strong> ${type}</p>
@@ -765,13 +777,25 @@ class SadakSathiApp {
     findInfoInLocalData(query: string): string {
         const lowerQuery = query.toLowerCase();
         for (const road of this.allRoadData) {
-            if (road.name.toLowerCase().includes(lowerQuery)) {
-                return `The ${road.name} is currently ${road.status}. ${road.details}`;
+            const roadName = this.getLocalisedString(road.name, '');
+            if (roadName.toLowerCase().includes(lowerQuery)) {
+                const status = this.getLocalisedString(road.status, 'unknown');
+                const details = this.getLocalisedString(road.details, 'No details available.');
+                return `The ${roadName} is currently ${status}. ${details}`;
             }
             if (road.points_of_interest) {
                 for (const poi of road.points_of_interest) {
-                    if (poi.name.toLowerCase().includes(lowerQuery)) {
-                        return `${poi.name} is a ${poi.category}. ${poi.services ? 'Services include: ' + poi.services.join(', ') : ''}`;
+                    const poiName = this.getLocalisedString(poi.name, '');
+                    if (poiName.toLowerCase().includes(lowerQuery)) {
+                        const category = this.getLocalisedString(poi.category, 'uncategorized');
+                        let servicesString = '';
+                        if (Array.isArray(poi.services) && poi.services.length > 0) {
+                            const serviceStrings = poi.services.map((service: any) => this.getLocalisedString(service, '')).filter(s => s);
+                            if (serviceStrings.length > 0) {
+                               servicesString = `Services include: ${serviceStrings.join(', ')}`;
+                            }
+                        }
+                        return `${poiName} is a ${category}. ${servicesString}`;
                     }
                 }
             }
@@ -981,7 +1005,8 @@ class SadakSathiApp {
          for (const road of this.allRoadData) {
             if (road.points_of_interest) {
                 for (const poi of road.points_of_interest) {
-                    if (poi.name.toLowerCase().includes(lowerLoc)) {
+                    const poiName = this.getLocalisedString(poi.name, '');
+                    if (poiName.toLowerCase().includes(lowerLoc)) {
                         return { lat: poi.lat, lon: poi.lon };
                     }
                 }
@@ -1125,6 +1150,15 @@ class SadakSathiApp {
     }
 
     // --- Helpers ---
+    private getLocalisedString(prop: any, fallback: string): string {
+        if (typeof prop === 'string') return prop;
+        if (prop && typeof prop === 'object') {
+            return prop[this.currentLang] || prop['en'] || fallback;
+        }
+        if (prop !== null && prop !== undefined) return String(prop);
+        return fallback;
+    }
+    
     cesiumPropertiesToJs(properties: any) {
         const jsObject: { [key: string]: any } = {};
         if (!properties) return jsObject;
