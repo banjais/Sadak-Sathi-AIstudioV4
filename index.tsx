@@ -369,6 +369,10 @@ class SadakSathiApp {
         
         // Settings
         document.querySelector('#settings-panel .icon-button')?.addEventListener('click', () => this.toggleSettings(false));
+        document.getElementById('pref-highways')?.addEventListener('change', () => this.saveRoutePreferences());
+        document.getElementById('pref-no-tolls')?.addEventListener('change', () => this.saveRoutePreferences());
+        document.getElementById('pref-scenic')?.addEventListener('change', () => this.saveRoutePreferences());
+
 
         // Modals
         document.querySelectorAll('.modal-close-btn').forEach(btn => btn.addEventListener('click', (e) => this.toggleModal((e.currentTarget as HTMLElement).closest('.modal-overlay')!.id, false)));
@@ -467,14 +471,20 @@ class SadakSathiApp {
         const lastUpdated = props.last_updated ? new Date(props.last_updated).toLocaleString() : 'N/A';
         
         // Sanitize the status to create a safe CSS class name (e.g., "Open" -> "open")
-        const statusClass = status.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        const statusClass = String(status).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
-        // Construct the HTML to be displayed in the InfoBox.
+        // Construct the HTML parts
+        const nameHtml = `<h3>${name}</h3>`;
+        const statusHtml = `<p><strong>Status:</strong> <span class="status-${statusClass}">${status}</span></p>`;
+        const detailsHtml = `<p>${details}</p>`;
+        const lastUpdatedHtml = `<small>Last Updated: ${lastUpdated}</small>`;
+        
+        // Assemble the final HTML, ensuring the name is always first.
         return `
-            <h3>${name}</h3>
-            <p><strong>Status:</strong> <span class="status-${statusClass}">${status}</span></p>
-            <p>${details}</p>
-            <small>Last Updated: ${lastUpdated}</small>
+            ${nameHtml}
+            ${statusHtml}
+            ${detailsHtml}
+            ${lastUpdatedHtml}
         `;
     }
     
@@ -559,8 +569,32 @@ class SadakSathiApp {
     }
     
     loadSettings() {
+        // Load IP Cam URL
         this.ipCamUrl = localStorage.getItem('sadakSathiIpCamUrl') || '';
         (document.getElementById('admin-ip-cam-url') as HTMLInputElement).value = this.ipCamUrl;
+
+        // Load Route Preferences
+        const routePrefsString = localStorage.getItem('sadakSathiRoutePrefs');
+        if (routePrefsString) {
+            try {
+                const prefs = JSON.parse(routePrefsString);
+                (document.getElementById('pref-highways') as HTMLInputElement).checked = prefs.preferHighways ?? false;
+                (document.getElementById('pref-no-tolls') as HTMLInputElement).checked = prefs.avoidTolls ?? false;
+                (document.getElementById('pref-scenic') as HTMLInputElement).checked = prefs.preferScenic ?? false;
+            } catch (error) {
+                console.error("Error parsing route preferences from localStorage", error);
+            }
+        }
+    }
+
+    saveRoutePreferences() {
+        const prefs = {
+            preferHighways: (document.getElementById('pref-highways') as HTMLInputElement).checked,
+            avoidTolls: (document.getElementById('pref-no-tolls') as HTMLInputElement).checked,
+            preferScenic: (document.getElementById('pref-scenic') as HTMLInputElement).checked,
+        };
+        localStorage.setItem('sadakSathiRoutePrefs', JSON.stringify(prefs));
+        this.showToast('Route preferences saved!', 'success');
     }
 
     // --- Geolocation ---
@@ -785,7 +819,7 @@ class SadakSathiApp {
 
         this.recognition.onerror = (event: any) => {
             console.error('Speech recognition error', event.error);
-            this.showToast(`Speech recognition error: ${event.error}`, 'error');
+            this.showToast(`Speech recognition error: ${event.message || event.error}`, 'error');
         };
 
         this.recognition.onend = () => {
@@ -839,8 +873,6 @@ class SadakSathiApp {
     }
     
     findRoute() {
-        // This is a placeholder for a proper routing engine.
-        // For this demo, it will just draw a straight line.
         const from = (document.getElementById('from-input') as HTMLInputElement).value;
         const to = (document.getElementById('to-input') as HTMLInputElement).value;
         if (!from || !to) {
@@ -856,16 +888,30 @@ class SadakSathiApp {
             return;
         }
         
+        // Get preferences
+        const preferHighways = (document.getElementById('pref-highways') as HTMLInputElement).checked;
+        const avoidTolls = (document.getElementById('pref-no-tolls') as HTMLInputElement).checked;
+        const preferScenic = (document.getElementById('pref-scenic') as HTMLInputElement).checked;
+
+        // This is a placeholder for a proper routing engine.
+        // For this demo, it will just draw a straight line, but change style based on prefs.
+        let routeColor = Cesium.Color.DODGERBLUE;
+        if (preferScenic) {
+            routeColor = Cesium.Color.FORESTGREEN;
+        } else if (preferHighways) {
+            routeColor = Cesium.Color.ROYALBLUE;
+        }
+
         this.routeDataSource.entities.removeAll();
-        const routeEntity = this.routeDataSource.entities.add({
+        this.routeDataSource.entities.add({
             polyline: {
                 positions: Cesium.Cartesian3.fromDegreesArray([
                     startCoords.lon, startCoords.lat,
                     endCoords.lon, endCoords.lat
                 ]),
-                width: 8,
+                width: preferHighways ? 10 : 8,
                 material: new Cesium.PolylineDashMaterialProperty({
-                    color: Cesium.Color.DODGERBLUE,
+                    color: routeColor,
                 }),
                 clampToGround: true
             }
@@ -879,6 +925,34 @@ class SadakSathiApp {
         (document.getElementById('route-distance') as HTMLElement).textContent = `${distance.toFixed(1)} km`;
         (document.getElementById('route-time') as HTMLElement).textContent = `${Math.round(distance / 40 * 60)} min`;
         (document.getElementById('route-directions-list') as HTMLElement).innerHTML = `<div class="direction-step">Follow the highlighted route from ${from} to ${to}.</div>`;
+    
+        // Display preferences used
+        const prefsSummaryContainer = document.getElementById('route-preferences-summary')!;
+        const prefsList = document.getElementById('route-preferences-list')!;
+        prefsList.innerHTML = '';
+        let prefsUsed = false;
+
+        const addPrefItem = (icon: string, key: string) => {
+            const text = this.translations[key] || key.replace(/_/g, ' ');
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="material-icons" style="font-size: 1rem;">${icon}</span> <span data-lang-key="${key}">${text}</span>`;
+            prefsList.appendChild(li);
+        };
+
+        if (preferHighways) {
+            addPrefItem('add_road', 'prefer_highways');
+            prefsUsed = true;
+        }
+        if (avoidTolls) {
+            addPrefItem('money_off', 'avoid_tolls');
+            prefsUsed = true;
+        }
+        if (preferScenic) {
+            addPrefItem('landscape', 'prefer_scenic_route');
+            prefsUsed = true;
+        }
+        
+        prefsSummaryContainer.classList.toggle('hidden', !prefsUsed);
     }
 
     findCoordsForLocation(locationName: string): { lat: number, lon: number } | null {

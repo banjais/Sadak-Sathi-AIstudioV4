@@ -614,6 +614,33 @@ html, body {
     border-top: 1px solid var(--border-color);
     border-bottom: 1px solid var(--border-color);
 }
+#route-preferences-summary {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+#route-preferences-summary h4 {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-color-muted);
+    margin-bottom: 0.75rem;
+}
+#route-preferences-list {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0;
+}
+#route-preferences-list li {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: var(--font-size-small);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
 .stat-label { font-size: 0.9rem; color: var(--text-color-muted); }
 .stat-value { font-size: 1.4rem; font-weight: 700; }
 .directions-container {
