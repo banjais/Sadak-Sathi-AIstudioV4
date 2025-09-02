@@ -22,6 +22,20 @@
 </script>
 </head>
 <body>
+    <!-- NEW: Loading Overlay -->
+    <div id="loading-overlay">
+        <div class="loading-scene">
+            <div class="loading-rainbow"></div>
+            <div class="loading-content">
+                <div class="loading-icon-wrapper">
+                    <span id="loading-icon" class="material-icons">spa</span>
+                </div>
+                <h2>Sadak Sathi</h2>
+                <p id="loading-message" data-lang-key="loading_initializing">Initializing...</p>
+            </div>
+        </div>
+    </div>
+
     <div id="app-container" data-theme="light" data-mode="driving">
         <div id="map"></div>
         
@@ -124,6 +138,10 @@
                                 <label for="toggle-incidents" data-lang-key="incidents">Live Alerts</label>
                                 <input type="checkbox" id="toggle-incidents" class="toggle-switch" checked>
                             </div>
+                             <div class="layer-toggle">
+                                <label for="toggle-3d" data-lang-key="buildings_3d">3D Buildings/Terrain</label>
+                                <input type="checkbox" id="toggle-3d" class="toggle-switch" checked>
+                            </div>
                         </div>
                         <hr>
                         <div class="map-options-section">
@@ -217,7 +235,7 @@
         <!-- Route Details Panel -->
         <div id="route-details-panel" class="hidden">
              <div class="panel-header">
-                <h2 data-lang-key="route_preferences">Route Details</h2>
+                <h2 data-lang-key="route_details">Route Details</h2>
                 <button id="route-details-close" class="icon-button" data-lang-key-aria-label="close">
                     <span class="material-icons">close</span>
                 </button>
@@ -279,6 +297,15 @@
                         <p id="persona-personality-description" class="setting-description"></p>
                     </div>
                     <div class="setting-item-col">
+                        <label for="persona-relationship-select" data-lang-key="ai_relationship_label">Relationship</label>
+                        <select id="persona-relationship-select">
+                            <option value="friend" data-lang-key="relationship_friend">Friend</option>
+                            <option value="partner" data-lang-key="relationship_partner">Partner</option>
+                            <option value="husband" data-lang-key="relationship_husband">Husband</option>
+                            <option value="wife" data-lang-key="relationship_wife">Wife</option>
+                        </select>
+                    </div>
+                    <div class="setting-item-col">
                         <label for="persona-voice-select" data-lang-key="ai_voice_label">Voice</label>
                         <select id="persona-voice-select">
                             <option value="female" data-lang-key="voice_female">Female</option>
@@ -337,6 +364,7 @@
                 </div>
                 <div class="typing-indicator hidden"><span></span><span></span><span></span></div>
                 <div class="chat-input-area">
+                     <button id="context-chat-btn" class="hidden" data-lang-key="ask_about_location">Ask about this location</button>
                     <form id="chat-form">
                         <button type="button" id="voice-command-btn" class="icon-button" data-lang-key-aria-label="use_microphone" title="Use Microphone">
                             <span class="material-icons">mic</span>

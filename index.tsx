@@ -46,6 +46,137 @@ const NEPAL_BORDER_GEOJSON = { "type": "Polygon", "coordinates": [[[80.058, 28.9
 const INITIAL_CAMERA_POSITION = { lon: 84.1240, lat: 28.3949, alt: 900000 };
 const NEPAL_BOUNDING_RECTANGLE = Cesium.Rectangle.fromDegrees(80.0, 26.3, 88.2, 30.5);
 
+// --- NEW: Local Fallback Translations ---
+const en_translations = {
+    // Loading Screen
+    "loading_initializing": "Initializing...",
+    "loading_map": "Preparing the map...",
+    "loading_voices": "Warming up AI voices...",
+    "loading_data": "Fetching latest road data...",
+    "loading_ui": "Assembling interface...",
+    "loading_settings": "Loading your preferences...",
+    "loading_complete": "All set! Welcome.",
+
+    // Header
+    "app_subtitle": "Your Smart Road Companion",
+    "gps_searching": "GPS Status: Searching...",
+    "toggle_dark_mode": "Toggle dark mode",
+    
+    // Language Selector
+    "lang_cat_national": "National",
+    "lang_cat_international": "International",
+
+    // Map Controls
+    "center_location": "Center on your location",
+    "layers": "Data Layers",
+    "roads": "Roads",
+    "pois": "Points of Interest",
+    "incidents": "Live Alerts",
+    "buildings_3d": "3D Buildings/Terrain",
+    "map_style_streets": "Streets",
+    "map_style_satellite": "Satellite",
+    "map_style_dark": "Dark",
+
+    // Route Finder / Top Search
+    "from_placeholder": "Starting location",
+    "to_placeholder": "Destination",
+    "voice_input_start": "Voice input for start location",
+    "swap_locations": "Swap locations",
+    "voice_input_end": "Voice input for destination",
+    "find_route_btn": "Find Route",
+    "clear_route_btn": "Clear Route",
+
+    // Route Details
+    "route_details": "Route Details",
+    "close": "Close",
+    "route_details_distance": "Distance",
+    "route_details_time": "Est. Time",
+    "route_prefs_used": "Route Preferences Used:",
+    "route_details_directions": "Directions",
+    "share_route": "Share route",
+    "view_on_gmaps": "View on Google Maps",
+    "start_navigation": "Start Navigation",
+
+    // InfoBox
+    "get_directions": "Get Directions",
+    "live_weather": "Live Weather",
+    "nearby_services": "Nearby Services",
+    "fetching_data": "Fetching...",
+
+
+    // Settings Panel
+    "app_settings": "App Settings",
+    "ai_persona_title": "AI Persona",
+    "change_ai_avatar": "Change AI Avatar",
+    "ai_personality_label": "Personality",
+    "personality_friendly": "Friendly",
+    "personality_formal": "Formal",
+    "personality_guide": "Travel Guide",
+    "personality_buddy": "Driver's Buddy",
+    "personality_desc_friendly": "A cheerful and helpful road companion for general use.",
+    "personality_desc_formal": "A precise assistant providing clear, concise information.",
+    "personality_desc_guide": "An enthusiastic guide with rich details on culture and attractions.",
+    "personality_desc_buddy": "A calm co-pilot focused on safety and clear directions.",
+    "ai_relationship_label": "Relationship",
+    "relationship_friend": "Friend",
+    "relationship_partner": "Partner",
+    "relationship_husband": "Husband",
+    "relationship_wife": "Wife",
+    "ai_voice_label": "Voice",
+    "voice_female": "Female",
+    "voice_male": "Male",
+    "voice_neutral": "Neutral",
+    "preferences_title": "Preferences",
+    "ai_voice_response": "AI Voice Response",
+    "route_preferences": "Route Preferences",
+    "prefer_highways": "Prefer Highways",
+    "avoid_tolls": "Avoid Tolls",
+    "prefer_scenic_route": "Prefer Scenic Route",
+
+    // AI Chat
+    "ai_chat_title": "AI Chat",
+    "ask_about_location": "Ask about this location",
+    "close_chat": "Close chat",
+    "use_microphone": "Use Microphone",
+    "ai_chat_placeholder": "Ask Sadak Sathi...",
+    "send_message": "Send Message",
+    "ai_welcome_message": "Hello! I'm Sadak Sathi, your road companion. How can I assist you today? Ask me about road conditions, points of interest, or help you find a route.",
+    "ai_error_message": "Sorry, I encountered an error. Please try again.",
+    "speech_recognition_error": "Speech recognition error",
+
+    // Incident Reporting
+    "report_incident_title": "Report New Road Incident",
+    "report_location_unavailable": "Your current location is not available. Please enable GPS to report an incident.",
+    "location": "Location",
+    "current_location": "Using Current Location",
+    "incident_type": "Type of Incident",
+    "incident_type_accident": "Accident",
+    "incident_type_roadblock": "Roadblock",
+    "incident_type_construction": "Construction",
+    "incident_type_hazard": "Hazard",
+    "incident_type_traffic": "Traffic Jam",
+    "incident_type_other": "Other",
+    "description": "Description (Optional)",
+    "incident_desc_placeholder": "Add more details...",
+    "submit_report": "Submit Report",
+
+    // FAB Menu
+    "profile": "Profile",
+    "main_menu": "Main Menu",
+    
+    // Unused from HTML but good to have
+    "alert_ask_ai": "Ask AI",
+    "alert_dismiss": "Dismiss",
+    "display_panel_title": "Nearby Information",
+    "no_items_found": "No items found.",
+    "route_options_title": "Route Options",
+    "select_mode": "Select Mode",
+    "mode_driving": "Driving",
+    "mode_riding": "Riding",
+    "mode_exploring": "Exploring",
+    "mode_connect": "Connect"
+};
+
 // =================================================================================
 // Main Application Class
 // =================================================================================
@@ -69,31 +200,104 @@ class SadakSathiApp {
     // AI Persona State
     private aiAvatarUrl: string = 'https://i.imgur.com/r33W56s.png';
     private aiPersonality: string = 'friendly';
+    private aiRelationship: string = 'friend';
     private aiVoice: string = 'female';
     private availableVoices: SpeechSynthesisVoice[] = [];
 
+    // 3D View State
+    private worldTerrainProvider: any;
+    private osmBuildings: any | null = null;
+    private are3dAssetsLoading: boolean = false;
+    
+    // Loading Screen State
+    private loadingOverlay: HTMLElement;
+    private loadingMessage: HTMLElement;
+    private loadingIcon: HTMLElement;
+
+    // Geolocation State
+    private isGeolocationActive: boolean = false;
+
+    // Context State
+    private selectedEntityContext: any = null;
+
+
     constructor() {
+        this.loadingOverlay = document.getElementById('loading-overlay')!;
+        this.loadingMessage = document.getElementById('loading-message')!;
+        this.loadingIcon = document.getElementById('loading-icon')!;
         this.init();
     }
 
     async init() {
+        this.updateLoadingProgress(10, 'loading_initializing');
+
+        await this.loadTranslations(this.currentLang);
+        this.updateUIForLanguage(); // Translates loading screen and the rest of the app
+        this.updateLoadingProgress(20, 'loading_map');
+        
         await this.initCesium();
+        this.updateLoadingProgress(40, 'loading_voices');
+
         this.loadVoices();
+        this.updateLoadingProgress(60, 'loading_data');
+        
         await this.loadInitialData();
+        this.updateLoadingProgress(80, 'loading_ui');
+        
         this.setupEventListeners();
         this.initSpeechRecognition();
-        this.initGeolocation();
-        await this.loadTranslations(this.currentLang);
-        this.updateUIForLanguage();
+        
+        this.updateLoadingProgress(95, 'loading_settings');
         this.loadSettings();
+
+        this.updateLoadingProgress(100, 'loading_complete');
+
+        // Give a slight delay for the user to see the "complete" state
+        setTimeout(() => {
+            this.hideLoadingScreen();
+        }, 500);
     }
+
+    // --- Loading Screen Handlers ---
+    updateLoadingProgress(percentage: number, messageKey: string) {
+        const message = this.translations[messageKey] || messageKey.replace(/_/g, ' ');
+        this.loadingMessage.textContent = message;
+
+        // Animate the growing icon
+        const startSize = 24;
+        const endSize = 96;
+        const newSize = startSize + (endSize - startSize) * (percentage / 100);
+        this.loadingIcon.style.fontSize = `${newSize}px`;
+        this.loadingIcon.style.opacity = `${0.5 + (percentage / 200)}`;
+    }
+
+    hideLoadingScreen() {
+        this.loadingOverlay.classList.add('hidden-fade');
+        // After the transition, set display to none to prevent interaction issues
+        setTimeout(() => {
+            this.loadingOverlay.style.display = 'none';
+        }, 700); // This duration must match the CSS transition
+    }
+
 
     // --- Cesium and Map Initialization ---
     async initCesium() {
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0YjFjNGFjMS1iMjExLTQyYWMtOTFkYy0wMDYxZGU5Y2QyYTMiLCJpZCI6MjI2NTg0LCJpYXQiOjE3MjExNTg4MDB9.sA-1z4P-6A8f6UgtMNQ8qfIq_v2O-u3a3e-rcQoTbow';
+        
+        const is3dEnabled = localStorage.getItem('sadakSathi3dView') === 'true';
+        (document.getElementById('toggle-3d') as HTMLInputElement).checked = is3dEnabled;
+
+        // Robustly load terrain, with a fallback
+        try {
+            this.worldTerrainProvider = await Cesium.Terrain.fromWorldTerrain();
+        } catch (error) {
+            console.error("Failed to load Cesium World Terrain. Falling back to 2D.", error);
+            this.showToast('3D terrain failed to load. Using 2D map.', 'warning');
+            this.worldTerrainProvider = new Cesium.EllipsoidTerrainProvider();
+        }
 
         this.viewer = new Cesium.Viewer('map', {
-            terrainProvider: await Cesium.Terrain.fromWorldTerrain(),
+            terrainProvider: is3dEnabled ? this.worldTerrainProvider : new Cesium.EllipsoidTerrainProvider(),
             geocoder: false,
             homeButton: false,
             sceneModePicker: false,
@@ -106,8 +310,11 @@ class SadakSathiApp {
             selectionIndicator: false,
         });
 
-        // Add OSM Buildings
-        this.viewer.scene.primitives.add(await Cesium.createOsmBuildingsAsync());
+        // If starting in 3D mode, lazy-load the buildings now.
+        if (is3dEnabled) {
+            this.load3dAssets();
+        }
+
 
         // Camera Constraints
         this.viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(INITIAL_CAMERA_POSITION.lon, INITIAL_CAMERA_POSITION.lat, INITIAL_CAMERA_POSITION.alt) });
@@ -181,7 +388,14 @@ class SadakSathiApp {
                     status: road.status,
                     type: 'road',
                     details: road.details,
-                    last_updated: road.last_updated
+                    last_updated: road.last_updated,
+                    // --- NEW Official Data ---
+                    road_code: road.road_code,
+                    pavement_type: road.pavement_type,
+                    toll_free: road.toll_free,
+                    bridge_info: road.bridge_info,
+                    user_reported: road.user_reported,
+                    source: road.source
                 }
             });
 
@@ -254,11 +468,18 @@ class SadakSathiApp {
         // Handle cases where status might be an object due to i18n
         const statusString = this.getLocalisedString(status, 'unknown').toLowerCase();
         switch (statusString) {
-            case 'open': return Cesium.Color.fromCssColorString('#2ecc71');
-            case 'blocked': return Cesium.Color.fromCssColorString('#e74c3c');
-            case 'restricted': return Cesium.Color.fromCssColorString('#f39c12');
-            case 'construction': return Cesium.Color.fromCssColorString('#e67e22');
-            default: return Cesium.Color.fromCssColorString('#95a5a6');
+            case 'open':
+            case 'resumed':
+                return Cesium.Color.fromCssColorString('#2ecc71');
+            case 'blocked': 
+                return Cesium.Color.fromCssColorString('#e74c3c');
+            case 'restricted':
+            case 'one-lane':
+                return Cesium.Color.fromCssColorString('#f39c12');
+            case 'construction': 
+                return Cesium.Color.fromCssColorString('#e67e22');
+            default: 
+                return Cesium.Color.fromCssColorString('#95a5a6');
         }
     }
 
@@ -343,9 +564,11 @@ class SadakSathiApp {
         });
 
         // Map Options
-        document.getElementById('toggle-roads')?.addEventListener('change', (e) => { this.roadDataSource.show = (e.target as HTMLInputElement).checked; });
-        document.getElementById('toggle-pois')?.addEventListener('change', (e) => { this.poiDataSource.show = (e.target as HTMLInputElement).checked; });
-        document.getElementById('toggle-incidents')?.addEventListener('change', (e) => { this.incidentDataSource.show = (e.target as HTMLInputElement).checked; });
+        document.getElementById('toggle-roads')?.addEventListener('change', (e) => this.toggleDataSourceVisibility('roads', (e.target as HTMLInputElement).checked));
+        document.getElementById('toggle-pois')?.addEventListener('change', (e) => this.toggleDataSourceVisibility('pois', (e.target as HTMLInputElement).checked));
+        document.getElementById('toggle-incidents')?.addEventListener('change', (e) => this.toggleDataSourceVisibility('incidents', (e.target as HTMLInputElement).checked));
+        document.getElementById('toggle-3d')?.addEventListener('change', (e) => this.toggle3DView((e.target as HTMLInputElement).checked));
+
         document.querySelectorAll('.style-option').forEach(btn => {
             btn.addEventListener('click', (e) => this.changeMapStyle((e.currentTarget as HTMLElement).dataset.style!));
         });
@@ -378,6 +601,7 @@ class SadakSathiApp {
             this.handleChatMessage();
         });
         document.getElementById('voice-command-btn')?.addEventListener('click', () => this.toggleVoiceRecognition());
+        document.getElementById('context-chat-btn')?.addEventListener('click', () => this.handleContextChatClick());
 
         // Top Search Panel (formerly Route Finder)
         document.getElementById('find-route-btn')?.addEventListener('click', () => this.findRoute());
@@ -400,6 +624,10 @@ class SadakSathiApp {
             this.aiPersonality = (e.target as HTMLSelectElement).value;
             this.saveAiSettings();
             this.updatePersonalityDescription();
+        });
+        document.getElementById('persona-relationship-select')?.addEventListener('change', (e) => {
+            this.aiRelationship = (e.target as HTMLSelectElement).value;
+            this.saveAiSettings();
         });
         document.getElementById('persona-voice-select')?.addEventListener('change', (e) => {
             this.aiVoice = (e.target as HTMLSelectElement).value;
@@ -485,11 +713,22 @@ class SadakSathiApp {
         }
     }
 
-    showInfoForEntity(entity: any) {
+    async showInfoForEntity(entity: any) {
         const props = this.cesiumPropertiesToJs(entity.properties);
+        this.selectedEntityContext = props; // Store context for AI chat
         const contentDiv = document.getElementById('cesium-infobox-content')!;
         let html = '';
-
+        let lat: number | null = null;
+        let lon: number | null = null;
+    
+        // Try to get coordinates from the entity's position
+        const position = entity.position?.getValue(this.viewer.clock.currentTime);
+        if (position) {
+            const cartographic = Cesium.Cartographic.fromCartesian(position);
+            lat = Cesium.Math.toDegrees(cartographic.latitude);
+            lon = Cesium.Math.toDegrees(cartographic.longitude);
+        }
+    
         // Determine entity type and generate appropriate HTML content.
         if (props.type === 'road') {
             html = this.createRoadInfoHtml(props);
@@ -498,35 +737,42 @@ class SadakSathiApp {
         } else if (props.type === 'incident') {
             html = this.createIncidentInfoHtml(props);
         }
-
+    
         // Only show the box if we have content to display.
         if (html) {
             contentDiv.innerHTML = html;
+            this.updateUIForLanguage(contentDiv); // Translate the newly added content
             document.getElementById('cesium-infobox')?.classList.remove('hidden');
-
+            document.getElementById('context-chat-btn')?.classList.remove('hidden');
+    
+            // If we have coordinates, fetch additional data
+            if (lat !== null && lon !== null) {
+                this.fetchAndDisplayWeather(lat, lon);
+                this.fetchAndDisplayPois(lat, lon);
+            }
+    
             // Add event listener for the directions button if it exists
             const getDirectionsBtn = document.getElementById('get-incident-directions-btn');
             if (getDirectionsBtn) {
                 getDirectionsBtn.addEventListener('click', (e) => {
                     const btn = e.currentTarget as HTMLElement;
-                    const lat = btn.dataset.lat!;
-                    const lon = btn.dataset.lon!;
+                    const destLat = btn.dataset.lat!;
+                    const destLon = btn.dataset.lon!;
                     const type = btn.dataset.type!;
-
+    
                     if (this.userLocationEntity) {
                         this.hideInfoBox();
                         
                         (document.getElementById('from-input') as HTMLInputElement).value = 'My Current Location';
-                        // Use a special, parsable string for the destination
-                        (document.getElementById('to-input') as HTMLInputElement).value = `Incident:${type}:${lat}:${lon}`;
-
+                        (document.getElementById('to-input') as HTMLInputElement).value = `Incident:${type}:${destLat}:${destLon}`;
+    
                         this.findRoute();
                     } else {
                         this.showToast('Please enable GPS to get directions.', 'warning');
                     }
                 });
             }
-
+    
         } else {
             this.hideInfoBox();
         }
@@ -537,19 +783,34 @@ class SadakSathiApp {
         const status = this.getLocalisedString(props.status, 'N/A');
         const details = this.getLocalisedString(props.details, 'No details available.');
         const lastUpdated = props.last_updated ? new Date(props.last_updated).toLocaleString() : 'N/A';
-        
+        const roadCode = this.getLocalisedString(props.road_code, '');
+        const pavementType = this.getLocalisedString(props.pavement_type, 'N/A');
+        const bridgeInfo = this.getLocalisedString(props.bridge_info, '');
+        const userReported = this.getLocalisedString(props.user_reported, '');
+        const isTollFree = props.toll_free === true;
+
         const statusClass = String(status).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
-        const nameHtml = `<h3>${name}</h3>`;
-        const statusHtml = `<p><strong>Status:</strong> <span class="status-${statusClass}">${status}</span></p>`;
-        const detailsHtml = `<p>${details}</p>`;
-        const lastUpdatedHtml = `<small>Last Updated: ${lastUpdated}</small>`;
+        const roadCodeBadge = roadCode ? `<span class="road-code-badge">${roadCode}</span>` : '';
+        const bridgeBadge = bridgeInfo ? `<span class="bridge-info-badge">${bridgeInfo}</span>` : '';
+        const userReportedBadge = userReported ? `<span class="user-reported-badge">${userReported}</span>` : '';
+        const tollFreeBadge = isTollFree ? `<span class="toll-free-badge">Toll Free</span>` : '';
         
         return `
-            ${nameHtml}
-            ${statusHtml}
-            ${detailsHtml}
-            ${lastUpdatedHtml}
+            <div class="infobox-header">
+                <h3>${name}</h3>
+                ${roadCodeBadge}
+            </div>
+            <div class="info-badges">
+                ${tollFreeBadge}
+                ${bridgeBadge}
+                ${userReportedBadge}
+            </div>
+            <p><strong>Status:</strong> <span class="status-${statusClass}">${status}</span></p>
+            <p><strong>Pavement:</strong> ${pavementType}</p>
+            <p>${details}</p>
+            <small>Last Updated: ${lastUpdated}</small>
+            ${this.createInfoBoxExtraSectionsHtml()}
         `;
     }
     
@@ -572,6 +833,7 @@ class SadakSathiApp {
             <p><strong>Category:</strong> ${category}</p>
             ${contact}
             ${services}
+            ${this.createInfoBoxExtraSectionsHtml()}
         `;
     }
     
@@ -596,12 +858,72 @@ class SadakSathiApp {
             <p><strong>Type:</strong> ${type}</p>
             <p>${description}</p>
             <small>Reported: ${timestamp}</small>
+            ${this.createInfoBoxExtraSectionsHtml()}
             ${(props.lat && props.lon) ? directionsButtonHtml : ''}
         `;
     }
 
+    private createInfoBoxExtraSectionsHtml(): string {
+        const fetching = this.translations['fetching_data'] || 'Fetching...';
+        return `
+            <hr style="margin: 0.75rem 0;">
+            <div id="infobox-weather-container">
+                <h4 data-lang-key="live_weather">Live Weather</h4>
+                <p id="infobox-weather-content">${fetching}</p>
+            </div>
+            <div id="infobox-pois-container" style="margin-top: 0.5rem;">
+                <h4 data-lang-key="nearby_services">Nearby Services</h4>
+                <p id="infobox-pois-content">${fetching}</p>
+            </div>
+        `;
+    }
+
+    async fetchAndDisplayWeather(lat: number, lon: number) {
+        const contentEl = document.getElementById('infobox-weather-content');
+        if (!contentEl) return;
+        try {
+            const response = await fetch(`https://api.open-meteo.com/v1/forecast?current_weather=true&latitude=${lat}&longitude=${lon}`);
+            if (!response.ok) throw new Error('Weather API request failed');
+            const data = await response.json();
+            if (data.current_weather) {
+                const { temperature, windspeed } = data.current_weather;
+                contentEl.textContent = `${temperature}°C, Wind ${windspeed} km/h`;
+            } else {
+                contentEl.textContent = 'Unavailable';
+            }
+        } catch (error) {
+            console.error('Failed to fetch weather:', error);
+            contentEl.textContent = 'Error fetching data.';
+        }
+    }
+
+    async fetchAndDisplayPois(lat: number, lon: number) {
+        const contentEl = document.getElementById('infobox-pois-content');
+        if (!contentEl) return;
+        const query = `[out:json];(node["amenity"~"fuel|restaurant|fast_food|cafe|pharmacy"](around:2000,${lat},${lon}););out;`;
+        try {
+            const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+            if (!response.ok) throw new Error('Overpass API request failed');
+            const data = await response.json();
+            if (data.elements && data.elements.length > 0) {
+                const poiNames = data.elements
+                    .map((el: any) => el.tags.name || el.tags.amenity)
+                    .filter((name: string) => name)
+                    .slice(0, 5); // Limit to 5 for brevity
+                contentEl.textContent = poiNames.join(', ');
+            } else {
+                contentEl.textContent = 'None found within 2km.';
+            }
+        } catch (error) {
+            console.error('Failed to fetch POIs:', error);
+            contentEl.textContent = 'Error fetching data.';
+        }
+    }
+
     hideInfoBox() {
         document.getElementById('cesium-infobox')?.classList.add('hidden');
+        document.getElementById('context-chat-btn')?.classList.add('hidden');
+        this.selectedEntityContext = null;
     }
 
     toggleLiveCamPanel(show: boolean) {
@@ -629,11 +951,15 @@ class SadakSathiApp {
             video.classList.remove('hidden');
             document.getElementById('ip-cam-stream')?.classList.add('hidden');
             document.getElementById('live-cam-placeholder')?.classList.add('hidden');
-        } catch (err) {
+        } catch (err: any) {
             console.error("Error accessing webcam:", err);
             document.getElementById('live-cam-placeholder')?.classList.remove('hidden');
             document.getElementById('live-cam-video')?.classList.add('hidden');
-            this.showToast('Could not access webcam.', 'error');
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                this.showToast('Camera access was denied. Please enable it in your browser settings.', 'error');
+            } else {
+                this.showToast('Could not access webcam.', 'error');
+            }
         }
     }
 
@@ -679,18 +1005,29 @@ class SadakSathiApp {
                 const persona = JSON.parse(personaSettingsString);
                 this.aiAvatarUrl = persona.avatarUrl || this.aiAvatarUrl;
                 this.aiPersonality = persona.personality || this.aiPersonality;
+                this.aiRelationship = persona.relationship || this.aiRelationship;
                 this.aiVoice = persona.voice || this.aiVoice;
 
                 // Update UI
                 (document.getElementById('persona-avatar-preview') as HTMLImageElement).src = this.aiAvatarUrl;
                 (document.getElementById('chat-ai-avatar') as HTMLImageElement).src = this.aiAvatarUrl;
                 (document.getElementById('persona-personality-select') as HTMLSelectElement).value = this.aiPersonality;
+                (document.getElementById('persona-relationship-select') as HTMLSelectElement).value = this.aiRelationship;
                 (document.getElementById('persona-voice-select') as HTMLSelectElement).value = this.aiVoice;
                 this.updatePersonalityDescription();
             } catch (error) {
                 console.error("Error parsing AI persona settings from localStorage", error);
             }
         }
+        
+        // Load Layer Visibility Settings
+        const layerVisibility = JSON.parse(localStorage.getItem('sadakSathiLayerVisibility') || '{}');
+        ['roads', 'pois', 'incidents'].forEach(layer => {
+            const isVisible = layerVisibility[layer] !== false; // Default to true
+            (document.getElementById(`toggle-${layer}`) as HTMLInputElement).checked = isVisible;
+            this.toggleDataSourceVisibility(layer, isVisible);
+        });
+
     }
 
     saveRoutePreferences() {
@@ -704,16 +1041,37 @@ class SadakSathiApp {
     }
 
     // --- Geolocation ---
-    initGeolocation() {
-        if ('geolocation' in navigator) {
-            navigator.geolocation.watchPosition(
-                (position) => this.handleLocationSuccess(position),
-                (error) => this.handleLocationError(error),
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-            );
-        } else {
-            this.showToast('Geolocation is not supported by your browser.', 'warning');
-        }
+    private initiateGeolocation(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (this.isGeolocationActive) {
+                resolve();
+                return;
+            }
+    
+            if ('geolocation' in navigator) {
+                navigator.geolocation.watchPosition(
+                    (position) => {
+                        this.handleLocationSuccess(position);
+                        if (!this.isGeolocationActive) {
+                            this.isGeolocationActive = true;
+                            resolve();
+                        }
+                    },
+                    (error) => {
+                        this.handleLocationError(error);
+                        // Only reject if geolocation hasn't been activated yet
+                        if (!this.isGeolocationActive) {
+                            reject(error);
+                        }
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            } else {
+                const errorMsg = 'Geolocation is not supported by your browser.';
+                this.showToast(errorMsg, 'warning');
+                reject(new Error(errorMsg));
+            }
+        });
     }
 
     handleLocationSuccess(position: GeolocationPosition) {
@@ -746,14 +1104,19 @@ class SadakSathiApp {
         this.showToast('Could not get your location.', 'error');
     }
 
-    centerOnUserLocation() {
-        if (this.userLocationEntity) {
-            this.viewer.flyTo(this.userLocationEntity, {
-                duration: 1.5,
-                offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-45), 2000)
-            });
-        } else {
-            this.showToast('Location not available yet.', 'warning');
+    async centerOnUserLocation() {
+        try {
+            await this.initiateGeolocation();
+            if (this.userLocationEntity) {
+                this.viewer.flyTo(this.userLocationEntity, {
+                    duration: 1.5,
+                    offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-45), 2000)
+                });
+            } else {
+                this.showToast('Could not get your location. Please check permissions.', 'warning');
+            }
+        } catch (error) {
+             console.error("Geolocation initiation failed", error);
         }
     }
 
@@ -769,26 +1132,30 @@ class SadakSathiApp {
             (document.getElementById('chat-ai-avatar') as HTMLImageElement).src = this.aiAvatarUrl;
 
             if(this.chatHistory.length === 0) {
-                const welcomeMessage = this.translations['ai_welcome_message'];
-                const messageText = (welcomeMessage && typeof welcomeMessage === 'string')
-                    ? welcomeMessage
-                    : "Hello! I'm Sadak Sathi, your road companion. How can I assist you today? Ask me about road conditions, points of interest, or help you find a route.";
+                const welcomeMessageKey = 'ai_welcome_message';
+                let messageText = this.translations[welcomeMessageKey];
+                
+                // Defensive check to ensure messageText is a string
+                if (typeof messageText !== 'string') {
+                    messageText = "Hello! I'm Sadak Sathi, your road companion. How can I assist you today? Ask me about road conditions, points of interest, or help you find a route.";
+                }
+
                 this.addMessageToChat('Sadak Sathi', messageText, false);
                 this.chatHistory.push({ role: 'model', parts: [{ text: messageText }] });
             }
         }
     }
     
-    async handleChatMessage() {
+    async handleChatMessage(contextualMessage: string | null = null) {
         const input = document.getElementById('chat-input') as HTMLInputElement;
-        const message = input.value.trim();
+        const message = contextualMessage || input.value.trim();
         if (!message) return;
-
+    
         this.addMessageToChat('You', message, true);
         input.value = '';
         this.chatHistory.push({ role: 'user', parts: [{ text: message }] });
         this.setTypingIndicator(true);
-
+    
         try {
             const tools: Tool[] = [
                 {
@@ -819,17 +1186,17 @@ class SadakSathiApp {
                     ]
                 }
             ];
-
-            const systemInstruction = this.getSystemInstructionForPersonality();
+    
+            const systemInstruction = this.getSystemInstruction();
             const response: GenerateContentResponse = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
-                contents: this.chatHistory, // Pass the entire conversation history
+                contents: this.chatHistory,
                 config: { 
                     tools,
-                    systemInstruction: `You MUST respond in the language with this ISO code: "${this.currentLang}". ${systemInstruction}`
+                    systemInstruction: systemInstruction
                 }
             });
-
+    
             this.setTypingIndicator(false);
             
             if(response.functionCalls && response.functionCalls.length > 0) {
@@ -843,27 +1210,33 @@ class SadakSathiApp {
                     this.speak(aiResponse);
                 }
             }
-
+    
         } catch (error) {
             console.error("Gemini API error:", error);
             this.setTypingIndicator(false);
             const errorMessageKey = 'ai_error_message';
-            const errorMessage = (this.translations[errorMessageKey] && typeof this.translations[errorMessageKey] === 'string')
-                ? this.translations[errorMessageKey]
-                : "Sorry, I encountered an error. Please try again.";
+            let errorMessage = this.translations[errorMessageKey];
+            
+            if (typeof errorMessage !== 'string') {
+                errorMessage = "Sorry, I encountered an error. Please try again.";
+            }
             this.addMessageToChat('Sadak Sathi', errorMessage, false);
         }
     }
 
     handleFunctionCall(name: string, args: any) {
         if (name === 'find_route') {
-            this.addMessageToChat('Sadak Sathi', `Okay, finding the best route from ${args.start} to ${args.end}.`, false);
+            const startLocation = this.getLocalisedString(args?.start, 'Unknown Start');
+            const endLocation = this.getLocalisedString(args?.end, 'Unknown End');
+    
+            this.addMessageToChat('Sadak Sathi', `Okay, finding the best route from ${startLocation} to ${endLocation}.`, false);
             this.toggleChat(false);
-            (document.getElementById('from-input') as HTMLInputElement).value = args.start;
-            (document.getElementById('to-input') as HTMLInputElement).value = args.end;
+            (document.getElementById('from-input') as HTMLInputElement).value = startLocation;
+            (document.getElementById('to-input') as HTMLInputElement).value = endLocation;
             this.findRoute();
         } else if (name === 'get_information_about') {
-            const info = this.findInfoInLocalData(args.query);
+            const query = this.getLocalisedString(args?.query, '');
+            const info = this.findInfoInLocalData(query);
             this.addMessageToChat('Sadak Sathi', info, false);
         }
     }
@@ -912,7 +1285,8 @@ class SadakSathiApp {
         senderName.classList.add('message-sender');
         senderName.textContent = sender;
         const messageText = document.createElement('p');
-        messageText.textContent = text;
+        // Defensive check: Ensure text is a string before assigning
+        messageText.textContent = (typeof text === 'string') ? text : '[Error: Invalid message format]';
         
         messageContent.appendChild(senderName);
         messageContent.appendChild(messageText);
@@ -951,8 +1325,27 @@ class SadakSathiApp {
         };
 
         this.recognition.onerror = (event: any) => {
-            console.error('Speech recognition error', event.error);
-            this.showToast(`Speech recognition error: ${event.message || event.error}`, 'error');
+            console.error('Speech recognition error event:', event);
+            if (event.error === 'not-allowed') {
+                this.showToast('Microphone access denied. Please enable it in settings to use voice commands.', 'error');
+                return;
+            }
+
+            let errorText = 'Unknown recognition error';
+
+            // Safely extract error message as a string to prevent [object Object]
+            if (event.message && typeof event.message === 'string') {
+                errorText = event.message;
+            } else if (event.error && typeof event.error === 'string') {
+                errorText = event.error;
+            }
+            
+            let genericErrorTranslation = this.translations['speech_recognition_error'];
+            if (typeof genericErrorTranslation !== 'string') {
+                genericErrorTranslation = 'Speech recognition error';
+            }
+
+            this.showToast(`${genericErrorTranslation}: ${errorText}`, 'error');
         };
 
         this.recognition.onend = () => {
@@ -967,7 +1360,7 @@ class SadakSathiApp {
             this.recognition.stop();
         } else {
             this.recognition.lang = this.currentLang;
-            this.recognition.start();
+            this.recognition.start(); // This will trigger the permission prompt if needed
             this.isRecognizing = true;
             document.getElementById('voice-command-btn')?.classList.add('recording');
         }
@@ -979,7 +1372,7 @@ class SadakSathiApp {
         } else {
             this.currentVoiceInputTarget = inputElement;
             this.recognition.lang = this.currentLang;
-            this.recognition.start();
+            this.recognition.start(); // This will trigger the permission prompt if needed
             this.isRecognizing = true;
             inputElement.nextElementSibling?.classList.add('recording');
         }
@@ -1019,105 +1412,119 @@ class SadakSathiApp {
         [fromInput.value, toInput.value] = [toInput.value, fromInput.value];
     }
     
-    findRoute() {
+    async findRoute() {
+        this.showToast('Finding best route...', 'info');
         const from = (document.getElementById('from-input') as HTMLInputElement).value;
         const to = (document.getElementById('to-input') as HTMLInputElement).value;
         if (!from || !to) {
             this.showToast('Please enter both start and end locations.', 'warning');
             return;
         }
-
-        const startCoords = this.findCoordsForLocation(from);
-        const endCoords = this.findCoordsForLocation(to);
-
+    
+        const startCoords = await this.findCoordsForLocation(from);
+        const endCoords = await this.findCoordsForLocation(to);
+    
         if (!startCoords || !endCoords) {
             this.showToast('Could not find one or both locations.', 'error');
             return;
         }
-        
-        // Get preferences
+    
+        // OSRM API Request
+        const OSRM_URL = `https://router.project-osrm.org/route/v1/driving/${startCoords.lon},${startCoords.lat};${endCoords.lon},${endCoords.lat}?overview=full&geometries=geojson&steps=true`;
+    
+        try {
+            const response = await fetch(OSRM_URL);
+            if (!response.ok) throw new Error(`OSRM error: ${response.statusText}`);
+            const routeData = await response.json();
+    
+            if (!routeData.routes || routeData.routes.length === 0) {
+                throw new Error('No route found by OSRM.');
+            }
+    
+            const route = routeData.routes[0];
+            const routeCoordinates = route.geometry.coordinates;
+            const routeLeg = route.legs[0];
+    
+            this.routeDataSource.entities.removeAll();
+            this.routeDataSource.entities.add({
+                polyline: {
+                    positions: Cesium.Cartesian3.fromDegreesArray(routeCoordinates.flat()),
+                    width: 8,
+                    material: new Cesium.PolylineDashMaterialProperty({
+                        color: Cesium.Color.DODGERBLUE,
+                    }),
+                    clampToGround: true
+                }
+            });
+    
+            this.viewer.flyTo(this.routeDataSource);
+            this.toggleRouteDetails(true);
+    
+            // Update UI with accurate data
+            const distanceKm = (routeLeg.distance / 1000).toFixed(1);
+            const durationMin = Math.round(routeLeg.duration / 60);
+    
+            (document.getElementById('route-distance') as HTMLElement).textContent = `${distanceKm} km`;
+            (document.getElementById('route-time') as HTMLElement).textContent = `${durationMin} min`;
+    
+            // Display directions
+            const directionsHtml = routeLeg.steps.map((step: any) => {
+                const instruction = (step.maneuver && typeof step.maneuver.instruction === 'string') 
+                    ? step.maneuver.instruction 
+                    : 'Instruction not available.';
+                const distanceValue = (step.distance / 1000).toFixed(1);
+                return `<div class="direction-step">${instruction} (${distanceValue} km)</div>`;
+            }).join('');
+            (document.getElementById('route-directions-list') as HTMLElement).innerHTML = directionsHtml;
+    
+            this.updateRoutePreferencesSummary();
+    
+            document.getElementById('find-route-btn')?.classList.add('hidden');
+            document.getElementById('clear-route-btn')?.classList.remove('hidden');
+    
+        } catch (error) {
+            console.error('Error fetching route:', error);
+            this.showToast('Failed to calculate route. Please try again.', 'error');
+            // Fallback to a straight line for visualization of failure
+            this.routeDataSource.entities.removeAll();
+            this.routeDataSource.entities.add({
+                polyline: {
+                    positions: Cesium.Cartesian3.fromDegreesArray([startCoords.lon, startCoords.lat, endCoords.lon, endCoords.lat]),
+                    width: 5,
+                    material: new Cesium.PolylineDashMaterialProperty({
+                        color: Cesium.Color.RED,
+                    }),
+                    clampToGround: true
+                }
+            });
+        }
+    }
+    
+    updateRoutePreferencesSummary() {
         const preferHighways = (document.getElementById('pref-highways') as HTMLInputElement).checked;
         const avoidTolls = (document.getElementById('pref-no-tolls') as HTMLInputElement).checked;
         const preferScenic = (document.getElementById('pref-scenic') as HTMLInputElement).checked;
 
-        // This is a placeholder for a proper routing engine.
-        // For this demo, it will just draw a straight line, but change style and time estimate based on prefs.
-        let routeColor = Cesium.Color.DODGERBLUE;
-        let averageSpeedKmh = 40; // Normal route speed
-
-        if (preferScenic) {
-            routeColor = Cesium.Color.FORESTGREEN;
-            averageSpeedKmh = 30; // Scenic routes are slower
-        } else if (preferHighways) {
-            routeColor = Cesium.Color.ROYALBLUE;
-            averageSpeedKmh = 60; // Highways are faster
-        }
-
-        this.routeDataSource.entities.removeAll();
-        this.routeDataSource.entities.add({
-            polyline: {
-                positions: Cesium.Cartesian3.fromDegreesArray([
-                    startCoords.lon, startCoords.lat,
-                    endCoords.lon, endCoords.lat
-                ]),
-                width: preferHighways ? 10 : 8,
-                material: new Cesium.PolylineDashMaterialProperty({
-                    color: routeColor,
-                }),
-                clampToGround: true
-            }
-        });
-
-        this.viewer.flyTo(this.routeDataSource);
-        this.toggleRouteDetails(true);
-
-        const distance = this.calculateDistance(startCoords, endCoords);
-        const estimatedTimeMin = Math.round(distance / averageSpeedKmh * 60);
-        
-        // Prettify names for display
-        let fromDisplay = from;
-        let toDisplay = to;
-        if (to.startsWith('Incident:')) {
-            const parts = to.split(':');
-            toDisplay = `Reported ${parts[1]}`;
-        }
-
-
-        (document.getElementById('route-distance') as HTMLElement).textContent = `${distance.toFixed(1)} km`;
-        (document.getElementById('route-time') as HTMLElement).textContent = `${estimatedTimeMin} min`;
-        (document.getElementById('route-directions-list') as HTMLElement).innerHTML = `<div class="direction-step">Follow the highlighted route from ${fromDisplay} to ${toDisplay}.</div>`;
-    
-        // Display preferences used
         const prefsSummaryContainer = document.getElementById('route-preferences-summary')!;
         const prefsList = document.getElementById('route-preferences-list')!;
         prefsList.innerHTML = '';
         let prefsUsed = false;
-
+    
         const addPrefItem = (icon: string, key: string) => {
-            const text = (this.translations[key] && typeof this.translations[key] === 'string') ? this.translations[key] : key.replace(/_/g, ' ');
+            let text = this.translations[key];
+            if (typeof text !== 'string') {
+                text = key.replace(/_/g, ' ');
+            }
             const li = document.createElement('li');
             li.innerHTML = `<span class="material-icons" style="font-size: 1rem;">${icon}</span> <span data-lang-key="${key}">${text}</span>`;
             prefsList.appendChild(li);
         };
-
-        if (preferHighways) {
-            addPrefItem('add_road', 'prefer_highways');
-            prefsUsed = true;
-        }
-        if (avoidTolls) {
-            addPrefItem('money_off', 'avoid_tolls');
-            prefsUsed = true;
-        }
-        if (preferScenic) {
-            addPrefItem('landscape', 'prefer_scenic_route');
-            prefsUsed = true;
-        }
+    
+        if (preferHighways) { addPrefItem('add_road', 'prefer_highways'); prefsUsed = true; }
+        if (avoidTolls) { addPrefItem('money_off', 'avoid_tolls'); prefsUsed = true; }
+        if (preferScenic) { addPrefItem('landscape', 'prefer_scenic_route'); prefsUsed = true; }
         
         prefsSummaryContainer.classList.toggle('hidden', !prefsUsed);
-        
-        // Toggle route buttons
-        document.getElementById('find-route-btn')?.classList.add('hidden');
-        document.getElementById('clear-route-btn')?.classList.remove('hidden');
     }
 
     clearRoute() {
@@ -1132,19 +1539,24 @@ class SadakSathiApp {
     }
 
 
-    findCoordsForLocation(locationName: string): { lat: number, lon: number } | null {
+    async findCoordsForLocation(locationName: string): Promise<{ lat: number, lon: number } | null> {
          const lowerLoc = locationName.toLowerCase();
 
-         if (lowerLoc === 'my current location') {
-            if (this.userLocationEntity) {
-                const cartesianPosition = this.userLocationEntity.position.getValue(this.viewer.clock.currentTime);
-                if (cartesianPosition) {
-                    const cartographic = Cesium.Cartographic.fromCartesian(cartesianPosition);
-                    return {
-                        lon: Cesium.Math.toDegrees(cartographic.longitude),
-                        lat: Cesium.Math.toDegrees(cartographic.latitude)
-                    };
+         if (lowerLoc === 'my current location' || lowerLoc === 'current location') {
+            try {
+                await this.initiateGeolocation();
+                if (this.userLocationEntity) {
+                    const cartesianPosition = this.userLocationEntity.position.getValue(this.viewer.clock.currentTime);
+                    if (cartesianPosition) {
+                        const cartographic = Cesium.Cartographic.fromCartesian(cartesianPosition);
+                        return {
+                            lon: Cesium.Math.toDegrees(cartographic.longitude),
+                            lat: Cesium.Math.toDegrees(cartographic.latitude)
+                        };
+                    }
                 }
+            } catch (error) {
+                console.error("Could not get user location for routing", error);
             }
             return null;
          }
@@ -1170,41 +1582,46 @@ class SadakSathiApp {
                 }
             }
         }
+        // Fallback geocoding (basic) if not found in local data
+        this.showToast(`Searching for "${locationName}"...`, 'info');
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationName + ', Nepal')}&format=json&limit=1`);
+            const data = await response.json();
+            if (data && data.length > 0) {
+                return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+            }
+        } catch (error) {
+            console.error("Nominatim search failed:", error);
+        }
+
         return null;
     }
-    
-    calculateDistance(coords1: {lat:number, lon:number}, coords2: {lat:number, lon:number}): number {
-        const R = 6371; // Radius of the Earth in km
-        const dLat = (coords2.lat - coords1.lat) * Math.PI / 180;
-        const dLon = (coords2.lon - coords1.lon) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(coords1.lat * Math.PI / 180) * Math.cos(coords2.lat * Math.PI / 180) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-    }
-
 
     toggleRouteDetails(show: boolean) {
         document.getElementById('route-details-panel')?.classList.toggle('hidden', !show);
     }
 
     // --- Incident Reporting ---
-    toggleReportIncidentModal(show: boolean) {
-        const modal = document.getElementById('report-incident-modal')!;
+    async toggleReportIncidentModal(show: boolean) {
         this.toggleModal('report-incident-modal', show);
 
         if (show) {
-            const form = document.getElementById('report-incident-form')!;
-            const unavailableMsg = document.getElementById('report-location-unavailable')!;
-            
-            if (this.userLocationEntity) {
-                form.classList.remove('hidden');
-                unavailableMsg.classList.add('hidden');
-                (document.getElementById('incident-location') as HTMLInputElement).value = 'Using Current Location';
-            } else {
-                form.classList.add('hidden');
-                unavailableMsg.classList.remove('hidden');
+            try {
+                await this.initiateGeolocation();
+            } catch (error) {
+                console.warn("Could not initiate geolocation for incident report.");
+            } finally {
+                const form = document.getElementById('report-incident-form')!;
+                const unavailableMsg = document.getElementById('report-location-unavailable')!;
+                
+                if (this.userLocationEntity) {
+                    form.classList.remove('hidden');
+                    unavailableMsg.classList.add('hidden');
+                    (document.getElementById('incident-location') as HTMLInputElement).value = 'Using Current Location';
+                } else {
+                    form.classList.add('hidden');
+                    unavailableMsg.classList.remove('hidden');
+                }
             }
         }
     }
@@ -1273,42 +1690,65 @@ class SadakSathiApp {
     
     // --- Translation ---
     async loadTranslations(lang: string) {
+        // Immediately set the fallback to prevent UI issues if fetching fails.
+        this.translations = en_translations;
+
+        // The default language is English, so no network request is needed.
+        if (lang === 'en') {
+            return; 
+        }
+
+        // For other languages, attempt to fetch from the server.
         try {
             const response = await fetch(`https://sadak-sathi-translations.glitch.me/lang/${lang}`);
-            if (!response.ok) throw new Error('Translation not found');
-            this.translations = await response.json();
-        } catch (error) {
-            console.error(`Could not load translations for ${lang}:`, error);
-            // Fallback to English if loading fails
-            if (lang !== 'en') {
-                await this.loadTranslations('en');
+            if (!response.ok) {
+                throw new Error(`Server responded with status: ${response.status}`);
             }
+            const data = await response.json();
+            // On success, replace the fallback translations.
+            this.translations = data;
+        } catch (error) {
+            console.error(`Could not load translations for "${lang}", falling back to English.`, error);
+            // Inform the user that their selected language couldn't be loaded.
+            this.showToast(`Failed to load translations for your selected language. The app will be displayed in English.`, 'warning');
+            // No need to set this.translations again, as it's already the English fallback.
         }
     }
     
-    updateUIForLanguage() {
-        document.querySelectorAll('[data-lang-key]').forEach(el => {
+    updateUIForLanguage(rootElement: Document | HTMLElement = document) {
+        const setSafeText = (el: Element, text: any) => {
+            if (typeof text === 'string') {
+                el.textContent = text;
+            }
+        };
+        const setSafePlaceholder = (el: Element, text: any) => {
+            if (typeof text === 'string') {
+                (el as HTMLInputElement).placeholder = text;
+            }
+        };
+        const setSafeTitle = (el: Element, text: any) => {
+            if (typeof text === 'string') {
+                (el as HTMLElement).title = text;
+            }
+        };
+
+        rootElement.querySelectorAll('[data-lang-key]').forEach(el => {
             const key = (el as HTMLElement).dataset.langKey!;
-            const translation = this.translations[key];
-            if (translation && typeof translation === 'string') {
-                el.textContent = translation;
-            }
+            setSafeText(el, this.translations[key]);
         });
-        document.querySelectorAll('[data-lang-key-placeholder]').forEach(el => {
+        rootElement.querySelectorAll('[data-lang-key-placeholder]').forEach(el => {
             const key = (el as HTMLElement).dataset.langKeyPlaceholder!;
-            const translation = this.translations[key];
-            if (translation && typeof translation === 'string') {
-                (el as HTMLInputElement).placeholder = translation;
-            }
+            setSafePlaceholder(el, this.translations[key]);
         });
-        document.querySelectorAll('[data-lang-key-title]').forEach(el => {
+        rootElement.querySelectorAll('[data-lang-key-title]').forEach(el => {
             const key = (el as HTMLElement).dataset.langKeyTitle!;
-            const translation = this.translations[key];
-            if (translation && typeof translation === 'string') {
-                (el as HTMLElement).title = translation;
-            }
+            setSafeTitle(el, this.translations[key]);
         });
-        this.updatePersonalityDescription();
+
+        // Only update global elements if we're translating the whole document
+        if (rootElement === document) {
+            this.updatePersonalityDescription();
+        }
     }
 
     // --- AI Persona & Settings ---
@@ -1316,6 +1756,7 @@ class SadakSathiApp {
         const settings = {
             avatarUrl: this.aiAvatarUrl,
             personality: this.aiPersonality,
+            relationship: this.aiRelationship,
             voice: this.aiVoice
         };
         localStorage.setItem('sadakSathiAiPersona', JSON.stringify(settings));
@@ -1336,19 +1777,26 @@ class SadakSathiApp {
         }
     }
 
-    private getSystemInstructionForPersonality(): string {
+    private getSystemInstruction(): string {
         const baseName = "Your name is Sadak Sathi.";
+        
+        let personalityInstruction = '';
         switch (this.aiPersonality) {
-            case 'formal':
-                return `${baseName} You are a formal and precise assistant. Provide clear, concise, and accurate information.`;
-            case 'guide':
-                return `${baseName} You are an enthusiastic and knowledgeable travel guide for Nepal. Provide rich details about culture, history, and attractions.`;
-            case 'buddy':
-                return `${baseName} You are a calm, reliable, and friendly co-pilot. Focus on road safety, clear directions, and immediate hazards. Keep responses short and easy to understand while driving.`;
-            case 'friendly':
-            default:
-                return `${baseName} You are a friendly, cheerful, and helpful road companion.`;
+            case 'formal': personalityInstruction = "You are a formal and precise assistant. Provide clear, concise, and accurate information."; break;
+            case 'guide': personalityInstruction = "You are an enthusiastic and knowledgeable travel guide for Nepal. Provide rich details about culture, history, and attractions."; break;
+            case 'buddy': personalityInstruction = "You are a calm, reliable, and friendly co-pilot. Focus on road safety, clear directions, and immediate hazards. Keep responses short and easy to understand while driving."; break;
+            default: personalityInstruction = "You are a friendly, cheerful, and helpful road companion."; break;
         }
+
+        let relationshipInstruction = '';
+        switch (this.aiRelationship) {
+            case 'partner': relationshipInstruction = "Speak as a loving and caring partner."; break;
+            case 'husband': relationshipInstruction = "Speak as a loving and caring husband."; break;
+            case 'wife': relationshipInstruction = "Speak as a loving and caring wife."; break;
+            default: relationshipInstruction = "Speak as a good friend."; break;
+        }
+
+        return `You MUST respond in the language with this ISO code: "${this.currentLang}". ${baseName} ${personalityInstruction} ${relationshipInstruction}`;
     }
     
     private loadVoices() {
@@ -1377,15 +1825,89 @@ class SadakSathiApp {
         const selectedPersonalityInfo = descriptions[personality] || descriptions['friendly'];
         const translation = this.translations[selectedPersonalityInfo.key];
     
-        if (translation && typeof translation === 'string') {
+        if (typeof translation === 'string') {
             descriptionEl.textContent = translation;
         } else {
             descriptionEl.textContent = selectedPersonalityInfo.fallback;
         }
     }
 
+    private handleContextChatClick() {
+        if (this.selectedEntityContext) {
+            const name = this.getLocalisedString(this.selectedEntityContext.name, 'this location');
+            const message = `Tell me more about ${name}.`;
+            (document.getElementById('chat-input') as HTMLInputElement).value = message;
+            this.handleChatMessage(message);
+        }
+    }
+
+
+    // --- NEW: View and Layer Controls ---
+    async load3dAssets() {
+        // Prevent multiple simultaneous loads
+        if (this.osmBuildings !== null || this.are3dAssetsLoading) {
+            if (this.osmBuildings) this.osmBuildings.show = true;
+            return;
+        }
+
+        this.are3dAssetsLoading = true;
+        this.showToast('Loading 3D buildings...', 'info');
+        try {
+            this.osmBuildings = await Cesium.createOsmBuildingsAsync();
+            this.viewer.scene.primitives.add(this.osmBuildings);
+            this.osmBuildings.show = true; // Make sure it's visible after loading
+        } catch (error) {
+            console.error("Failed to load OSM Buildings.", error);
+            this.showToast('3D buildings could not be loaded. Terrain is still enabled.', 'warning');
+            // Create a dummy object so we don't try again.
+            this.osmBuildings = { show: false };
+        } finally {
+            this.are3dAssetsLoading = false;
+        }
+    }
+
+    toggle3DView(enable: boolean) {
+        this.viewer.terrainProvider = enable ? this.worldTerrainProvider : new Cesium.EllipsoidTerrainProvider();
+        localStorage.setItem('sadakSathi3dView', String(enable));
+
+        if (enable) {
+            this.load3dAssets();
+        } else {
+            if (this.osmBuildings) {
+                this.osmBuildings.show = false;
+            }
+        }
+    }
+    
+    toggleDataSourceVisibility(layerName: string, isVisible: boolean) {
+        let dataSource;
+        switch (layerName) {
+            case 'roads': dataSource = this.roadDataSource; break;
+            case 'pois': dataSource = this.poiDataSource; break;
+            case 'incidents': dataSource = this.incidentDataSource; break;
+            default: return;
+        }
+        if (dataSource) {
+            dataSource.show = isVisible;
+            this.saveLayerVisibility(layerName, isVisible);
+        }
+    }
+
+    saveLayerVisibility(layerName: string, isVisible: boolean) {
+        const settings = JSON.parse(localStorage.getItem('sadakSathiLayerVisibility') || '{}');
+        settings[layerName] = isVisible;
+        localStorage.setItem('sadakSathiLayerVisibility', JSON.stringify(settings));
+    }
+
 
     // --- Helpers ---
+    private safeStringify(value: any, fallback: string): string {
+        const type = typeof value;
+        if (type === 'string') return value;
+        if (type === 'number' || type === 'boolean' || value === null) return String(value);
+        return fallback; // Return fallback for objects, arrays, undefined, etc.
+    }
+    
     private getLocalisedString(prop: any, fallback: string): string {
         // Rule 1: If prop is a string, number, or boolean, return it as a string.
         if (typeof prop === 'string' || typeof prop === 'number' || typeof prop === 'boolean') {

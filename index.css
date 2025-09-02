@@ -253,7 +253,7 @@ html, body {
     position: absolute;
     top: 80px;
     right: 1.5rem;
-    z-index: 900;
+    z-index: 960;
 }
 #map-controls-container {
     display: flex;
@@ -336,21 +336,56 @@ html, body {
     top: 5px;
     right: 5px;
 }
-#cesium-infobox-content h3 { margin-bottom: 0.5rem; color: var(--primary-color); }
+.infobox-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+.infobox-header h3 {
+    margin: 0;
+    color: var(--primary-color);
+}
+.road-code-badge, .bridge-info-badge, .user-reported-badge {
+    color: var(--text-color-light);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: var(--font-size-small);
+    font-weight: 700;
+}
+.road-code-badge { background-color: var(--text-color-muted); }
+.bridge-info-badge { background-color: #8e44ad; } /* Purple */
+.user-reported-badge { background-color: #16a085; } /* Teal */
+.info-badges {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+}
+.toll-free-badge {
+    background-color: var(--success-color);
+    color: var(--text-color-light);
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: var(--font-size-small);
+}
 #cesium-infobox-content p { margin-bottom: 0.25rem; }
 #cesium-infobox-content small { color: var(--text-color-muted); }
 
 /* Status text in InfoBox - Refactored for efficiency */
 #cesium-infobox-content [class^="status-"] {
     font-weight: 700;
+    text-transform: capitalize;
 }
-#cesium-infobox-content .status-open {
+#cesium-infobox-content .status-open,
+#cesium-infobox-content .status-resumed {
     color: var(--success-color);
 }
 #cesium-infobox-content .status-blocked {
     color: var(--danger-color);
 }
-#cesium-infobox-content .status-restricted {
+#cesium-infobox-content .status-restricted,
+#cesium-infobox-content .status-one-lane {
     color: var(--warning-color);
 }
 #cesium-infobox-content .status-construction {
@@ -459,6 +494,22 @@ html, body {
 .chat-input-area {
     padding: 1rem;
     border-top: 1px solid var(--border-color);
+}
+#context-chat-btn {
+    width: calc(100% - 2rem);
+    margin: 0 auto 0.75rem auto;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 0.5rem 1rem;
+    border-radius: 12px;
+    cursor: pointer;
+    display: block;
+    text-align: center;
+    transition: background-color 0.2s;
+}
+#context-chat-btn:hover {
+    background-color: var(--border-color);
 }
 #chat-form {
     display: flex;
@@ -960,4 +1011,71 @@ html, body {
         bottom: 1rem;
         right: 1rem;
     }
+}
+
+/* === Loading Overlay === */
+#loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.7s ease-in-out;
+    opacity: 1;
+}
+#loading-overlay.hidden-fade {
+    opacity: 0;
+    pointer-events: none;
+}
+.loading-scene {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: linear-gradient(180deg, #87CEEB 0%, #a8e063 100%); /* Sky to gentle green */
+}
+.loading-rainbow {
+    position: absolute;
+    top: -50%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200vw;
+    height: 200vw;
+    opacity: 0.15;
+    background: radial-gradient(circle, 
+        transparent 60%,
+        #ff0000 60.5%, #ff7f00 61%, #ffff00 61.5%,
+        #00ff00 62%, #0000ff 62.5%, #4b0082 63%,
+        #9400d3 63.5%, transparent 64%
+    );
+}
+.loading-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: white;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+}
+.loading-content h2 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+.loading-content p {
+    font-size: 1.2rem;
+}
+.loading-icon-wrapper {
+    margin-bottom: 2rem;
+}
+#loading-icon {
+    font-size: 24px; /* Start small */
+    color: white;
+    opacity: 0.5;
+    transition: font-size 0.5s ease-out, opacity 0.5s ease-out;
 }

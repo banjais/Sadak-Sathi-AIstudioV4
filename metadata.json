@@ -1,8 +1,7 @@
 {
-  "name": "Copy of Copy of Sadak-Sathi-AIstudio",
-  "description": "Your Road Companion",
+  "name": "Sadak Sathi - Your Road Companion",
+  "description": "An intelligent, 3D-map-based road assistant for Nepal, providing real-time road status, routing, and a personalized AI companion.",
   "requestFramePermissions": [
-    "geolocation",
     "camera",
     "microphone"
   ]
