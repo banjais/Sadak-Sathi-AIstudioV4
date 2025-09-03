@@ -120,6 +120,7 @@
                 <button id="zoom-in-btn" class="map-control-button" title="Zoom In"><span class="material-icons">add</span></button>
                 <button id="zoom-out-btn" class="map-control-button" title="Zoom Out"><span class="material-icons">remove</span></button>
                 <button id="center-location-btn" class="map-control-button" data-lang-key-title="center_location"><span class="material-icons">my_location</span></button>
+                <button id="travel-time-btn" class="map-control-button" title="Travel Time Map"><span class="material-icons">timer</span></button>
                 <div id="map-options-selector">
                     <button id="map-options-btn" class="map-control-button" title="Map Options"><span class="material-icons">layers</span></button>
                     <div id="map-options-popup" class="hidden">
@@ -218,6 +219,55 @@
             <p>Move the map to your desired location</p>
             <button id="confirm-pin-location-btn" class="primary-btn">Confirm Location</button>
             <button id="cancel-pin-location-btn" class="icon-button"><span class="material-icons">close</span></button>
+        </div>
+
+        <!-- NEW: Travel Time Panel -->
+        <div id="travel-time-panel" class="hidden">
+            <div class="panel-header">
+                <h2>Travel Time Map</h2>
+                <button id="travel-time-close-btn" class="icon-button"><span class="material-icons">close</span></button>
+            </div>
+            <div class="panel-content">
+                <div class="setting-item-col">
+                    <label for="travel-time-origin-input">Starting Point</label>
+                    <div class="input-wrapper">
+                         <span class="material-icons input-icon">trip_origin</span>
+                        <input type="text" id="travel-time-origin-input" placeholder="Choose a starting point...">
+                    </div>
+                     <div class="origin-options">
+                        <button id="travel-time-use-current-loc" class="secondary-btn">Use Current Location</button>
+                        <button id="travel-time-pick-on-map" class="secondary-btn">Pick on Map</button>
+                    </div>
+                </div>
+                <div class="setting-item-col">
+                    <label>Travel Time Intervals (minutes)</label>
+                    <div class="checkbox-group">
+                        <div><input type="checkbox" id="tt-15" value="15" checked><label for="tt-15">15</label></div>
+                        <div><input type="checkbox" id="tt-30" value="30" checked><label for="tt-30">30</label></div>
+                        <div><input type="checkbox" id="tt-45" value="45"><label for="tt-45">45</label></div>
+                        <div><input type="checkbox" id="tt-60" value="60"><label for="tt-60">60</label></div>
+                    </div>
+                </div>
+                <div class="disclaimer">
+                    <span class="material-icons">info</span>
+                    <p>Estimates are based on straight-line distance ("as the crow flies") and an average speed, not actual road networks.</p>
+                </div>
+                <div class="panel-actions">
+                    <button id="generate-travel-time-map-btn" class="primary-btn">Generate Map</button>
+                    <button id="clear-travel-time-map-btn" class="secondary-btn">Clear</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW: Travel Time Legend -->
+        <div id="travel-time-legend" class="hidden">
+            <h4>Travel Time</h4>
+            <ul>
+                <li><span class="legend-color" style="background-color: rgba(46, 204, 113, 0.5);"></span>15 min</li>
+                <li><span class="legend-color" style="background-color: rgba(241, 196, 15, 0.5);"></span>30 min</li>
+                <li><span class="legend-color" style="background-color: rgba(230, 126, 34, 0.5);"></span>45 min</li>
+                <li><span class="legend-color" style="background-color: rgba(231, 76, 60, 0.5);"></span>60 min</li>
+            </ul>
         </div>
 
 

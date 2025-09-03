@@ -172,6 +172,7 @@ class SadakSathiApp {
     private poiDataSource: any;
     private incidentDataSource: any;
     private routeDataSource: any;
+    private travelTimeDataSource: any;
     private userLocationEntity: any = null;
     private userLocation: { lon: number, lat: number } | null = null;
     private isChatOpen: boolean = false;
@@ -211,10 +212,16 @@ class SadakSathiApp {
     private selectedEntityContext: any = null;
     
     private activeRouteData: any | null = null;
+    private availableRoutes: any[] = [];
 
     // Incident Report Image State
     private originalIncidentImage: { data: string, mimeType: string } | null = null;
     private refinedIncidentImage: { data: string, mimeType: string } | null = null;
+
+    // Travel Time State
+    private isPickingTravelTimeOrigin: boolean = false;
+    private travelTimeOrigin: { lon: number, lat: number } | null = null;
+
 
     constructor() {
         this.loadingOverlay = document.getElementById('loading-overlay')!;
@@ -317,10 +324,12 @@ class SadakSathiApp {
             this.poiDataSource = new Cesium.GeoJsonDataSource('pois');
             this.incidentDataSource = new Cesium.GeoJsonDataSource('incidents');
             this.routeDataSource = new Cesium.GeoJsonDataSource('route');
+            this.travelTimeDataSource = new Cesium.CustomDataSource('travelTime');
             this.viewer.dataSources.add(this.roadDataSource);
             this.viewer.dataSources.add(this.poiDataSource);
             this.viewer.dataSources.add(this.incidentDataSource);
             this.viewer.dataSources.add(this.routeDataSource);
+            this.viewer.dataSources.add(this.travelTimeDataSource);
     
             document.querySelector(`.style-option[data-style="streets"]`)?.classList.add('active');
             
@@ -580,6 +589,14 @@ class SadakSathiApp {
         document.getElementById('incident-image-upload')?.addEventListener('change', (e) => this.handleIncidentImageUpload(e));
         document.getElementById('refine-image-btn')?.addEventListener('click', () => this.handleImageRefinement());
         
+        // Travel Time
+        document.getElementById('travel-time-btn')?.addEventListener('click', () => this.toggleTravelTimePanel(true));
+        document.getElementById('travel-time-close-btn')?.addEventListener('click', () => this.toggleTravelTimePanel(false));
+        document.getElementById('travel-time-use-current-loc')?.addEventListener('click', () => this.setTravelTimeOriginFromUserLocation());
+        document.getElementById('travel-time-pick-on-map')?.addEventListener('click', () => this.handlePickTravelTimeOrigin());
+        document.getElementById('generate-travel-time-map-btn')?.addEventListener('click', () => this.handleGenerateTravelTimeMap());
+        document.getElementById('clear-travel-time-map-btn')?.addEventListener('click', () => this.handleClearTravelTimeMap());
+
         // Permission Modal
         document.getElementById('permission-modal-close-btn')?.addEventListener('click', () => document.getElementById('permission-help-modal')?.classList.add('hidden'));
 
@@ -596,11 +613,18 @@ class SadakSathiApp {
         // Cesium click handler
         const handler = new Cesium.ScreenSpaceEventHandler(this.viewer.scene.canvas);
         handler.setInputAction((movement: any) => {
-            const pickedObject = this.viewer.scene.pick(movement.position);
-            if (Cesium.defined(pickedObject) && Cesium.defined(pickedObject.id)) {
-                this.handleEntityClick(pickedObject.id);
+            if (this.isPickingTravelTimeOrigin) {
+                const cartesian = this.viewer.camera.pickEllipsoid(movement.position, this.viewer.scene.globe.ellipsoid);
+                if (cartesian) {
+                    this.setTravelTimeOrigin(cartesian);
+                }
             } else {
-                this.hideDetailCard();
+                const pickedObject = this.viewer.scene.pick(movement.position);
+                if (Cesium.defined(pickedObject) && Cesium.defined(pickedObject.id)) {
+                    this.handleEntityClick(pickedObject.id);
+                } else {
+                    this.hideDetailCard();
+                }
             }
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
         
@@ -932,27 +956,154 @@ class SadakSathiApp {
     // --- Routing ---
     
     findRoute() {
-        this.showToast('Route finding is a mock feature for now.', 'info');
-        // Placeholder for route finding logic
         const from = (document.getElementById('from-input') as HTMLInputElement).value;
         const to = (document.getElementById('to-input') as HTMLInputElement).value;
         if (!from || !to) {
             this.showToast('Please enter both start and end points.', 'warning');
             return;
         }
-        
-        // Mock data
-        this.activeRouteData = { from, to, distance: "120 km", time: "2h 45m", status: "Mostly Clear" };
-        localStorage.setItem('sadakSathiLastRoute', JSON.stringify(this.activeRouteData));
-        this.displayRouteDetails(this.activeRouteData);
+    
+        // --- Mock Route Generation ---
+        const baseTime = 150; // minutes
+        const baseDistance = 120; // km
+    
+        const routes = [];
+    
+        // Route 1: Fastest
+        routes.push({
+            id: 'fastest',
+            name: 'Fastest',
+            timeMins: baseTime,
+            distance: `${baseDistance} km`,
+            time: `${Math.floor(baseTime / 60)}h ${baseTime % 60}m`,
+            status: 'Mostly Clear',
+            summary: 'Uses major highways.',
+            directions: [
+                { icon: 'directions', text: 'Start on Main St toward the city center.' },
+                { icon: 'turn_right', text: 'Turn right onto Highway 1.' },
+                { icon: 'straight', text: `Continue on Highway 1 for ${baseDistance - 20} km.` },
+                { icon: 'exit', text: 'Take exit 4B towards your destination.'},
+                { icon: 'flag', text: 'Arrive at destination.' }
+            ]
+        });
+    
+        // Route 2: Alternative
+        const altTime = baseTime + 15;
+        routes.push({
+            id: 'alternative',
+            name: 'Alternative',
+            timeMins: altTime,
+            distance: `${baseDistance + 8} km`,
+            time: `${Math.floor(altTime / 60)}h ${altTime % 60}m`,
+            status: 'Minor Congestion',
+            summary: 'Avoids some city traffic.',
+            directions: [
+                 { icon: 'directions', text: 'Start on Local Rd.' },
+                 { icon: 'turn_left', text: 'Turn left onto Ring Rd.' },
+                 { icon: 'straight', text: `Continue for ${baseDistance - 10} km.` },
+                 { icon: 'flag', text: 'Arrive at destination.' }
+            ]
+        });
+    
+        // Route 3: Based on preference
+        const preferScenic = (document.getElementById('pref-scenic') as HTMLInputElement).checked;
+        const avoidTolls = (document.getElementById('pref-no-tolls') as HTMLInputElement).checked;
+    
+        if (preferScenic) {
+            const scenicTime = baseTime + 40;
+            routes.push({
+                id: 'scenic',
+                name: 'Scenic',
+                timeMins: scenicTime,
+                distance: `${baseDistance + 25} km`,
+                time: `${Math.floor(scenicTime / 60)}h ${scenicTime % 60}m`,
+                status: 'Scenic Route',
+                summary: 'Beautiful views, slower roads.',
+                directions: [
+                    { icon: 'directions', text: 'Start towards the hills.' },
+                    { icon: 'photo_camera', text: 'Pass by scenic viewpoint in 15 km.' },
+                    { icon: 'straight', text: 'Follow the river road.' },
+                    { icon: 'flag', text: 'Arrive at destination.' }
+                ]
+            });
+        } else if (avoidTolls) {
+            const tollFreeTime = baseTime + 25;
+            routes.push({
+                id: 'toll-free',
+                name: 'No Tolls',
+                timeMins: tollFreeTime,
+                distance: `${baseDistance + 15} km`,
+                time: `${Math.floor(tollFreeTime / 60)}h ${tollFreeTime % 60}m`,
+                status: 'Toll-Free',
+                summary: 'Uses state roads.',
+                 directions: [
+                    { icon: 'directions', text: 'Start on Service Rd.' },
+                    { icon: 'turn_right', text: 'Merge onto State Highway.' },
+                    { icon: 'straight', text: `Continue for ${baseDistance + 5} km.` },
+                    { icon: 'flag', text: 'Arrive at destination.' }
+                ]
+            });
+        }
+    
+        this.availableRoutes = routes;
+        this.displayRouteOptions(from, to);
     }
     
+    displayRouteOptions(from: string, to: string) {
+        const alternativesContainer = document.getElementById('route-alternatives')!;
+        const container = document.getElementById('route-alternatives-container')!;
+        alternativesContainer.innerHTML = ''; // Clear previous options
+    
+        if (this.availableRoutes.length > 0) {
+            this.availableRoutes.forEach(route => {
+                const timeDiff = route.timeMins - this.availableRoutes[0].timeMins;
+                const card = document.createElement('div');
+                card.className = 'route-alternative-card';
+                card.dataset.routeId = route.id;
+                card.innerHTML = `
+                    <span class="time">${route.time}</span>
+                    <span class="diff">${route.name} ${timeDiff > 0 ? `(+${timeDiff} min)`: ''}</span>
+                `;
+                card.addEventListener('click', () => {
+                    this.selectRoute(route.id);
+                });
+                alternativesContainer.appendChild(card);
+            });
+    
+            container.classList.remove('hidden');
+            
+            // Select the first route by default
+            this.selectRoute(this.availableRoutes[0].id, { from, to });
+        }
+    }
+
+    selectRoute(routeId: string, startEnd?: { from: string, to: string }) {
+        const selectedRoute = this.availableRoutes.find(r => r.id === routeId);
+        if (!selectedRoute) return;
+        
+        this.activeRouteData = {
+            ...selectedRoute,
+            from: startEnd?.from || (document.getElementById('from-input') as HTMLInputElement).value,
+            to: startEnd?.to || (document.getElementById('to-input') as HTMLInputElement).value,
+        };
+    
+        document.querySelectorAll('.route-alternative-card').forEach(card => {
+            card.classList.toggle('active', card.getAttribute('data-route-id') === routeId);
+        });
+    
+        this.displayRouteDetails(this.activeRouteData);
+        localStorage.setItem('sadakSathiLastRoute', JSON.stringify(this.activeRouteData));
+    }
+
     clearRoute() {
         (document.getElementById('from-input') as HTMLInputElement).value = '';
         (document.getElementById('to-input') as HTMLInputElement).value = '';
         this.routeDataSource.entities.removeAll();
         this.hideRouteDetails();
         this.activeRouteData = null;
+        this.availableRoutes = [];
+        document.getElementById('route-alternatives-container')?.classList.add('hidden');
+        document.getElementById('route-preferences-summary')?.classList.add('hidden');
         localStorage.removeItem('sadakSathiLastRoute');
     }
     
@@ -962,6 +1113,44 @@ class SadakSathiApp {
         document.getElementById('route-overall-status')!.textContent = routeData.status;
         (document.getElementById('from-input') as HTMLInputElement).value = routeData.from || '';
         (document.getElementById('to-input') as HTMLInputElement).value = routeData.to || '';
+
+        // Update directions list
+        const directionsListEl = document.getElementById('route-directions-list')!;
+        directionsListEl.innerHTML = '';
+        if (routeData.directions && Array.isArray(routeData.directions)) {
+            const list = document.createElement('ul');
+            list.className = 'directions-list';
+            routeData.directions.forEach((step: {icon: string, text: string}) => {
+                const item = document.createElement('li');
+                item.className = 'direction-step';
+                item.innerHTML = `<span class="material-icons">${step.icon}</span> <p>${step.text}</p>`;
+                list.appendChild(item);
+            });
+            directionsListEl.appendChild(list);
+        } else {
+            directionsListEl.innerHTML = '<p>No directions available for this route.</p>';
+        }
+    
+        // Update preferences summary
+        const prefsContainer = document.getElementById('route-preferences-summary')!;
+        const prefsList = document.getElementById('route-preferences-list')!;
+        prefsList.innerHTML = '';
+        const prefs = [];
+        if ((document.getElementById('pref-highways') as HTMLInputElement).checked) prefs.push({icon: 'add_road', text: this.translations.prefer_highways});
+        if ((document.getElementById('pref-no-tolls') as HTMLInputElement).checked) prefs.push({icon: 'no_transfer', text: this.translations.avoid_tolls});
+        if ((document.getElementById('pref-scenic') as HTMLInputElement).checked) prefs.push({icon: 'landscape', text: this.translations.prefer_scenic_route});
+    
+        if (prefs.length > 0) {
+            prefs.forEach(pref => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span class="material-icons">${pref.icon}</span> ${pref.text}`;
+                prefsList.appendChild(li);
+            });
+            prefsContainer.classList.remove('hidden');
+        } else {
+            prefsContainer.classList.add('hidden');
+        }
+        
         document.getElementById('route-details-panel')?.classList.remove('hidden');
     }
 
@@ -984,7 +1173,9 @@ class SadakSathiApp {
         if (lastRoute) {
             try {
                 this.activeRouteData = JSON.parse(lastRoute);
+                // Since we don't save all alternatives, just display the single saved route.
                 this.displayRouteDetails(this.activeRouteData);
+                document.getElementById('route-alternatives-container')?.classList.add('hidden');
             } catch (e) {
                 console.error("Failed to parse last route data", e);
                 localStorage.removeItem('sadakSathiLastRoute');
@@ -1356,7 +1547,7 @@ class SadakSathiApp {
         localStorage.setItem('sadakSathiUserIncidents', JSON.stringify(localIncidents));
     }
 
-    // --- NEW: Image Refinement ---
+    // --- Image Refinement ---
 
     private dataUrlToParts(dataUrl: string): { data: string, mimeType: string } | null {
         const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
@@ -1456,6 +1647,103 @@ class SadakSathiApp {
             this.showToast('An error occurred during image refinement.', 'error');
         } finally {
             loader.classList.add('hidden');
+        }
+    }
+
+    // --- Travel Time Map ---
+    
+    toggleTravelTimePanel(show: boolean) {
+        document.getElementById('travel-time-panel')?.classList.toggle('hidden', !show);
+        if (!show) {
+            // Cleanup when closing
+            this.isPickingTravelTimeOrigin = false;
+            document.getElementById('app-container')?.classList.remove('picking-location');
+        }
+    }
+
+    setTravelTimeOriginFromUserLocation() {
+        if (this.userLocation) {
+            this.travelTimeOrigin = this.userLocation;
+            const input = document.getElementById('travel-time-origin-input') as HTMLInputElement;
+            input.value = `Current Location (${this.userLocation.lat.toFixed(4)}, ${this.userLocation.lon.toFixed(4)})`;
+        } else {
+            this.showToast('Your location is not yet available.', 'warning');
+            this.startGeolocation();
+        }
+    }
+    
+    handlePickTravelTimeOrigin() {
+        this.isPickingTravelTimeOrigin = true;
+        document.getElementById('app-container')?.classList.add('picking-location');
+        this.showToast('Click on the map to select a starting point.', 'info');
+        this.toggleTravelTimePanel(false); // Hide panel while picking
+    }
+
+    setTravelTimeOrigin(cartesian: any) {
+        const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+        const lon = Cesium.Math.toDegrees(cartographic.longitude);
+        const lat = Cesium.Math.toDegrees(cartographic.latitude);
+        this.travelTimeOrigin = { lon, lat };
+
+        const input = document.getElementById('travel-time-origin-input') as HTMLInputElement;
+        input.value = `Picked Location (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
+
+        this.isPickingTravelTimeOrigin = false;
+        document.getElementById('app-container')?.classList.remove('picking-location');
+        this.toggleTravelTimePanel(true); // Show panel again
+    }
+
+    handleGenerateTravelTimeMap() {
+        if (!this.travelTimeOrigin) {
+            this.showToast('Please select a starting point first.', 'warning');
+            return;
+        }
+        
+        const intervals = [15, 30, 45, 60]
+            .filter(min => (document.getElementById(`tt-${min}`) as HTMLInputElement).checked)
+            .sort((a, b) => b - a); // Sort descending to draw largest circle first
+
+        if (intervals.length === 0) {
+            this.showToast('Please select at least one time interval.', 'warning');
+            return;
+        }
+
+        this.handleClearTravelTimeMap(false); // Clear previous map without resetting inputs
+
+        const AVERAGE_SPEED_KPH = 40; // Average speed in km/h for estimation
+        const M_PER_SEC_PER_KPH = 1000 / 3600;
+
+        intervals.forEach(minutes => {
+            const distanceMeters = AVERAGE_SPEED_KPH * M_PER_SEC_PER_KPH * (minutes * 60);
+            
+            let color;
+            if (minutes <= 15) color = Cesium.Color.fromCssColorString('rgba(46, 204, 113, 0.5)'); // Green
+            else if (minutes <= 30) color = Cesium.Color.fromCssColorString('rgba(241, 196, 15, 0.5)'); // Yellow
+            else if (minutes <= 45) color = Cesium.Color.fromCssColorString('rgba(230, 126, 34, 0.5)'); // Orange
+            else color = Cesium.Color.fromCssColorString('rgba(231, 76, 60, 0.5)'); // Red
+
+            this.travelTimeDataSource.entities.add({
+                position: Cesium.Cartesian3.fromDegrees(this.travelTimeOrigin!.lon, this.travelTimeOrigin!.lat),
+                ellipse: {
+                    semiMinorAxis: distanceMeters,
+                    semiMajorAxis: distanceMeters,
+                    material: color,
+                    outline: true,
+                    outlineColor: color.withAlpha(0.8),
+                    outlineWidth: 2,
+                }
+            });
+        });
+
+        document.getElementById('travel-time-legend')?.classList.remove('hidden');
+    }
+
+    handleClearTravelTimeMap(resetInputs = true) {
+        this.travelTimeDataSource.entities.removeAll();
+        document.getElementById('travel-time-legend')?.classList.add('hidden');
+        if (resetInputs) {
+            this.travelTimeOrigin = null;
+            (document.getElementById('travel-time-origin-input') as HTMLInputElement).value = '';
         }
     }
 }

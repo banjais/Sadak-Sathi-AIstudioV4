@@ -1,8 +1,9 @@
 
+
 /**
  * @license
  * Copyright (c) 2024 Your Company or Name. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-or-later: Apache-2.0
 */
 
 :root {
@@ -65,6 +66,9 @@ html, body {
     height: 100%;
     display: flex;
     flex-direction: column;
+}
+#app-container.picking-location {
+    cursor: crosshair;
 }
 
 #map {
@@ -715,6 +719,27 @@ html, body {
 #start-navigation-btn {
     flex-grow: 1;
 }
+
+/* === NEW: Directions List Styling === */
+.directions-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.direction-step {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 0.25rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.direction-step:last-child {
+    border-bottom: none;
+}
+.direction-step .material-icons {
+    color: var(--primary-color);
+}
+
 
 /* === NEW: Alternative Routes in Details Panel === */
 #route-alternatives-container {
@@ -1427,4 +1452,99 @@ input[type="file"] {
 @keyframes lock-pulse {
     0%, 15%, 45%, 100% { transform: scale(1) translate(80px, 22px); }
     25%, 35% { transform: scale(1.1) translate(80px, 22px); }
+}
+
+/* === NEW: Travel Time Panel & Legend === */
+#travel-time-panel {
+    position: absolute;
+    top: 80px;
+    left: 1.5rem;
+    width: 350px;
+    background-color: var(--panel-bg-color);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 12px var(--shadow-color);
+    z-index: 950;
+    display: flex;
+    flex-direction: column;
+}
+#travel-time-panel .panel-header {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 0;
+}
+#travel-time-panel .panel-content {
+    padding: 1rem;
+}
+.origin-options {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+.origin-options button {
+    flex-grow: 1;
+    padding: 0.5rem;
+    font-size: var(--font-size-small);
+}
+.checkbox-group {
+    display: flex;
+    justify-content: space-around;
+    background-color: var(--bg-color);
+    border-radius: var(--border-radius);
+    padding: 0.5rem;
+}
+.checkbox-group div {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+.disclaimer {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: var(--font-size-small);
+    color: var(--text-color-muted);
+    background-color: var(--bg-color);
+    padding: 0.75rem;
+    border-radius: var(--border-radius);
+    margin-top: 1rem;
+}
+.panel-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+.panel-actions button {
+    flex: 1;
+}
+
+#travel-time-legend {
+    position: absolute;
+    bottom: 2rem;
+    right: 7rem; /* To avoid FAB menu */
+    background-color: var(--panel-bg-color);
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px var(--shadow-color);
+    padding: 0.75rem 1rem;
+    z-index: 900;
+}
+#travel-time-legend h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+}
+#travel-time-legend ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+#travel-time-legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: var(--font-size-small);
+}
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
 }
