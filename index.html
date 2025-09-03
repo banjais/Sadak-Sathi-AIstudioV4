@@ -311,6 +311,10 @@
 
         <!-- Route Details Panel -->
         <div id="route-details-panel" class="hidden">
+            <div id="route-loading-overlay" class="hidden">
+                <div class="spinner"></div>
+                <p data-lang-key="finding_best_routes">Finding the best routes for you...</p>
+            </div>
              <div class="panel-header">
                 <h2 data-lang-key="route_details">Route Details</h2>
                 <button id="route-details-close" class="icon-button" data-lang-key-aria-label="close">
@@ -644,6 +648,39 @@
             </div>
         </div>
 
+        <!-- NEW: Find My Car Modal -->
+        <div id="find-car-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <div class="panel-header" style="padding: 0 0 1.5rem 0;">
+                    <h3 data-lang-key="find_my_car_modal_title">Find My Car</h3>
+                    <button id="find-car-close-btn" class="modal-close-btn icon-button"><span class="material-icons">close</span></button>
+                </div>
+                <div id="find-car-content">
+                    <div id="no-car-location-view">
+                        <p data-lang-key="car_location_not_saved">You haven't saved your car's location yet.</p>
+                        <button id="park-here-btn" class="primary-btn">
+                            <span class="material-icons">local_parking</span>
+                            <span data-lang-key="park_here">Park Here</span>
+                        </button>
+                    </div>
+                    <div id="car-location-saved-view" class="hidden">
+                        <p data-lang-key="car_location_saved_at">Your car is parked at:</p>
+                        <strong id="saved-car-address" data-lang-key="fetching_address">Fetching address...</strong>
+                        <div class="car-location-actions">
+                            <button id="get-directions-to-car-btn" class="primary-btn">
+                                <span class="material-icons">directions</span>
+                                <span data-lang-key="get_directions">Get Directions</span>
+                            </button>
+                            <button id="clear-car-location-btn" class="secondary-btn">
+                                <span class="material-icons">delete</span>
+                                <span data-lang-key="clear_location">Clear Location</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- NEW: Permission Help Modal -->
         <div id="permission-help-modal" class="modal-overlay hidden">
             <div class="modal-content">
@@ -695,6 +732,9 @@
         <!-- NEW: FAB Menu (Replaces Bottom Menu) -->
         <div id="fab-container">
             <div id="fab-menu-items" class="hidden">
+                <button id="fab-find-car-btn" class="fab-menu-item" data-lang-key-title="find_my_car_title">
+                    <span class="material-icons">directions_car</span>
+                </button>
                 <button id="fab-ai-btn" class="fab-menu-item" data-lang-key-title="ai_chat_title">
                     <span class="material-icons">auto_awesome</span>
                 </button>

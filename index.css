@@ -657,6 +657,7 @@ html, body {
     padding: 1rem;
     transform: translateY(100%);
     transition: transform 0.3s ease-in-out;
+    position: relative; /* For loading overlay */
 }
 #route-details-panel:not(.hidden) {
     transform: translateY(0);
@@ -720,6 +721,29 @@ html, body {
     flex-grow: 1;
 }
 
+/* === NEW: Route Loading Overlay === */
+#route-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--header-bg-color);
+    backdrop-filter: blur(5px);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+}
+#route-loading-overlay p {
+    margin-top: 1rem;
+    font-weight: 500;
+}
+
+
 /* === NEW: Directions List Styling === */
 .directions-list {
     list-style: none;
@@ -769,27 +793,58 @@ html, body {
     flex-shrink: 0;
     min-width: 120px;
     text-align: center;
+    border-left: 4px solid transparent;
+    color: var(--text-color);
+    background-color: var(--panel-bg-color);
 }
 .route-alternative-card:hover {
     border-color: var(--primary-color);
     background-color: var(--bg-color);
 }
 .route-alternative-card.active {
-    background-color: var(--primary-color);
-    color: var(--text-color-light);
-    border-color: var(--primary-color);
+    color: var(--text-color);
     transform: translateY(-2px);
     box-shadow: 0 4px 8px var(--shadow-color);
+    border-left-width: 4px;
 }
+.route-alternative-card.active.route--fastest {
+    background-color: rgba(46, 204, 113, 0.2);
+    border-color: var(--success-color);
+}
+.route-alternative-card.active.route--alternative {
+    background-color: rgba(52, 152, 219, 0.2);
+    border-color: var(--primary-color);
+}
+.route-alternative-card.active.route--scenic {
+    background-color: rgba(155, 89, 182, 0.2);
+    border-color: #9b59b6;
+}
+.route-alternative-card.active.route--toll-free {
+    background-color: rgba(243, 156, 18, 0.2);
+    border-color: var(--warning-color);
+}
+
+.route-alternative-card.route--fastest { border-left-color: var(--success-color); }
+.route-alternative-card.route--alternative { border-left-color: var(--primary-color); }
+.route-alternative-card.route--scenic { border-left-color: #9b59b6; }
+.route-alternative-card.route--toll-free { border-left-color: var(--warning-color); }
+
 .route-alternative-card .time {
     font-size: 1.2rem;
     font-weight: 700;
     display: block;
 }
-.route-alternative-card .diff {
+.route-alternative-card .name {
     font-size: 0.8rem;
-    opacity: 0.8;
 }
+.route-alternative-card .summary {
+    font-size: 0.75rem;
+    display: block;
+    margin-top: 0.25rem;
+    font-style: italic;
+    opacity: 0.9;
+}
+
 
 #settings-panel {
     position: fixed;
@@ -1547,4 +1602,30 @@ input[type="file"] {
     height: 16px;
     border-radius: 4px;
     border: 1px solid var(--border-color);
+}
+
+/* === NEW: Find My Car Modal === */
+#find-car-modal .modal-content {
+    max-width: 400px;
+}
+#find-car-content {
+    text-align: center;
+}
+#no-car-location-view p, #car-location-saved-view p {
+    margin-bottom: 1.5rem;
+    color: var(--text-color-muted);
+}
+#saved-car-address {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    background-color: var(--bg-color);
+    padding: 0.75rem;
+    border-radius: var(--border-radius);
+}
+.car-location-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
 }

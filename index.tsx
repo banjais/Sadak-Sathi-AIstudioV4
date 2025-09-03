@@ -92,6 +92,12 @@ const en_translations = {
     "share_route": "Share route",
     "view_on_gmaps": "View on Google Maps",
     "start_navigation": "Start Navigation",
+    "finding_best_routes": "Finding the best routes for you...",
+    "route_summary_traffic_light": "Light traffic",
+    "route_summary_traffic_moderate": "Some congestion",
+    "route_summary_scenic": "Most scenic views",
+    "route_summary_no_tolls": "Avoids all tolls",
+    "route_summary_accident": "Rerouting around incident",
 
     // Detail Card Actions
     "directions_to_here": "Directions to here",
@@ -160,6 +166,20 @@ const en_translations = {
     // FAB Menu
     "profile": "Profile",
     "main_menu": "Main Menu",
+    "find_my_car_title": "Find My Car",
+
+    // Find My Car Modal
+    "find_my_car_modal_title": "Find My Car",
+    "car_location_not_saved": "You haven't saved your car's location yet.",
+    "park_here": "Park Here",
+    "car_location_saved_at": "Your car is parked at:",
+    "fetching_address": "Fetching address...",
+    "get_directions": "Get Directions",
+    "clear_location": "Clear Location",
+    "car_location_saved_toast": "Car location saved!",
+    "car_location_cleared_toast": "Car location cleared.",
+    "no_user_location_for_parking": "Your current location is not available. Cannot save parking spot.",
+    "route_to_my_car": "My Parked Car",
 };
 
 // =================================================================================
@@ -173,6 +193,7 @@ class SadakSathiApp {
     private incidentDataSource: any;
     private routeDataSource: any;
     private travelTimeDataSource: any;
+    private carLocationDataSource: any;
     private userLocationEntity: any = null;
     private userLocation: { lon: number, lat: number } | null = null;
     private isChatOpen: boolean = false;
@@ -221,6 +242,25 @@ class SadakSathiApp {
     // Travel Time State
     private isPickingTravelTimeOrigin: boolean = false;
     private travelTimeOrigin: { lon: number, lat: number } | null = null;
+    
+    // Find My Car State
+    private carLocation: { lon: number, lat: number } | null = null;
+
+    // --- NEW: Route Visualization Constants ---
+    private readonly routeColorMap = {
+        fastest: Cesium.Color.fromCssColorString('#2ecc71'),
+        alternative: Cesium.Color.fromCssColorString('#3498db'),
+        scenic: Cesium.Color.fromCssColorString('#9b59b6'),
+        'toll-free': Cesium.Color.fromCssColorString('#f39c12')
+    };
+
+    private readonly activeRouteMaterial = (color: any) => new Cesium.PolylineGlowMaterialProperty({
+        glowPower: 0.3,
+        taperPower: 0.5,
+        color: color.withAlpha(1.0)
+    });
+
+    private readonly inactiveRouteMaterial = (color: any) => new Cesium.ColorMaterialProperty(color.withAlpha(0.4));
 
 
     constructor() {
@@ -287,7 +327,7 @@ class SadakSathiApp {
     }
 
     async initCesium() {
-        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0YjFjNGFjMS1iMjExLTQyYWMtOTFkYy0wMDYxZGU5Y2QyYTMiLCJpZCI6MjI2NTg0LCJpYXQiOjE3MjExNTg4MDB9.sA-1z4P-6A8f6UgtMNQ8qfIq_v2O-u3a3e-rcQoTbow';
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0YjFjNGFjMS1iMjExLTQyYWMtOTFkYy0wMDYxZGU5Y2QyYTMiLCJpZCI6MjI2NTg0LCJpYXQiOjE3MjExNTg4MDB9.sA-1z4P-6A8f6UgtMNQ8qfIq_v2O-u3a3e-rcQoTbow';
     
         try {
             // --- HYPER-ROBUST MAP INITIALIZATION ---
@@ -325,11 +365,13 @@ class SadakSathiApp {
             this.incidentDataSource = new Cesium.GeoJsonDataSource('incidents');
             this.routeDataSource = new Cesium.GeoJsonDataSource('route');
             this.travelTimeDataSource = new Cesium.CustomDataSource('travelTime');
+            this.carLocationDataSource = new Cesium.CustomDataSource('carLocation');
             this.viewer.dataSources.add(this.roadDataSource);
             this.viewer.dataSources.add(this.poiDataSource);
             this.viewer.dataSources.add(this.incidentDataSource);
             this.viewer.dataSources.add(this.routeDataSource);
             this.viewer.dataSources.add(this.travelTimeDataSource);
+            this.viewer.dataSources.add(this.carLocationDataSource);
     
             document.querySelector(`.style-option[data-style="streets"]`)?.classList.add('active');
             
@@ -581,6 +623,7 @@ class SadakSathiApp {
         document.getElementById('fab-ai-btn')?.addEventListener('click', () => this.openChat());
         document.getElementById('fab-settings-btn')?.addEventListener('click', () => document.getElementById('settings-panel')?.classList.add('open'));
         document.getElementById('fab-profile-btn')?.addEventListener('click', () => this.showToast('Profile feature coming soon!', 'info'));
+        document.getElementById('fab-find-car-btn')?.addEventListener('click', () => this.openFindCarModal());
 
         // Incident Reporting
         document.getElementById('report-incident-fab')?.addEventListener('click', () => this.openReportIncidentModal());
@@ -596,6 +639,12 @@ class SadakSathiApp {
         document.getElementById('travel-time-pick-on-map')?.addEventListener('click', () => this.handlePickTravelTimeOrigin());
         document.getElementById('generate-travel-time-map-btn')?.addEventListener('click', () => this.handleGenerateTravelTimeMap());
         document.getElementById('clear-travel-time-map-btn')?.addEventListener('click', () => this.handleClearTravelTimeMap());
+
+        // Find My Car
+        document.getElementById('find-car-close-btn')?.addEventListener('click', () => document.getElementById('find-car-modal')?.classList.add('hidden'));
+        document.getElementById('park-here-btn')?.addEventListener('click', () => this.saveCarLocation());
+        document.getElementById('get-directions-to-car-btn')?.addEventListener('click', () => this.routeToCar());
+        document.getElementById('clear-car-location-btn')?.addEventListener('click', () => this.clearCarLocation());
 
         // Permission Modal
         document.getElementById('permission-modal-close-btn')?.addEventListener('click', () => document.getElementById('permission-help-modal')?.classList.add('hidden'));
@@ -814,6 +863,8 @@ class SadakSathiApp {
             <button class="travel-mode-btn" id="dc-ask-ai"><span class="material-icons">auto_awesome</span><span>${this.translations.tell_me_about_this_place}</span></button>
         `;
         
+        document.getElementById('dc-dir-to')?.addEventListener('click', () => this.handleDirectionsTo(entity));
+        document.getElementById('dc-dir-from')?.addEventListener('click', () => this.handleDirectionsFrom(entity));
         document.getElementById('dc-ask-ai')?.addEventListener('click', () => this.askAboutContext(true));
 
         card.classList.add('visible');
@@ -955,7 +1006,158 @@ class SadakSathiApp {
     
     // --- Routing ---
     
-    findRoute() {
+    setUiMode(mode: 'search' | 'routing') {
+        const searchBar = document.getElementById('unified-search-bar')!;
+        const routingPanel = document.getElementById('active-routing-panel')!;
+    
+        if (mode === 'routing') {
+            searchBar.classList.add('hidden');
+            routingPanel.classList.remove('hidden');
+        } else { // search
+            searchBar.classList.remove('hidden');
+            routingPanel.classList.add('hidden');
+        }
+    }
+
+    handleDirectionsTo(entity: any) {
+        if (!this.userLocation) {
+            this.showToast("Your location isn't available. Please enable GPS.", 'warning');
+            return;
+        }
+        this.hideDetailCard();
+        this.setUiMode('routing');
+    
+        (document.getElementById('to-input') as HTMLInputElement).value = this.getDisplayablePropertyValue(entity.properties.name, 'Selected Location');
+        (document.getElementById('from-input') as HTMLInputElement).value = this.translations.current_location_label;
+    
+        this.findRoute();
+    }
+    
+    handleDirectionsFrom(entity: any) {
+        this.hideDetailCard();
+        this.setUiMode('routing');
+    
+        (document.getElementById('from-input') as HTMLInputElement).value = this.getDisplayablePropertyValue(entity.properties.name, 'Selected Location');
+        const toInput = document.getElementById('to-input') as HTMLInputElement;
+        toInput.value = '';
+        toInput.focus();
+    }
+
+    private generateMockDirections(route: any, baseDistance: number): any[] {
+        const directions = [];
+        directions.push({ icon: 'directions', text: `Start on Main St toward ${route.to || 'your destination'}.` });
+    
+        if (route.id === 'scenic') {
+            directions.push({ icon: 'photo_camera', text: `Pass by scenic viewpoint in ${Math.round(baseDistance / 4)} km.` });
+        }
+        
+        if (route.status.includes('Accident')) {
+             directions.push({ icon: 'warning', text: 'Rerouting to avoid incident on Highway 1.' });
+             directions.push({ icon: 'turn_right', text: 'Turn right onto side road.' });
+        } else {
+            directions.push({ icon: 'turn_right', text: 'Turn right onto Highway 1.' });
+        }
+    
+        directions.push({ icon: 'straight', text: `Continue for ${Math.round(baseDistance * 0.8)} km.` });
+        directions.push({ icon: 'exit', text: `Take exit towards ${route.to || 'your destination'}.`});
+        directions.push({ icon: 'flag', text: 'Arrive at destination.' });
+    
+        return directions;
+    }
+
+    private generateMockRouteGeometry(startLon: number, startLat: number, endLon: number, endLat: number, type: 'fastest' | 'alternative' | 'scenic' | 'toll-free'): any {
+        const coordinates = [];
+        coordinates.push([startLon, startLat]);
+
+        const numPoints = 20; // More points for a smoother line
+        const dx = (endLon - startLon) / numPoints;
+        const dy = (endLat - startLat) / numPoints;
+
+        for (let i = 1; i < numPoints; i++) {
+            let lon = startLon + i * dx;
+            let lat = startLat + i * dy;
+
+            // Add some deviation to make it look like a real road
+            let deviationFactor = 0.08; // Base deviation
+            if (type === 'scenic') deviationFactor = 0.25; // More curvy
+            if (type === 'alternative') deviationFactor = 0.15;
+
+            // Use sine wave for smoother curves
+            const progress = i / numPoints;
+            lon += Math.sin(progress * Math.PI * 4) * deviationFactor * (endLat - startLat);
+            lat += Math.cos(progress * Math.PI * 4) * deviationFactor * (endLon - startLon);
+            
+            coordinates.push([lon, lat]);
+        }
+
+        coordinates.push([endLon, endLat]);
+
+        return {
+            type: 'LineString',
+            coordinates: coordinates
+        };
+    }
+
+    private drawAllRouteOptions() {
+        this.routeDataSource.entities.removeAll();
+        if (this.availableRoutes.length === 0) return;
+    
+        // --- Add Start and End markers ---
+        const firstRoute = this.availableRoutes[0];
+        const startCoords = firstRoute.geometry.coordinates[0];
+        const endCoords = firstRoute.geometry.coordinates[firstRoute.geometry.coordinates.length - 1];
+    
+        this.routeDataSource.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(startCoords[0], startCoords[1]),
+            billboard: {
+                image: this.getIconCanvas('flag', '#2ecc71'), // Green flag for start
+                width: 32, height: 32,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            }
+        });
+    
+        this.routeDataSource.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(endCoords[0], endCoords[1]),
+            billboard: {
+                image: this.getIconCanvas('place', '#e74c3c'), // Red pin for end
+                width: 32, height: 32,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            }
+        });
+    
+        // --- Draw all route polylines ---
+        this.availableRoutes.forEach(route => {
+            if (!route?.geometry?.coordinates) {
+                console.warn("Route in list is missing geometry", route);
+                return;
+            };
+    
+            const color = this.routeColorMap[route.id as keyof typeof this.routeColorMap] || Cesium.Color.GRAY;
+            
+            // All routes start in a de-emphasized state
+            this.routeDataSource.entities.add({
+                id: route.id,
+                name: route.name,
+                polyline: {
+                    positions: Cesium.Cartesian3.fromDegreesArray(route.geometry.coordinates.flat()),
+                    width: 2,
+                    material: this.inactiveRouteMaterial(color),
+                    clampToGround: true
+                }
+            });
+        });
+    
+        // --- Frame all entities (routes and markers) ---
+        if (this.routeDataSource.entities.values.length > 0) {
+            this.viewer.flyTo(this.routeDataSource.entities, {
+                duration: 1.5
+            });
+        }
+    }
+
+    async findRoute() {
         const from = (document.getElementById('from-input') as HTMLInputElement).value;
         const to = (document.getElementById('to-input') as HTMLInputElement).value;
         if (!from || !to) {
@@ -963,106 +1165,117 @@ class SadakSathiApp {
             return;
         }
     
-        // --- Mock Route Generation ---
-        const baseTime = 150; // minutes
-        const baseDistance = 120; // km
+        this.setUiMode('routing');
     
+        // --- Show Loading State ---
+        const routeDetailsPanel = document.getElementById('route-details-panel')!;
+        const loader = document.getElementById('route-loading-overlay')!;
+        routeDetailsPanel.classList.remove('hidden');
+        loader.classList.remove('hidden');
+        
+        // Hide old results while calculating
+        document.getElementById('route-alternatives-container')?.classList.add('hidden');
+        document.getElementById('route-preferences-summary')?.classList.add('hidden');
+    
+        // --- Dynamic Mock Route Generation (with simulated delay) ---
+        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate calculation time
+    
+        const baseTime = 120 + Math.floor(Math.random() * 30); // 2h to 2h30m
+        const baseDistance = 100 + Math.floor(Math.random() * 20); // 100km to 120km
+    
+        const roadConditions = [
+            { status: 'Light Traffic', summaryKey: 'route_summary_traffic_light', timeModifier: 1.0 },
+            { status: 'Moderate Traffic', summaryKey: 'route_summary_traffic_moderate', timeModifier: 1.2 },
+            { status: 'Accident Ahead', summaryKey: 'route_summary_accident', timeModifier: 1.5 }
+        ];
+    
+        // MOCK GEOCODING: Create random start/end points for this route search
+        const startLon = 81 + Math.random() * 6; // Within Nepal's lon range
+        const startLat = 27 + Math.random() * 2; // Within Nepal's lat range
+        const endLon = 81 + Math.random() * 6;
+        const endLat = 27 + Math.random() * 2;
+
         const routes = [];
     
-        // Route 1: Fastest
-        routes.push({
-            id: 'fastest',
-            name: 'Fastest',
-            timeMins: baseTime,
-            distance: `${baseDistance} km`,
-            time: `${Math.floor(baseTime / 60)}h ${baseTime % 60}m`,
-            status: 'Mostly Clear',
-            summary: 'Uses major highways.',
-            directions: [
-                { icon: 'directions', text: 'Start on Main St toward the city center.' },
-                { icon: 'turn_right', text: 'Turn right onto Highway 1.' },
-                { icon: 'straight', text: `Continue on Highway 1 for ${baseDistance - 20} km.` },
-                { icon: 'exit', text: 'Take exit 4B towards your destination.'},
-                { icon: 'flag', text: 'Arrive at destination.' }
-            ]
-        });
+        // --- Route 1: Fastest ---
+        const fastestCondition = roadConditions[Math.floor(Math.random() * 2)]; // Usually good conditions
+        const fastestTime = Math.round(baseTime * fastestCondition.timeModifier);
+        const fastestRouteData = {
+            id: 'fastest', name: 'Fastest', timeMins: fastestTime,
+            distance: `${baseDistance} km`, time: `${Math.floor(fastestTime / 60)}h ${fastestTime % 60}m`,
+            status: fastestCondition.status, summary: this.translations[fastestCondition.summaryKey],
+            geometry: this.generateMockRouteGeometry(startLon, startLat, endLon, endLat, 'fastest')
+        };
+        routes.push({ ...fastestRouteData, directions: this.generateMockDirections(fastestRouteData, baseDistance) });
     
-        // Route 2: Alternative
-        const altTime = baseTime + 15;
-        routes.push({
-            id: 'alternative',
-            name: 'Alternative',
-            timeMins: altTime,
-            distance: `${baseDistance + 8} km`,
-            time: `${Math.floor(altTime / 60)}h ${altTime % 60}m`,
-            status: 'Minor Congestion',
-            summary: 'Avoids some city traffic.',
-            directions: [
-                 { icon: 'directions', text: 'Start on Local Rd.' },
-                 { icon: 'turn_left', text: 'Turn left onto Ring Rd.' },
-                 { icon: 'straight', text: `Continue for ${baseDistance - 10} km.` },
-                 { icon: 'flag', text: 'Arrive at destination.' }
-            ]
-        });
+        // --- Route 2: Alternative ---
+        const altCondition = roadConditions[Math.floor(Math.random() * roadConditions.length)];
+        const altTime = Math.round((baseTime + 15) * altCondition.timeModifier);
+        const altDistance = baseDistance + 10;
+        const altRouteData = {
+            id: 'alternative', name: 'Alternative', timeMins: altTime,
+            distance: `${altDistance} km`, time: `${Math.floor(altTime / 60)}h ${altTime % 60}m`,
+            status: altCondition.status, summary: this.translations[altCondition.summaryKey],
+            geometry: this.generateMockRouteGeometry(startLon, startLat, endLon, endLat, 'alternative')
+        };
+        routes.push({ ...altRouteData, directions: this.generateMockDirections(altRouteData, altDistance) });
     
-        // Route 3: Based on preference
+        // --- Route 3: Based on preference ---
         const preferScenic = (document.getElementById('pref-scenic') as HTMLInputElement).checked;
         const avoidTolls = (document.getElementById('pref-no-tolls') as HTMLInputElement).checked;
     
         if (preferScenic) {
-            const scenicTime = baseTime + 40;
-            routes.push({
-                id: 'scenic',
-                name: 'Scenic',
-                timeMins: scenicTime,
-                distance: `${baseDistance + 25} km`,
-                time: `${Math.floor(scenicTime / 60)}h ${scenicTime % 60}m`,
-                status: 'Scenic Route',
-                summary: 'Beautiful views, slower roads.',
-                directions: [
-                    { icon: 'directions', text: 'Start towards the hills.' },
-                    { icon: 'photo_camera', text: 'Pass by scenic viewpoint in 15 km.' },
-                    { icon: 'straight', text: 'Follow the river road.' },
-                    { icon: 'flag', text: 'Arrive at destination.' }
-                ]
-            });
+            const scenicTime = Math.round((baseTime + 40) * 1.1); // Scenic routes are slower
+            const scenicDistance = baseDistance + 25;
+            const scenicRouteData = {
+                id: 'scenic', name: 'Scenic', timeMins: scenicTime,
+                distance: `${scenicDistance} km`, time: `${Math.floor(scenicTime / 60)}h ${scenicTime % 60}m`,
+                status: 'Light Traffic', summary: this.translations.route_summary_scenic,
+                geometry: this.generateMockRouteGeometry(startLon, startLat, endLon, endLat, 'scenic')
+            };
+            routes.push({ ...scenicRouteData, directions: this.generateMockDirections(scenicRouteData, scenicDistance) });
         } else if (avoidTolls) {
-            const tollFreeTime = baseTime + 25;
-            routes.push({
-                id: 'toll-free',
-                name: 'No Tolls',
-                timeMins: tollFreeTime,
-                distance: `${baseDistance + 15} km`,
-                time: `${Math.floor(tollFreeTime / 60)}h ${tollFreeTime % 60}m`,
-                status: 'Toll-Free',
-                summary: 'Uses state roads.',
-                 directions: [
-                    { icon: 'directions', text: 'Start on Service Rd.' },
-                    { icon: 'turn_right', text: 'Merge onto State Highway.' },
-                    { icon: 'straight', text: `Continue for ${baseDistance + 5} km.` },
-                    { icon: 'flag', text: 'Arrive at destination.' }
-                ]
-            });
+            const tollFreeTime = Math.round((baseTime + 25) * 1.15); // Toll-free can have more traffic
+            const tollFreeDistance = baseDistance + 15;
+            const tollFreeRouteData = {
+                id: 'toll-free', name: 'No Tolls', timeMins: tollFreeTime,
+                distance: `${tollFreeDistance} km`, time: `${Math.floor(tollFreeTime / 60)}h ${tollFreeTime % 60}m`,
+                status: 'Moderate Traffic', summary: this.translations.route_summary_no_tolls,
+                geometry: this.generateMockRouteGeometry(startLon, startLat, endLon, endLat, 'toll-free')
+            };
+            routes.push({ ...tollFreeRouteData, directions: this.generateMockDirections(tollFreeRouteData, tollFreeDistance) });
         }
     
-        this.availableRoutes = routes;
+        this.availableRoutes = routes.sort((a, b) => a.timeMins - b.timeMins);
+        
+        // --- Hide Loader and Display Results ---
+        loader.classList.add('hidden');
+        
+        // Draw all returned routes on the map first, in a de-emphasized state
+        this.drawAllRouteOptions();
+        
+        // Display the route cards, which will also select and highlight the best route
         this.displayRouteOptions(from, to);
     }
-    
+
     displayRouteOptions(from: string, to: string) {
         const alternativesContainer = document.getElementById('route-alternatives')!;
         const container = document.getElementById('route-alternatives-container')!;
         alternativesContainer.innerHTML = ''; // Clear previous options
     
         if (this.availableRoutes.length > 0) {
+            const fastestTime = this.availableRoutes[0].timeMins;
+    
             this.availableRoutes.forEach(route => {
-                const timeDiff = route.timeMins - this.availableRoutes[0].timeMins;
+                const timeDiff = route.timeMins - fastestTime;
                 const card = document.createElement('div');
-                card.className = 'route-alternative-card';
+                card.className = `route-alternative-card route--${route.id}`;
                 card.dataset.routeId = route.id;
+    
                 card.innerHTML = `
                     <span class="time">${route.time}</span>
-                    <span class="diff">${route.name} ${timeDiff > 0 ? `(+${timeDiff} min)`: ''}</span>
+                    <span class="name">${route.name} ${timeDiff > 0 ? `(+${timeDiff} min)`: '(Fastest)'}</span>
+                    <span class="summary">${route.summary}</span>
                 `;
                 card.addEventListener('click', () => {
                     this.selectRoute(route.id);
@@ -1091,6 +1304,20 @@ class SadakSathiApp {
             card.classList.toggle('active', card.getAttribute('data-route-id') === routeId);
         });
     
+        // Update visual style of polylines on map to highlight the selected one
+        this.routeDataSource.entities.values.forEach((entity: any) => {
+            // Skip non-polyline entities like our start/end markers
+            if (!entity.polyline) return;
+    
+            const isSelected = entity.id === routeId;
+            const routeData = this.availableRoutes.find(r => r.id === entity.id);
+            if (!routeData) return;
+            const color = this.routeColorMap[routeData.id as keyof typeof this.routeColorMap] || Cesium.Color.GRAY;
+            
+            entity.polyline.material = isSelected ? this.activeRouteMaterial(color) : this.inactiveRouteMaterial(color);
+            entity.polyline.width = isSelected ? 8 : 2; // Selected is thick, others are thin
+        });
+    
         this.displayRouteDetails(this.activeRouteData);
         localStorage.setItem('sadakSathiLastRoute', JSON.stringify(this.activeRouteData));
     }
@@ -1105,6 +1332,13 @@ class SadakSathiApp {
         document.getElementById('route-alternatives-container')?.classList.add('hidden');
         document.getElementById('route-preferences-summary')?.classList.add('hidden');
         localStorage.removeItem('sadakSathiLastRoute');
+        this.setUiMode('search');
+        
+        // Fly back to default view
+        this.viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(INITIAL_CAMERA_POSITION.lon, INITIAL_CAMERA_POSITION.lat, INITIAL_CAMERA_POSITION.alt),
+            duration: 1.5
+        });
     }
     
     displayRouteDetails(routeData: any) {
@@ -1173,9 +1407,53 @@ class SadakSathiApp {
         if (lastRoute) {
             try {
                 this.activeRouteData = JSON.parse(lastRoute);
-                // Since we don't save all alternatives, just display the single saved route.
+                this.availableRoutes = [this.activeRouteData]; // Set available routes to just this one
                 this.displayRouteDetails(this.activeRouteData);
+
+                // Draw the single restored route
+                this.routeDataSource.entities.removeAll();
+                if (this.activeRouteData?.geometry?.coordinates) {
+                    const coords = this.activeRouteData.geometry.coordinates;
+                    const startCoords = coords[0];
+                    const endCoords = coords[coords.length - 1];
+
+                    this.routeDataSource.entities.add({
+                        position: Cesium.Cartesian3.fromDegrees(startCoords[0], startCoords[1]),
+                        billboard: {
+                            image: this.getIconCanvas('flag', '#2ecc71'),
+                            width: 32, height: 32,
+                            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                            disableDepthTestDistance: Number.POSITIVE_INFINITY
+                        }
+                    });
+
+                    this.routeDataSource.entities.add({
+                        position: Cesium.Cartesian3.fromDegrees(endCoords[0], endCoords[1]),
+                        billboard: {
+                            image: this.getIconCanvas('place', '#e74c3c'),
+                            width: 32, height: 32,
+                            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                            disableDepthTestDistance: Number.POSITIVE_INFINITY
+                        }
+                    });
+
+                    const color = this.routeColorMap[this.activeRouteData.id as keyof typeof this.routeColorMap] || Cesium.Color.DODGERBLUE;
+                    this.routeDataSource.entities.add({
+                        id: this.activeRouteData.id,
+                        name: this.activeRouteData.name,
+                        polyline: {
+                            positions: Cesium.Cartesian3.fromDegreesArray(coords.flat()),
+                            width: 8,
+                            material: this.activeRouteMaterial(color),
+                            clampToGround: true
+                        }
+                    });
+                    // Fly to the route, but without animation on load
+                    this.viewer.flyTo(this.routeDataSource.entities, { duration: 0 });
+                }
+                
                 document.getElementById('route-alternatives-container')?.classList.add('hidden');
+                this.setUiMode('routing');
             } catch (e) {
                 console.error("Failed to parse last route data", e);
                 localStorage.removeItem('sadakSathiLastRoute');
@@ -1424,6 +1702,7 @@ class SadakSathiApp {
 
         this.updateAiFeatureUiState();
         this.updatePersonalityDescription();
+        this.loadSavedCarLocation();
     }
     
     saveSettings() {
@@ -1745,6 +2024,88 @@ class SadakSathiApp {
             this.travelTimeOrigin = null;
             (document.getElementById('travel-time-origin-input') as HTMLInputElement).value = '';
         }
+    }
+
+    // --- Find My Car ---
+
+    openFindCarModal() {
+        const modal = document.getElementById('find-car-modal')!;
+        const noLocationView = document.getElementById('no-car-location-view')!;
+        const savedLocationView = document.getElementById('car-location-saved-view')!;
+        const savedAddressEl = document.getElementById('saved-car-address')!;
+
+        if (this.carLocation) {
+            noLocationView.classList.add('hidden');
+            savedLocationView.classList.remove('hidden');
+            savedAddressEl.textContent = `Lat: ${this.carLocation.lat.toFixed(5)}, Lon: ${this.carLocation.lon.toFixed(5)}`;
+        } else {
+            noLocationView.classList.remove('hidden');
+            savedLocationView.classList.add('hidden');
+        }
+        modal.classList.remove('hidden');
+    }
+
+    saveCarLocation() {
+        if (!this.userLocation) {
+            this.showToast(this.translations.no_user_location_for_parking, 'warning');
+            this.startGeolocation();
+            return;
+        }
+        this.carLocation = { ...this.userLocation };
+        localStorage.setItem('sadakSathiCarLocation', JSON.stringify(this.carLocation));
+        this.updateCarLocationPin();
+        this.openFindCarModal(); // Refresh modal view
+        this.showToast(this.translations.car_location_saved_toast, 'success');
+    }
+    
+    clearCarLocation() {
+        this.carLocation = null;
+        localStorage.removeItem('sadakSathiCarLocation');
+        this.updateCarLocationPin();
+        this.openFindCarModal(); // Refresh modal view
+        this.showToast(this.translations.car_location_cleared_toast, 'info');
+    }
+
+    loadSavedCarLocation() {
+        const savedLoc = localStorage.getItem('sadakSathiCarLocation');
+        if (savedLoc) {
+            try {
+                this.carLocation = JSON.parse(savedLoc);
+                this.updateCarLocationPin();
+            } catch (e) {
+                console.error("Failed to parse saved car location", e);
+                localStorage.removeItem('sadakSathiCarLocation');
+            }
+        }
+    }
+
+    updateCarLocationPin() {
+        this.carLocationDataSource.entities.removeAll();
+        if (this.carLocation) {
+            const carEntity = this.carLocationDataSource.entities.add({
+                position: Cesium.Cartesian3.fromDegrees(this.carLocation.lon, this.carLocation.lat),
+            });
+            this.styleEntityAsBillboard(carEntity, 'directions_car', '#3498db');
+        }
+    }
+
+    routeToCar() {
+        if (!this.userLocation) {
+            this.showToast("Your current location isn't available. Please enable GPS.", 'warning');
+            return;
+        }
+        if (!this.carLocation) {
+            this.showToast("No car location is saved.", 'error');
+            return;
+        }
+
+        document.getElementById('find-car-modal')?.classList.add('hidden');
+        this.setUiMode('routing');
+
+        (document.getElementById('from-input') as HTMLInputElement).value = this.translations.current_location_label;
+        (document.getElementById('to-input') as HTMLInputElement).value = this.translations.route_to_my_car;
+        
+        this.findRoute();
     }
 }
 
