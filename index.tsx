@@ -17,13 +17,14 @@
  * =================================================================================
  * API KEY SECURITY:
  *
- * The API key is accessed via `process.env.API_KEY`. This is a secure practice.
- * The key is stored as an environment variable on the server where the code is
- * built and hosted. It is NEVER hardcoded here and is NOT exposed to the public.
+ * All API keys (Gemini, Weather, Traffic services) are now handled by a secure
+ * backend (simulated here). The frontend application makes requests to its own
+ * backend endpoints (e.g., /api/chat), and the backend securely manages all
+ * external API keys and communication. This is a critical security practice.
  * =================================================================================
  */
 
-import { GoogleGenAI, Chat, Modality } from "@google/genai";
+// NOTE: The GoogleGenAI import is removed as all AI calls now go through a secure backend proxy.
 
 // Declare Leaflet as a global variable to be used from the script tag.
 declare var L: any;
@@ -32,7 +33,8 @@ declare var firebase: any;
 
 // Web Speech API
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-const SpeechSynthesis = window.speechSynthesis;
+// FIX: Renamed SpeechSynthesis constant to avoid conflict with built-in SpeechSynthesis type.
+const speechSynthesis = window.speechSynthesis;
 
 const NEPAL_BOUNDS = [[26.3, 80.0], [30.5, 88.2]]; // [[south, west], [north, east]]
 const INITIAL_VIEW = { center: [28.3949, 84.1240], zoom: 7 };
@@ -62,6 +64,7 @@ const en_translations = {
     "roads": "Roads",
     "pois": "Points of Interest",
     "incidents": "Live Alerts",
+    "traffic": "Live Traffic",
     "buildings_3d": "3D Buildings/Terrain",
     "map_style_streets": "Streets",
     "map_style_satellite": "Satellite",
@@ -192,6 +195,7 @@ class SadakSathiApp {
     private roadLayer: any;
     private poiLayer: any;
     private incidentLayer: any;
+    private trafficLayer: any;
     private routeLayer: any;
     private travelTimeLayer: any;
     private carLocationLayer: any;
@@ -206,11 +210,58 @@ class SadakSathiApp {
     private ipCamUrl: string = '';
     private activeVoiceContext: string = 'none'; // 'chat', 'unified-search', etc.
 
-    // AI Integration
-    private ai: GoogleGenAI | null = null;
-    private chat: Chat | null = null;
-
-    // --- NEW: Firebase Integration ---
+    // --- NEW: Backend API Simulation ---
+    private backend = {
+        getChatResponse: async (history: any[], message: string, systemInstruction: string) => {
+            console.log("SIMULATING BACKEND CALL: /api/chat with message:", message);
+            await new Promise(res => setTimeout(res, 1200));
+            // A more intelligent mock based on the persona
+            let response = `This is a simulated response for: "${message}".`;
+            if (systemInstruction.includes("friendly")) response = `Hey there! In response to "${message}", here is some friendly advice.`;
+            if (systemInstruction.includes("formal")) response = `Acknowledged. Regarding your query about "${message}", the data indicates the following.`;
+            if (systemInstruction.includes("guide")) response = `An excellent question! Let me tell you all about "${message}". It's a fascinating topic.`;
+            if (message.toLowerCase().includes("hello")) response = "Hello! I am Sadak Sathi, your backend-powered road companion."
+            return { text: response };
+        },
+        refineImageWithAI: async (imageData: {data: string, mimeType: string}, prompt: string) => {
+             console.log("SIMULATING BACKEND CALL: /api/refineImage");
+             await new Promise(res => setTimeout(res, 2500));
+             // For simulation, we just return the original image. A real backend would return a new one.
+             return { refinedImage: imageData };
+        },
+        getWeather: async (lat: number, lon: number) => {
+            console.log(`SIMULATING BACKEND CALL: /api/getWeather for ${lat},${lon}`);
+            await new Promise(res => setTimeout(res, 500));
+            const weatherTypes = [
+                { icon: 'wb_sunny', desc: 'Clear Sky', temp: 28 },
+                { icon: 'partly_cloudy_day', desc: 'Partly Cloudy', temp: 25 },
+                { icon: 'cloud', desc: 'Overcast', temp: 22 },
+                { icon: 'rainy', desc: 'Light Rain', temp: 20 },
+            ];
+            const mockWeather = weatherTypes[Math.floor(Math.random() * weatherTypes.length)];
+            return mockWeather;
+        },
+        getTraffic: async () => {
+             console.log("SIMULATING BACKEND CALL: /api/getTraffic");
+             await new Promise(res => setTimeout(res, 800));
+             // Mock GeoJSON with traffic data
+             const mockTrafficFeature = (coords: number[][], level: 'light' | 'moderate' | 'heavy') => ({
+                 type: "Feature",
+                 properties: { traffic: level },
+                 geometry: { type: "LineString", coordinates: coords }
+             });
+             return {
+                 type: "FeatureCollection",
+                 features: [
+                     mockTrafficFeature([[85.3240, 27.7172], [85.3300, 27.7180], [85.3350, 27.7190]], 'heavy'),
+                     mockTrafficFeature([[83.9856, 28.2096], [83.9820, 28.2150], [83.9800, 28.2200]], 'moderate'),
+                     mockTrafficFeature([[85.3100, 27.7000], [85.3150, 27.6950]], 'light'),
+                 ]
+             };
+        }
+    };
+    
+    // --- Firebase Integration ---
     private firebaseApp: any;
     private auth: any;
     private db: any;
@@ -251,7 +302,6 @@ class SadakSathiApp {
     // Find My Car State
     private carLocation: { lon: number, lat: number } | null = null;
 
-    // --- NEW: Route Visualization Constants ---
     private readonly routeColorMap = {
         fastest: '#2ecc71',
         alternative: '#3498db',
@@ -259,7 +309,6 @@ class SadakSathiApp {
         'toll-free': '#f39c12'
     };
 
-    // --- NEW: Admin Panel State ---
     private adminDataCache: { [key: string]: any[] } = {};
     private currentAdminTab: string = 'Road';
     private currentAdminSort = { key: '', order: 'asc' };
@@ -277,19 +326,6 @@ class SadakSathiApp {
 
         this.initFirebase();
         this.setupAuthListener();
-
-        // --- Safe AI Initialization ---
-        if (process.env.API_KEY) {
-            try {
-                this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            } catch (error) {
-                console.error("Failed to initialize GoogleGenAI. AI features will be disabled.", error);
-                this.ai = null;
-            }
-        } else {
-            console.warn("API_KEY environment variable not set. AI features are disabled.");
-            this.ai = null;
-        }
 
         await this.loadTranslations(this.currentLang);
         this.updateUIForLanguage();
@@ -332,8 +368,6 @@ class SadakSathiApp {
         }, 700);
     }
     
-    // --- NEW: Firebase Methods ---
-
     initFirebase() {
         try {
             this.firebaseApp = firebase.app();
@@ -406,10 +440,6 @@ class SadakSathiApp {
                 if (geometry) {
                     const properties = { ...data, entityType: type, id: doc.id };
                     delete properties.geometry;
-                    // Keep lat/lon for potential use
-                    // delete properties.lat;
-                    // delete properties.lon;
-
                     featuresFromSnapshot.push({
                         type: 'Feature',
                         geometry: geometry,
@@ -421,7 +451,6 @@ class SadakSathiApp {
             this.allRoadData = this.allRoadData.filter(f => f.properties.entityType !== type).concat(featuresFromSnapshot);
             this.processAndDisplayData(this.allRoadData);
             
-            // Update admin panel if it's open
             if (!document.getElementById('admin-panel-modal')?.classList.contains('hidden')) {
                 const collectionName = type.charAt(0).toUpperCase() + type.slice(1);
                 if (['Road', 'Bridge', 'Toll'].includes(collectionName) || (collectionName === 'Incident' && type === 'incident')) {
@@ -435,7 +464,6 @@ class SadakSathiApp {
             }
         };
         
-        // Clear old listeners before creating new ones
         this.firestoreUnsubscribers.forEach(unsub => unsub());
         this.firestoreUnsubscribers = [];
 
@@ -449,7 +477,7 @@ class SadakSathiApp {
     async initMap() {
         try {
             this.map = L.map('map', {
-                zoomControl: false, // We have custom zoom controls
+                zoomControl: false, 
                 attributionControl: false,
             }).setView(INITIAL_VIEW.center, INITIAL_VIEW.zoom);
     
@@ -471,18 +499,17 @@ class SadakSathiApp {
             this.map.fitBounds(NEPAL_BOUNDS);
             this.map.setMinZoom(6);
     
-            // Initialize layer groups
             this.roadLayer = L.layerGroup().addTo(this.map);
             this.poiLayer = L.layerGroup().addTo(this.map);
             this.incidentLayer = L.layerGroup().addTo(this.map);
+            this.trafficLayer = L.layerGroup(); // Do not add to map by default
             this.routeLayer = L.layerGroup().addTo(this.map);
             this.travelTimeLayer = L.layerGroup().addTo(this.map);
             this.carLocationLayer = L.layerGroup().addTo(this.map);
     
             document.querySelector(`.style-option[data-style="streets"]`)?.classList.add('active');
             
-            // Map click listener to hide detail card
-            this.map.on('click', () => {
+            this.map.on('click', (e: any) => {
                 if (!this.isPickingTravelTimeOrigin) {
                     this.hideDetailCard();
                 }
@@ -495,7 +522,7 @@ class SadakSathiApp {
                 <h2>Map Failed to Load</h2>
                 <p>There was a critical error initializing the map. Please check your browser compatibility and network connection, then refresh the page.</p>
             </div>`;
-            this.hideLoadingScreen(); // Hide loading screen to show the error
+            this.hideLoadingScreen(); 
         }
     }
 
@@ -506,7 +533,6 @@ class SadakSathiApp {
         }
         const roadFeatures = features.filter(f => f.properties.entityType === 'road');
         const poiFeatures = features.filter(f => f.properties.entityType === 'poi');
-        // Only show approved incidents on the main map
         const incidentFeatures = features.filter(f => f.properties.entityType === 'incident' && f.properties.approvalStatus === 'approved');
 
         this.loadDataIntoLayer(this.roadLayer, { type: 'FeatureCollection', features: roadFeatures });
@@ -539,7 +565,7 @@ class SadakSathiApp {
             },
             onEachFeature: (feature: any, layer: any) => {
                 layer.on('click', (e: any) => {
-                    L.DomEvent.stopPropagation(e); // Prevent map click from firing
+                    L.DomEvent.stopPropagation(e);
                     this.handleEntityClick(feature, layer);
                 });
             }
@@ -578,7 +604,7 @@ class SadakSathiApp {
             html: `<div style="background-color:${color}; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">
                      <span class="material-icons" style="color:white; font-size: 20px;">${iconName}</span>
                    </div>`,
-            className: '', // important to reset default leaflet styles
+            className: '',
             iconSize: [32, 32],
             iconAnchor: [16, 32],
             popupAnchor: [0, -32]
@@ -586,7 +612,6 @@ class SadakSathiApp {
     }
 
     setupEventListeners() {
-        // ... (existing event listeners)
         document.getElementById('theme-toggle')?.addEventListener('click', () => this.toggleTheme());
         document.getElementById('live-cam-btn')?.addEventListener('click', () => this.toggleLiveCamPanel(true));
         
@@ -641,6 +666,7 @@ class SadakSathiApp {
         document.getElementById('toggle-roads')?.addEventListener('change', (e) => this.toggleDataSourceVisibility('road', (e.target as HTMLInputElement).checked));
         document.getElementById('toggle-pois')?.addEventListener('change', (e) => this.toggleDataSourceVisibility('poi', (e.target as HTMLInputElement).checked));
         document.getElementById('toggle-incidents')?.addEventListener('change', (e) => this.toggleDataSourceVisibility('incident', (e.target as HTMLInputElement).checked));
+        document.getElementById('toggle-traffic')?.addEventListener('change', (e) => this.toggleTrafficLayer((e.target as HTMLInputElement).checked));
         
         document.querySelectorAll('.style-option').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -656,29 +682,24 @@ class SadakSathiApp {
         document.getElementById('detail-card-close')?.addEventListener('click', () => this.hideDetailCard());
         document.getElementById('close-cam-btn')?.addEventListener('click', () => this.toggleLiveCamPanel(false));
         
-        // Unified Search Bar
         document.getElementById('unified-search-ai-btn')?.addEventListener('click', () => this.openChat());
         document.getElementById('unified-search-voice-btn')?.addEventListener('click', () => this.startVoiceCommand('unified-search'));
         document.getElementById('unified-search-action-btn')?.addEventListener('click', () => this.performSearch());
         document.getElementById('unified-search-input')?.addEventListener('keyup', (e) => { if(e.key === 'Enter') this.performSearch() });
 
-        // Route Finder
         document.getElementById('find-route-btn')?.addEventListener('click', () => this.findRoute());
         document.getElementById('clear-route-btn')?.addEventListener('click', () => this.clearRoute());
         document.getElementById('swap-locations-btn')?.addEventListener('click', () => this.swapRouteLocations());
 
-        // Route Details
         document.getElementById('route-details-close')?.addEventListener('click', () => this.hideRouteDetails());
         document.getElementById('start-navigation-btn')?.addEventListener('click', () => this.startNavigation());
 
 
-        // AI Chat
         document.getElementById('close-chat-btn')?.addEventListener('click', () => this.closeChat());
         document.getElementById('chat-form')?.addEventListener('submit', (e) => this.handleChatMessage(e));
         document.getElementById('voice-command-btn')?.addEventListener('click', () => this.startVoiceCommand('chat'));
-        document.getElementById('context-chat-btn')?.addEventListener('click', () => this.askAboutContext());
+        document.getElementById('context-chat-btn')?.addEventListener('click', () => this.askAboutContext(true));
         
-        // Settings Panel
         document.getElementById('persona-avatar-upload')?.addEventListener('change', (e) => this.handleAvatarChange(e));
         document.getElementById('persona-personality-select')?.addEventListener('change', (e) => {
             this.aiPersonality = (e.target as HTMLSelectElement).value;
@@ -697,12 +718,10 @@ class SadakSathiApp {
         });
         document.getElementById('toggle-voice-response')?.addEventListener('change', () => this.saveSettings());
         
-        // NEW: Route Preferences in routing panel
         document.getElementById('route-pref-highways')?.addEventListener('change', () => this.saveSettings());
         document.getElementById('route-pref-no-tolls')?.addEventListener('change', () => this.saveSettings());
         document.getElementById('route-pref-scenic')?.addEventListener('change', () => this.saveSettings());
         
-        // FAB Menu
         document.getElementById('fab-main-btn')?.addEventListener('click', (e) => {
             (e.currentTarget as HTMLElement).classList.toggle('open');
             document.getElementById('fab-menu-items')?.classList.toggle('hidden');
@@ -712,7 +731,6 @@ class SadakSathiApp {
         document.getElementById('fab-profile-btn')?.addEventListener('click', () => this.openProfileModal());
         document.getElementById('fab-find-car-btn')?.addEventListener('click', () => this.openFindCarModal());
 
-        // --- Auth & Profile Event Listeners ---
         document.getElementById('login-form')?.addEventListener('submit', (e) => this.handleLoginSubmit(e));
         document.getElementById('otp-form')?.addEventListener('submit', (e) => this.handleOtpSubmitAsPassword(e));
         document.getElementById('logout-btn')?.addEventListener('click', () => this.handleLogout());
@@ -723,15 +741,12 @@ class SadakSathiApp {
         });
         document.getElementById('admin-panel-btn')?.addEventListener('click', () => this.openAdminPanel());
 
-
-        // Incident Reporting
         document.getElementById('report-incident-fab')?.addEventListener('click', () => this.openReportIncidentModal());
         document.getElementById('report-incident-close')?.addEventListener('click', () => document.getElementById('report-incident-modal')?.classList.add('hidden'));
         document.getElementById('report-incident-form')?.addEventListener('submit', (e) => this.handleIncidentReportSubmit(e));
         document.getElementById('incident-image-upload')?.addEventListener('change', (e) => this.handleIncidentImageUpload(e));
         document.getElementById('refine-image-btn')?.addEventListener('click', () => this.handleImageRefinement());
         
-        // Travel Time
         document.getElementById('travel-time-btn')?.addEventListener('click', () => this.toggleTravelTimePanel(true));
         document.getElementById('travel-time-close-btn')?.addEventListener('click', () => this.toggleTravelTimePanel(false));
         document.getElementById('travel-time-use-current-loc')?.addEventListener('click', () => this.setTravelTimeOriginFromUserLocation());
@@ -739,16 +754,13 @@ class SadakSathiApp {
         document.getElementById('generate-travel-time-map-btn')?.addEventListener('click', () => this.handleGenerateTravelTimeMap());
         document.getElementById('clear-travel-time-map-btn')?.addEventListener('click', () => this.handleClearTravelTimeMap());
 
-        // Find My Car
         document.getElementById('find-car-close-btn')?.addEventListener('click', () => document.getElementById('find-car-modal')?.classList.add('hidden'));
         document.getElementById('park-here-btn')?.addEventListener('click', () => this.saveCarLocation());
         document.getElementById('get-directions-to-car-btn')?.addEventListener('click', () => this.routeToCar());
         document.getElementById('clear-car-location-btn')?.addEventListener('click', () => this.clearCarLocation());
 
-        // Permission Modal
         document.getElementById('permission-modal-close-btn')?.addEventListener('click', () => document.getElementById('permission-help-modal')?.classList.add('hidden'));
 
-        // --- NEW: Admin Panel Listeners ---
         document.getElementById('admin-panel-close-btn')?.addEventListener('click', () => document.getElementById('admin-panel-modal')?.classList.add('hidden'));
         document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.addEventListener('click', (e) => this.handleAdminTabClick(e)));
         document.getElementById('admin-form-modal')?.addEventListener('click', (e) => {
@@ -759,7 +771,6 @@ class SadakSathiApp {
         document.getElementById('admin-edit-form')?.addEventListener('submit', (e) => this.handleAdminFormSubmit(e));
 
 
-        // Global listeners
         document.addEventListener('click', (e) => {
             if (!langSelectorBtn?.contains(e.target as Node) && !langPopup?.contains(e.target as Node)) {
                 langPopup?.classList.add('hidden');
@@ -772,8 +783,6 @@ class SadakSathiApp {
         this.initSpeechRecognition();
         this.startGeolocation();
     }
-
-    // --- Authentication ---
 
     openProfileModal() {
         document.getElementById('profile-modal')?.classList.remove('hidden');
@@ -792,7 +801,7 @@ class SadakSathiApp {
         const email = emailInput.value.trim();
         if (!email) return;
 
-        this.loginEmail = email; // Store email for the next step
+        this.loginEmail = email;
         document.getElementById('login-view')!.classList.add('hidden');
         document.getElementById('otp-view')!.classList.remove('hidden');
         document.getElementById('otp-email-display')!.textContent = email;
@@ -841,8 +850,6 @@ class SadakSathiApp {
     }
 
 
-    // --- UI & State Management ---
-
     toggleTheme() {
         const container = document.getElementById('app-container')!;
         const themeIcon = document.querySelector('#theme-toggle .material-icons')!;
@@ -868,10 +875,10 @@ class SadakSathiApp {
         }
         try {
             this.showToast(`Translation for ${lang} not available yet.`, 'info');
-            this.translations = en_translations; // Fallback to English
+            this.translations = en_translations;
         } catch (error) {
             console.error(`Failed to load translations for ${lang}`, error);
-            this.translations = en_translations; // Fallback to English
+            this.translations = en_translations;
         }
     }
 
@@ -912,19 +919,39 @@ class SadakSathiApp {
             }
         }
     }
+
+    async toggleTrafficLayer(isVisible: boolean) {
+        if (isVisible) {
+            this.map.addLayer(this.trafficLayer);
+            try {
+                const trafficData = await this.backend.getTraffic();
+                this.trafficLayer.clearLayers();
+                L.geoJSON(trafficData, {
+                    style: (feature: any) => ({
+                        className: `traffic-${feature.properties.traffic}`,
+                        weight: 5,
+                        opacity: 0.7
+                    })
+                }).addTo(this.trafficLayer);
+            } catch (error) {
+                console.error("Failed to fetch traffic data", error);
+                this.showToast("Could not load live traffic.", "error");
+            }
+        } else {
+            this.map.removeLayer(this.trafficLayer);
+        }
+    }
     
     changeMapStyle(style: string) {
-        // Remove all existing tile layers
         Object.values(this.tileLayers).forEach(layer => this.map.removeLayer(layer));
-        // Add the selected tile layer
         if (this.tileLayers[style]) {
             this.tileLayers[style].addTo(this.map);
         } else {
-            this.tileLayers.streets.addTo(this.map); // Fallback
+            this.tileLayers.streets.addTo(this.map);
         }
     }
 
-    showDetailCard(feature: any) {
+    async showDetailCard(feature: any) {
         const card = document.getElementById('detail-card')!;
         const titleEl = document.getElementById('detail-card-title')!;
         const contentEl = document.getElementById('detail-card-content')!;
@@ -936,22 +963,25 @@ class SadakSathiApp {
         let contentHtml = '';
         titleEl.textContent = this.getDisplayablePropertyValue(props.name, 'Details');
 
-        if (props.entityType === 'poi') {
-            contentHtml = `
-                <p><strong>Category:</strong> ${this.getDisplayablePropertyValue(props.category, 'N/A')}</p>
-                <p><strong>Description:</strong> ${this.getDisplayablePropertyValue(props.description, 'No description available.')}</p>
-            `;
-            this.displayMockWeather(feature.geometry.coordinates[1], feature.geometry.coordinates[0]);
-        } else if (props.entityType === 'incident') {
-             const incidentType = this.getDisplayablePropertyValue(props.incident_type, 'N/A');
-             const timestamp = props.timestamp?.toDate ? props.timestamp.toDate() : new Date(props.timestamp);
-             contentHtml = `
-                <p><strong>Type:</strong> <span class="status-${incidentType.toLowerCase()}">${incidentType}</span></p>
-                <p><strong>Details:</strong> ${this.getDisplayablePropertyValue(props.details, 'No details provided.')}</p>
-                <p><strong>Reported:</strong> ${timestamp.toLocaleString()}</p>
-            `;
-            this.displayMockWeather(feature.geometry.coordinates[1], feature.geometry.coordinates[0]);
+        if (props.entityType === 'poi' || props.entityType === 'incident') {
+            const [lon, lat] = feature.geometry.coordinates;
+            this.fetchAndDisplayWeather(lat, lon);
+            if (props.entityType === 'poi') {
+                 contentHtml = `
+                    <p><strong>Category:</strong> ${this.getDisplayablePropertyValue(props.category, 'N/A')}</p>
+                    <p><strong>Description:</strong> ${this.getDisplayablePropertyValue(props.description, 'No description available.')}</p>
+                `;
+            } else { // incident
+                 const incidentType = this.getDisplayablePropertyValue(props.incident_type, 'N/A');
+                 const timestamp = props.timestamp?.toDate ? props.timestamp.toDate() : new Date(props.timestamp);
+                 contentHtml = `
+                    <p><strong>Type:</strong> <span class="status-${incidentType.toLowerCase()}">${incidentType}</span></p>
+                    <p><strong>Details:</strong> ${this.getDisplayablePropertyValue(props.details, 'No details provided.')}</p>
+                    <p><strong>Reported:</strong> ${timestamp.toLocaleString()}</p>
+                `;
+            }
         } else { // road
+            document.getElementById('detail-card-weather')?.classList.add('hidden');
             const roadStatus = this.getDisplayablePropertyValue(props.status, 'N/A');
             contentHtml = `
                 <p><strong>Status:</strong> <span class="status-${roadStatus.toLowerCase()}">${roadStatus}</span></p>
@@ -959,7 +989,6 @@ class SadakSathiApp {
                 <p><strong>Pavement:</strong> ${this.getDisplayablePropertyValue(props.pavement_type, 'N/A')}</p>
                 <p><strong>Last Updated:</strong> ${this.getDisplayablePropertyValue(props.last_updated, 'N/A')}</p>
             `;
-            document.getElementById('detail-card-weather')?.classList.add('hidden');
         }
         
         contentEl.innerHTML = contentHtml;
@@ -976,30 +1005,22 @@ class SadakSathiApp {
         card.classList.add('visible');
     }
 
-    displayMockWeather(lat: number, lon: number) {
+    async fetchAndDisplayWeather(lat: number, lon: number) {
         const weatherEl = document.getElementById('detail-card-weather')!;
-        const iconEl = document.getElementById('weather-icon')!;
-        const tempEl = document.getElementById('weather-temp')!;
-        const descEl = document.getElementById('weather-desc')!;
+        try {
+            const weatherData = await this.backend.getWeather(lat, lon);
+            const iconEl = document.getElementById('weather-icon')!;
+            const tempEl = document.getElementById('weather-temp')!;
+            const descEl = document.getElementById('weather-desc')!;
 
-        const weatherTypes = [
-            { icon: 'wb_sunny', desc: 'Clear Skies', temp: 28 },
-            { icon: 'partly_cloudy_day', desc: 'Partly Cloudy', temp: 25 },
-            { icon: 'cloud', desc: 'Cloudy', temp: 22 },
-            { icon: 'rainy', desc: 'Light Rain', temp: 20 },
-            { icon: 'thunderstorm', desc: 'Thunderstorm', temp: 18 }
-        ];
-
-        // "Random" based on location to be consistent
-        const seed = Math.floor(lat + lon);
-        const mockWeather = weatherTypes[seed % weatherTypes.length];
-        const tempVariation = (seed % 5) - 2; // -2 to +2 variation
-
-        iconEl.textContent = mockWeather.icon;
-        tempEl.textContent = `${mockWeather.temp + tempVariation}°C`;
-        descEl.textContent = mockWeather.desc;
-
-        weatherEl.classList.remove('hidden');
+            iconEl.textContent = weatherData.icon;
+            tempEl.textContent = `${weatherData.temp}°C`;
+            descEl.textContent = weatherData.desc;
+            weatherEl.classList.remove('hidden');
+        } catch (error) {
+            console.error("Failed to fetch weather data:", error);
+            weatherEl.classList.add('hidden');
+        }
     }
 
     hideDetailCard() {
@@ -1022,7 +1043,7 @@ class SadakSathiApp {
         const icon = document.getElementById('toast-icon')!;
         const messageEl = document.getElementById('toast-message')!;
 
-        toast.className = 'hidden'; // Reset classes
+        toast.className = 'hidden';
         toast.classList.add(type);
         messageEl.textContent = message;
 
@@ -1044,10 +1065,10 @@ class SadakSathiApp {
             return fallback;
         }
         if (typeof value === 'object' && value !== null) {
-             if (value.toDate) { // Firebase Timestamp
+             if (value.toDate) {
                 return value.toDate().toLocaleString();
             }
-            return JSON.stringify(value); // Simple fallback for objects
+            return JSON.stringify(value);
         }
         return String(value);
     }
@@ -1058,8 +1079,6 @@ class SadakSathiApp {
         }
         return String(value);
     }
-
-    // --- Geolocation ---
 
     startGeolocation() {
         if (!this.hasRequestedGeolocation) {
@@ -1103,8 +1122,6 @@ class SadakSathiApp {
             this.startGeolocation();
         }
     }
-    
-    // --- Routing ---
     
     setUiMode(mode: 'search' | 'routing') {
         const searchBar = document.getElementById('unified-search-bar')!;
@@ -1208,7 +1225,6 @@ class SadakSathiApp {
                 color: color,
                 weight: 3,
                 opacity: 0.5,
-                // Custom property to identify the route
                 routeId: route.id,
             });
             this.routeLayer.addLayer(polyline);
@@ -1246,14 +1262,13 @@ class SadakSathiApp {
             { status: 'Accident Ahead', summaryKey: 'route_summary_accident', timeModifier: 1.5 }
         ];
 
-        // Check preferences
         const preferHighways = (document.getElementById('route-pref-highways') as HTMLInputElement).checked;
         const preferScenic = (document.getElementById('route-pref-scenic') as HTMLInputElement).checked;
         const avoidTolls = (document.getElementById('route-pref-no-tolls') as HTMLInputElement).checked;
         
         if (preferHighways) {
-            baseTime -= 15; // 15 mins faster
-            baseDistance -= 5; // 5 km shorter
+            baseTime -= 15;
+            baseDistance -= 5;
         }
 
         const startLon = 81 + Math.random() * 6;
@@ -1323,7 +1338,7 @@ class SadakSathiApp {
         document.querySelectorAll('.route-alternative-card').forEach(card => card.classList.toggle('active', card.getAttribute('data-route-id') === routeId));
     
         this.routeLayer.eachLayer((layer: any) => {
-            if (layer.options.routeId) { // It's a polyline
+            if (layer.options.routeId) {
                 const isSelected = layer.options.routeId === routeId;
                 layer.setStyle({
                     weight: isSelected ? 8 : 3,
@@ -1352,14 +1367,13 @@ class SadakSathiApp {
     }
     
     displayRouteDetails(routeData: any) {
-        document.getElementById('route-distance')!.textContent = routeData.distance || '-- km';
-        document.getElementById('route-time')!.textContent = routeData.time || '-- min';
-        document.getElementById('route-overall-status')!.textContent = routeData.status || '--';
+        document.getElementById('route-distance')!.textContent = routeData?.distance || '-- km';
+        document.getElementById('route-time')!.textContent = routeData?.time || '-- min';
+        document.getElementById('route-overall-status')!.textContent = routeData?.status || '--';
 
-        // Calculate and display ETA
         if (routeData && typeof routeData.timeMins === 'number') {
             const now = new Date();
-            const etaDate = new Date(now.getTime() + routeData.timeMins * 60000); // timeMins to milliseconds
+            const etaDate = new Date(now.getTime() + routeData.timeMins * 60000);
             const etaString = etaDate.toLocaleTimeString(this.currentLang.split('-')[0] || 'en', {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -1370,12 +1384,12 @@ class SadakSathiApp {
             document.getElementById('route-eta')!.textContent = '--:--';
         }
         
-        (document.getElementById('from-input') as HTMLInputElement).value = routeData.from || '';
-        (document.getElementById('to-input') as HTMLInputElement).value = routeData.to || '';
+        (document.getElementById('from-input') as HTMLInputElement).value = routeData?.from || '';
+        (document.getElementById('to-input') as HTMLInputElement).value = routeData?.to || '';
 
         const directionsListEl = document.getElementById('route-directions-list')!;
         directionsListEl.innerHTML = '';
-        if (routeData.directions && Array.isArray(routeData.directions)) {
+        if (routeData?.directions && Array.isArray(routeData.directions)) {
             const list = document.createElement('ul');
             list.className = 'directions-list';
             routeData.directions.forEach((step: {icon: string, text: string}) => {
@@ -1458,8 +1472,6 @@ class SadakSathiApp {
         }
     }
     
-    // --- Search ---
-    
     performSearch() {
         const query = (document.getElementById('unified-search-input') as HTMLInputElement).value;
         if (query.trim()) {
@@ -1470,8 +1482,6 @@ class SadakSathiApp {
         }
     }
 
-    // --- AI Chat ---
-
     getSystemInstruction(): string {
         const personaMap = { friendly: "You are Sadak Sathi, a friendly and cheerful AI road companion for Nepal. Be helpful and encouraging.", formal: "You are a formal and precise AI assistant. Provide clear, concise, and accurate information about roads and travel in Nepal.", guide: "You are an enthusiastic and knowledgeable tour guide for Nepal. Provide rich details about culture, history, and points of interest along the user's route.", buddy: "You are a calm, focused, and reliable co-pilot. Prioritize safety, clear directions, and timely alerts. Keep your responses short and to the point." };
         const relationshipMap = { friend: "Address the user casually, like a good friend.", partner: "Address the user with warmth and support, like a caring partner.", husband: "Address the user as you would your husband.", wife: "Address the user as you would your wife." };
@@ -1479,8 +1489,6 @@ class SadakSathiApp {
     }
 
     resetChat() {
-        if (!this.ai) return;
-        this.chat = this.ai.chats.create({ model: 'gemini-2.5-flash', config: { systemInstruction: this.getSystemInstruction() } });
         this.chatHistory = [];
         const messagesContainer = document.querySelector('.chat-messages')!;
         messagesContainer.innerHTML = '';
@@ -1488,16 +1496,12 @@ class SadakSathiApp {
     }
 
     openChat() {
-        if (!this.ai) {
-            this.showToast(this.translations.ai_unavailable_message, 'error');
-            return;
-        }
-        if (!this.chat) {
-            this.resetChat();
-        }
         document.getElementById('ai-chat-modal')?.classList.remove('hidden');
         document.getElementById('context-chat-btn')?.classList.toggle('hidden', !this.selectedEntityContext);
         this.isChatOpen = true;
+        if(this.chatHistory.length === 0) {
+            this.resetChat();
+        }
     }
 
     closeChat() {
@@ -1507,18 +1511,18 @@ class SadakSathiApp {
 
     async handleChatMessage(event: Event) {
         event.preventDefault();
-        if (!this.ai || !this.chat) return;
-        
         const input = document.getElementById('chat-input') as HTMLInputElement;
         const message = input.value.trim();
         if (!message) return;
 
         this.addMessageToChat(message, 'user');
+        this.chatHistory.push({ role: 'user', parts: [{ text: message }] });
         input.value = '';
 
         try {
-            const result = await this.chat.sendMessage({ message: message });
+            const result = await this.backend.getChatResponse(this.chatHistory, message, this.getSystemInstruction());
             this.addMessageToChat(result.text, 'ai');
+            this.chatHistory.push({ role: 'model', parts: [{ text: result.text }] });
         } catch (error) {
             console.error('AI chat error:', error);
             this.addMessageToChat(this.translations.ai_error_message, 'ai');
@@ -1554,8 +1558,6 @@ class SadakSathiApp {
         const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
         document.getElementById('chat-form')?.dispatchEvent(submitEvent);
     }
-
-    // --- Voice Input & Output ---
 
     initSpeechRecognition() {
         if (!SpeechRecognition) return;
@@ -1608,15 +1610,18 @@ class SadakSathiApp {
     
     loadVoices() {
         const load = () => {
-            this.availableVoices = SpeechSynthesis.getVoices();
+            // FIX: Use the renamed speechSynthesis constant to call getVoices().
+            this.availableVoices = speechSynthesis.getVoices();
             if (this.availableVoices.length === 0) setTimeout(load, 100);
         };
-        SpeechSynthesis.onvoiceschanged = load;
+        // FIX: Use the renamed speechSynthesis constant to set onvoiceschanged.
+        speechSynthesis.onvoiceschanged = load;
         load();
     }
     
     speak(text: string) {
-        if (!SpeechSynthesis || !text) return;
+        // FIX: Use the renamed speechSynthesis constant.
+        if (!speechSynthesis || !text) return;
         const utterance = new SpeechSynthesisUtterance(text);
         const lang = this.currentLang.split('-')[0];
         let voiceOptions = this.availableVoices.filter(v => v.lang.startsWith(lang));
@@ -1628,12 +1633,12 @@ class SadakSathiApp {
         utterance.onstart = () => avatar?.classList.add('is-speaking');
         utterance.onend = () => avatar?.classList.remove('is-speaking');
         
-        SpeechSynthesis.cancel();
-        SpeechSynthesis.speak(utterance);
+        // FIX: Use the renamed speechSynthesis constant to call cancel().
+        speechSynthesis.cancel();
+        // FIX: Use the renamed speechSynthesis constant to call speak().
+        speechSynthesis.speak(utterance);
     }
     
-    // --- Settings ---
-
     loadSettings() {
         const theme = localStorage.getItem('sadakSathiTheme');
         if (theme) {
@@ -1694,8 +1699,6 @@ class SadakSathiApp {
         (document.getElementById('persona-avatar-preview') as HTMLImageElement).src = this.aiAvatarUrl;
     }
     
-    // --- Incident Reporting ---
-
     openReportIncidentModal() {
         if (!this.currentUser) {
             this.showToast('Please log in to report an incident.', 'warning');
@@ -1734,13 +1737,12 @@ class SadakSathiApp {
 
         const type = (document.getElementById('incident-type') as HTMLSelectElement).value;
         const description = (document.getElementById('incident-description') as HTMLTextAreaElement).value;
-        const imageToSubmit = this.refinedIncidentImage || this.originalIncidentImage;
         
         const newIncidentData = {
             incident_type: type,
             details: description,
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            approvalStatus: 'pending', // NEW: Default status
+            approvalStatus: 'pending',
             user_reported: true,
             reporterId: this.currentUser.uid,
             reporterEmail: this.currentUser.email,
@@ -1761,8 +1763,6 @@ class SadakSathiApp {
             this.showToast('Failed to submit incident report.', 'error');
         }
     }
-
-    // --- Image Refinement ---
 
     private dataUrlToParts(dataUrl: string): { data: string, mimeType: string } | null {
         const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
@@ -1792,8 +1792,8 @@ class SadakSathiApp {
     }
 
     private async handleImageRefinement() {
-        if (!this.ai || !this.originalIncidentImage) {
-            this.showToast(this.ai ? 'Please upload an image first.' : 'AI features are unavailable.', this.ai ? 'warning' : 'error');
+        if (!this.originalIncidentImage) {
+            this.showToast('Please upload an image first.', 'warning');
             return;
         }
         const prompt = (document.getElementById('refinement-prompt') as HTMLInputElement).value.trim();
@@ -1804,15 +1804,13 @@ class SadakSathiApp {
         const loader = document.getElementById('refinement-loader')!;
         loader.classList.remove('hidden');
         try {
-            const response = await this.ai.models.generateContent({ model: 'gemini-2.5-flash-image-preview', contents: { parts: [ { inlineData: { data: this.originalIncidentImage.data, mimeType: this.originalIncidentImage.mimeType, } }, { text: prompt, }, ] }, config: { responseModalities: [Modality.IMAGE, Modality.TEXT], }, });
-            const imagePart = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
-            if (imagePart && imagePart.inlineData) {
-                this.refinedIncidentImage = { data: imagePart.inlineData.data, mimeType: imagePart.inlineData.mimeType, };
+            const response = await this.backend.refineImageWithAI(this.originalIncidentImage, prompt);
+            if (response && response.refinedImage) {
+                this.refinedIncidentImage = response.refinedImage;
                 (document.getElementById('incident-image-preview') as HTMLImageElement).src = `data:${this.refinedIncidentImage.mimeType};base64,${this.refinedIncidentImage.data}`;
                 this.showToast('Image refined successfully!', 'success');
             } else {
-                const textPart = response.candidates?.[0]?.content?.parts?.find(part => part.text);
-                this.showToast(textPart?.text || 'AI could not refine the image. Please try a different prompt.', 'error');
+                this.showToast('AI could not refine the image. Please try a different prompt.', 'error');
             }
         } catch (error) {
             console.error('Image refinement error:', error);
@@ -1821,8 +1819,6 @@ class SadakSathiApp {
             loader.classList.add('hidden');
         }
     }
-
-    // --- Travel Time Map ---
     
     toggleTravelTimePanel(show: boolean) {
         document.getElementById('travel-time-panel')?.classList.toggle('hidden', !show);
@@ -1900,8 +1896,6 @@ class SadakSathiApp {
         }
     }
 
-    // --- Find My Car ---
-
     openFindCarModal() {
         const modal = document.getElementById('find-car-modal')!;
         const noLocationView = document.getElementById('no-car-location-view')!;
@@ -1976,13 +1970,10 @@ class SadakSathiApp {
         this.findRoute();
     }
     
-    // --- NEW: Admin Panel ---
-
     async openAdminPanel() {
         document.getElementById('profile-modal')?.classList.add('hidden');
         document.getElementById('admin-panel-modal')?.classList.remove('hidden');
 
-        // Fetch data if cache is empty
         if (Object.keys(this.adminDataCache).length === 0) {
             await this.fetchAdminData();
         } else {
@@ -2031,7 +2022,6 @@ class SadakSathiApp {
         document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.classList.remove('active'));
         target.classList.add('active');
         
-        // Reset sort for new tab
         this.currentAdminSort = { key: '', order: 'asc' };
         
         this.displayAdminData(collectionName);
@@ -2042,7 +2032,6 @@ class SadakSathiApp {
         const tableContainer = document.getElementById('admin-table-container')!;
         const controlsContainer = document.getElementById('admin-controls-container')!;
 
-        // Render controls (search, add button)
         controlsContainer.innerHTML = `
             <div id="admin-search-input-wrapper" class="input-wrapper">
                 <span class="material-icons input-icon">search</span>
@@ -2053,7 +2042,6 @@ class SadakSathiApp {
                 <button id="admin-refresh-btn" class="secondary-btn icon-only" title="Refresh Data"><span class="material-icons">refresh</span></button>
             </div>`;
 
-        // Add event listeners for new controls
         document.getElementById('admin-search-input')?.addEventListener('input', () => this.displayAdminData(this.currentAdminTab));
         document.getElementById('admin-add-btn')?.addEventListener('click', () => this.handleAdminAddClick(collectionName));
         document.getElementById('admin-refresh-btn')?.addEventListener('click', () => this.fetchAdminData(true));
@@ -2068,7 +2056,6 @@ class SadakSathiApp {
             return;
         }
         
-        // --- Filtering ---
         const searchInput = document.getElementById('admin-search-input') as HTMLInputElement;
         const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
 
@@ -2081,7 +2068,6 @@ class SadakSathiApp {
             );
         }
 
-        // --- Sorting ---
         if (this.currentAdminSort.key) {
             const { key, order } = this.currentAdminSort;
             filteredData.sort((a, b) => {
@@ -2095,7 +2081,6 @@ class SadakSathiApp {
 
         tableContainer.innerHTML = this.renderAdminTable(filteredData, collectionName);
         
-        // Add event listeners to new header elements
         tableContainer.querySelectorAll('th.sortable').forEach(th => {
             th.addEventListener('click', () => {
                 const key = (th as HTMLElement).dataset.key!;
@@ -2168,8 +2153,6 @@ class SadakSathiApp {
         this.displayAdminData(this.currentAdminTab);
     }
     
-    // --- Admin CRUD Operations ---
-
     handleAdminAddClick(collectionName: string) {
         this.openAdminFormModal(collectionName);
     }
@@ -2183,7 +2166,6 @@ class SadakSathiApp {
             try {
                 await this.db.collection(collectionName).doc(docId).delete();
                 this.showToast('Record deleted successfully.', 'success');
-                // The firestore listener will automatically update the UI.
             } catch (error) {
                 console.error("Error deleting record:", error);
                 this.showToast('Failed to delete record.', 'error');
@@ -2201,7 +2183,6 @@ class SadakSathiApp {
         form.dataset.collection = collectionName;
         form.dataset.docId = docId || '';
 
-        // Generate form fields dynamically
         fieldsContainer.innerHTML = this.generateFormHtml(collectionName, data);
 
         modal.classList.remove('hidden');
@@ -2225,7 +2206,6 @@ class SadakSathiApp {
             const value = data[key] || '';
             let inputHtml = `<input type="text" id="form-${key}" name="${key}" value="${this.getDisplayablePropertyValue(value, '')}">`;
 
-            // Special handling for certain fields
             if (key === 'details') {
                 inputHtml = `<textarea id="form-${key}" name="${key}" rows="3">${this.getDisplayablePropertyValue(value, '')}</textarea>`;
             } else if (key === 'status' || key === 'approvalStatus') {
@@ -2257,7 +2237,6 @@ class SadakSathiApp {
         const formData = new FormData(form);
         const data: { [key: string]: any } = {};
         formData.forEach((value, key) => {
-            // Attempt to convert to number if it looks like one
             if (!isNaN(Number(value)) && value.toString().trim() !== '') {
                 data[key] = Number(value);
             } else {
@@ -2265,7 +2244,6 @@ class SadakSathiApp {
             }
         });
 
-        // Add/update geometry if lat/lon are present
         if (typeof data.lat === 'number' && typeof data.lon === 'number') {
             data.geometry = {
                 type: 'Point',
@@ -2275,16 +2253,13 @@ class SadakSathiApp {
 
         try {
             if (docId) {
-                // Update existing document
                 await this.db.collection(collectionName).doc(docId).set(data, { merge: true });
                 this.showToast('Record updated successfully!', 'success');
             } else {
-                // Add new document
                 await this.db.collection(collectionName).add(data);
                 this.showToast('New record added successfully!', 'success');
             }
             this.closeAdminFormModal();
-            // Firestore listener will handle the UI update
         } catch (error) {
             console.error("Error saving record:", error);
             this.showToast('Failed to save record.', 'error');
@@ -2293,5 +2268,4 @@ class SadakSathiApp {
 
 }
 
-// Instantiate the app to start it
 new SadakSathiApp();

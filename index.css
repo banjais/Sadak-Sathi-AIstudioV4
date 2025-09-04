@@ -1819,3 +1819,21 @@ input[type="file"] {
     padding-top: 1.5rem;
     border-top: 1px solid var(--border-color);
 }
+
+/* === NEW: Traffic Layer Styles === */
+.leaflet-interactive.traffic-light {
+    stroke: #2ecc71;
+    stroke-opacity: 0.7;
+}
+.leaflet-interactive.traffic-moderate {
+    stroke: #f39c12;
+    stroke-opacity: 0.7;
+}
+.leaflet-interactive.traffic-heavy {
+    stroke: #e74c3c;
+    stroke-opacity: 0.7;
+}
+.leaflet-interactive.traffic-standstill {
+    stroke: #c0392b;
+    stroke-opacity: 0.8;
+}
