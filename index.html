@@ -6,9 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="copyright" content="Copyright (c) 2024 Your Company or Name. All Rights Reserved.">
     <title>Sadak Sathi - Your Road Companion</title>
-    <!-- Replaced Leaflet with CesiumJS -->
-    <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css">
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Cesium.js"></script>
+    <!-- Replaced Cesium with LeafletJS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -138,10 +138,6 @@
                                 <label for="toggle-incidents" data-lang-key="incidents">Live Alerts</label>
                                 <input type="checkbox" id="toggle-incidents" class="toggle-switch" checked>
                             </div>
-                             <div class="layer-toggle">
-                                <label for="toggle-3d" data-lang-key="buildings_3d">3D Buildings/Terrain</label>
-                                <input type="checkbox" id="toggle-3d" class="toggle-switch" checked>
-                            </div>
                         </div>
                         <hr>
                         <div class="map-options-section">
@@ -202,6 +198,20 @@
                             <span class="material-icons input-icon">flag</span>
                             <input type="text" id="to-input" data-lang-key-placeholder="to_placeholder">
                         </div>
+                    </div>
+                </div>
+                <div id="route-preferences-bar">
+                    <div class="route-pref-toggle">
+                        <label for="route-pref-highways" data-lang-key="prefer_highways">Prefer Highways</label>
+                        <input type="checkbox" id="route-pref-highways" class="toggle-switch">
+                    </div>
+                    <div class="route-pref-toggle">
+                        <label for="route-pref-no-tolls" data-lang-key="avoid_tolls">Avoid Tolls</label>
+                        <input type="checkbox" id="route-pref-no-tolls" class="toggle-switch">
+                    </div>
+                    <div class="route-pref-toggle">
+                        <label for="route-pref-scenic" data-lang-key="prefer_scenic_route">Prefer Scenic</label>
+                        <input type="checkbox" id="route-pref-scenic" class="toggle-switch">
                     </div>
                 </div>
                  <div class="route-actions">
@@ -330,6 +340,10 @@
                     <span class="stat-label" data-lang-key="route_details_time">Est. Time</span>
                     <span class="stat-value" id="route-time">-- min</span>
                 </div>
+                <div class="route-stat">
+                    <span class="stat-label" data-lang-key="route_details_eta">ETA</span>
+                    <span class="stat-value" id="route-eta">--:--</span>
+                </div>
                  <div class="route-stat">
                     <span class="stat-label">Road Status</span>
                     <span class="stat-value" id="route-overall-status">--</span>
@@ -411,21 +425,6 @@
                     <div class="setting-item">
                         <label for="toggle-voice-response" data-lang-key="ai_voice_response">AI Voice Response</label>
                         <input type="checkbox" id="toggle-voice-response" class="toggle-switch" checked>
-                    </div>
-                 </div>
-                 <div class="settings-section">
-                     <h3 data-lang-key="route_preferences">Route Preferences</h3>
-                     <div class="setting-item">
-                        <label for="pref-highways" data-lang-key="prefer_highways">Prefer Highways</label>
-                        <input type="checkbox" id="pref-highways" class="toggle-switch">
-                    </div>
-                     <div class="setting-item">
-                        <label for="pref-no-tolls" data-lang-key="avoid_tolls">Avoid Tolls</label>
-                        <input type="checkbox" id="pref-no-tolls" class="toggle-switch">
-                    </div>
-                     <div class="setting-item">
-                        <label for="pref-scenic" data-lang-key="prefer_scenic_route">Prefer Scenic Route</label>
-                        <input type="checkbox" id="pref-scenic" class="toggle-switch">
                     </div>
                  </div>
             </div>
@@ -513,18 +512,18 @@
                      <p class="modal-subtitle">Log in to sync your preferences.</p>
                      <form id="login-form">
                         <input type="email" id="login-email" placeholder="Enter your email" required>
-                        <button type="submit" class="primary-btn">Send OTP</button>
+                        <button type="submit" class="primary-btn">Continue</button>
                      </form>
                      <div id="login-error-message" class="error-message hidden"></div>
                 </div>
 
-                <!-- OTP View -->
+                <!-- OTP View (repurposed for password) -->
                 <div id="otp-view" class="hidden">
-                    <h3>Verify Your Identity</h3>
-                    <p class="modal-subtitle">An OTP has been sent to <b id="otp-email-display"></b>.</p>
+                    <h3>Enter Your Password</h3>
+                    <p class="modal-subtitle">Enter password for <b id="otp-email-display"></b>. If you are new, a new account will be created.</p>
                      <form id="otp-form">
-                        <input type="text" id="otp-input" placeholder="123456" pattern="\d{6}" required>
-                        <button type="submit" class="primary-btn">Log In</button>
+                        <input type="password" id="otp-input" placeholder="******" required>
+                        <button type="submit" class="primary-btn">Log In or Sign Up</button>
                      </form>
                     <div id="otp-error-message" class="error-message hidden"></div>
                 </div>
@@ -532,7 +531,7 @@
                 <!-- Profile View -->
                 <div id="profile-view" class="hidden">
                     <div class="profile-header">
-                        <img id="profile-avatar" src="https://i.imgur.com/r33W56s.png" alt="User Avatar">
+                        <img id="profile-avatar" src="https://i.imgur.com/uGAtGpj.png" alt="User Avatar">
                         <div class="profile-info">
                             <span id="profile-email">user@example.com</span>
                             <span id="profile-role-badge" data-role="user">user</span>
@@ -556,29 +555,47 @@
             </div>
         </div>
         
+        <!-- NEW: Admin Panel Modal -->
         <div id="admin-panel-modal" class="modal-overlay hidden">
-            <div class="modal-content">
-                <h3>Superadmin Panel</h3>
-                <button class="modal-close-btn icon-button" data-lang-key-aria-label="close"><span class="material-icons">close</span></button>
-                <div class="admin-config-section">
-                     <div class="setting-item-col">
-                        <label for="admin-road-data-url">Road Status Data URL</label>
-                        <input type="text" id="admin-road-data-url" disabled>
-                        <div class="secure-notice">
-                             <span class="material-icons">lock</span>
-                             <span>This is managed by the DoRS and cannot be changed here.</span>
-                        </div>
+            <div class="modal-content admin-panel">
+                <div class="panel-header">
+                    <h2>Admin Data Viewer</h2>
+                    <button id="admin-panel-close-btn" class="icon-button"><span class="material-icons">close</span></button>
+                </div>
+                <div class="admin-panel-body">
+                    <div class="admin-tabs">
+                        <button class="admin-tab-btn active" data-collection="Road">Roads</button>
+                        <button class="admin-tab-btn" data-collection="Bridge">Bridges</button>
+                        <button class="admin-tab-btn" data-collection="Toll">Tolls</button>
+                        <button class="admin-tab-btn" data-collection="UserReported">User Reports</button>
                     </div>
-                    <div class="setting-item-col">
-                        <label for="admin-traffic-data-url">Live Traffic Data URL (Future)</label>
-                        <input type="text" id="admin-traffic-data-url" disabled>
+                    <div id="admin-controls-container">
+                        <!-- Controls will be rendered here by JS -->
                     </div>
-                    <div class="setting-item-col">
-                        <label for="admin-ip-cam-url">IP Camera Stream URL</label>
-                        <input type="text" id="admin-ip-cam-url" placeholder="e.g., http://192.168.1.100/stream">
-                        <button id="save-ip-cam-btn" class="primary-btn" style="margin-top: 0.5rem;">Save & Close</button>
+                    <div id="admin-table-container">
+                        <!-- Table will be rendered here by JS -->
+                        <div class="spinner-container"><div class="spinner"></div></div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- NEW: Admin Edit/Add Form Modal -->
+        <div id="admin-form-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                 <div class="panel-header" style="padding: 0 0 1.5rem 0;">
+                    <h3 id="admin-form-title">Edit Record</h3>
+                    <button id="admin-form-close-btn" class="modal-close-btn icon-button"><span class="material-icons">close</span></button>
+                </div>
+                <form id="admin-edit-form">
+                    <div id="admin-form-fields" class="admin-form-fields-grid">
+                        <!-- Form fields will be dynamically generated here -->
+                    </div>
+                    <div class="form-actions">
+                         <button type="button" id="admin-form-cancel-btn" class="secondary-btn">Cancel</button>
+                         <button type="submit" class="primary-btn">Save Changes</button>
+                    </div>
+                </form>
             </div>
         </div>
 
@@ -760,7 +777,7 @@
             </div>
             <!-- NEW: Weather Section (Moved) -->
             <div id="detail-card-weather" class="hidden">
-                <img id="weather-icon" src="" alt="Weather icon">
+                <span id="weather-icon" class="material-icons">wb_sunny</span>
                 <span id="weather-temp"></span>
                 <span id="weather-desc"></span>
             </div>
@@ -771,9 +788,25 @@
                 <!-- Action buttons injected by JS -->
             </div>
         </div>
-
-
     </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script>
+      // Your web app's Firebase configuration
+      const firebaseConfig = {
+        apiKey: "AIzaSyADzQbCTo5_0p3WnUUFlO8kHTrK4BWHic0",
+        authDomain: "sadak-sathi-3ab73.firebaseapp.com",
+        projectId: "sadak-sathi-3ab73",
+        storageBucket: "sadak-sathi-3ab73.appspot.com",
+        messagingSenderId: "1042834733622",
+        appId: "1:1042834733622:web:a1b2c3d4e5f6a1b2c3d4e5" // App ID can be a placeholder if not used
+      };
+      // Initialize Firebase
+      firebase.initializeApp(firebaseConfig);
+    </script>
     <script type="module" src="index.js"></script>
 </body>
 </html>

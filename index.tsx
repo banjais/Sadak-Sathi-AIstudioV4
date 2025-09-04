@@ -25,25 +25,24 @@
 
 import { GoogleGenAI, Chat, Modality } from "@google/genai";
 
-// Declare Cesium as a global variable to be used from the script tag.
-declare var Cesium: any;
+// Declare Leaflet as a global variable to be used from the script tag.
+declare var L: any;
+// Declare Firebase as a global variable
+declare var firebase: any;
 
 // Web Speech API
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 const SpeechSynthesis = window.speechSynthesis;
 
-const ROAD_DATA_URL = 'https://script.google.com/macros/s/AKfycbx6gmAt6XdIUqQstWfn1GdBTdAxXcsZkLwZ006ajJaCTRdlCgMzFa0Qw-di2IkKChxW/exec';
-
-const NEPAL_BORDER_GEOJSON = { "type": "Polygon", "coordinates": [[[80.058, 28.986], [80.12, 28.422], [80.37, 28.42], [81.12, 28.78], [81.22, 28.98], [81.63, 29.1], [81.6, 29.43], [82.02, 29.43], [82.2, 29.6], [82.52, 29.58], [82.8, 29.75], [83.02, 29.45], [83.43, 29.12], [83.92, 28.73], [83.93, 28.23], [84.53, 27.85], [84.97, 27.72], [85.73, 27.93], [85.93, 28.07], [86.53, 27.88], [86.97, 27.88], [87.52, 27.65], [88.12, 27.35], [88.13, 27.05], [88.23, 26.85], [88.08, 26.58], [87.6, 26.38], [87.05, 26.47], [86.53, 26.63], [85.92, 26.63], [85.45, 26.73], [84.88, 26.65], [84.23, 26.85], [83.9, 27.1], [83.5, 27.28], [82.8, 27.45], [82.2, 27.5], [81.6, 27.6], [81.1, 27.7], [80.6, 27.9], [80.3, 28.1], [80.058, 28.986]]] };
-const INITIAL_CAMERA_POSITION = { lon: 84.1240, lat: 28.3949, alt: 900000 };
-const NEPAL_BOUNDING_RECTANGLE = Cesium.Rectangle.fromDegrees(80.0, 26.3, 88.2, 30.5);
+const NEPAL_BOUNDS = [[26.3, 80.0], [30.5, 88.2]]; // [[south, west], [north, east]]
+const INITIAL_VIEW = { center: [28.3949, 84.1240], zoom: 7 };
 
 const en_translations = {
     // Loading Screen
     "loading_initializing": "Initializing...",
     "loading_map": "Preparing the map...",
     "loading_voices": "Warming up AI voices...",
-    "loading_data": "Fetching latest road data...",
+    "loading_data": "Connecting to live data...",
     "loading_ui": "Assembling interface...",
     "loading_settings": "Loading your preferences...",
     "loading_complete": "All set! Welcome.",
@@ -87,6 +86,7 @@ const en_translations = {
     "close": "Close",
     "route_details_distance": "Distance",
     "route_details_time": "Est. Time",
+    "route_details_eta": "ETA",
     "route_prefs_used": "Route Preferences Used:",
     "route_details_directions": "Directions",
     "share_route": "Share route",
@@ -186,15 +186,16 @@ const en_translations = {
 // Main Application Class
 // =================================================================================
 class SadakSathiApp {
-    private viewer: any;
+    private map: any;
+    private tileLayers: { [key: string]: any } = {};
     private allRoadData: any[] = [];
-    private roadDataSource: any;
-    private poiDataSource: any;
-    private incidentDataSource: any;
-    private routeDataSource: any;
-    private travelTimeDataSource: any;
-    private carLocationDataSource: any;
-    private userLocationEntity: any = null;
+    private roadLayer: any;
+    private poiLayer: any;
+    private incidentLayer: any;
+    private routeLayer: any;
+    private travelTimeLayer: any;
+    private carLocationLayer: any;
+    private userLocationMarker: any = null;
     private userLocation: { lon: number, lat: number } | null = null;
     private isChatOpen: boolean = false;
     private chatHistory: { role: string, parts: { text: string }[] }[] = [];
@@ -208,6 +209,14 @@ class SadakSathiApp {
     // AI Integration
     private ai: GoogleGenAI | null = null;
     private chat: Chat | null = null;
+
+    // --- NEW: Firebase Integration ---
+    private firebaseApp: any;
+    private auth: any;
+    private db: any;
+    private currentUser: any = null;
+    private firestoreUnsubscribers: (() => void)[] = [];
+    private loginEmail: string = '';
     
     // AI Persona State
     private aiAvatarUrl: string = 'https://i.imgur.com/r33W56s.png';
@@ -215,10 +224,6 @@ class SadakSathiApp {
     private aiRelationship: string = 'friend';
     private aiVoice: string = 'female';
     private availableVoices: SpeechSynthesisVoice[] = [];
-
-    // 3D View State
-    private worldTerrainProvider: any;
-    private osmBuildings: any | null = null;
     
     // Loading Screen State
     private loadingOverlay: HTMLElement;
@@ -248,19 +253,17 @@ class SadakSathiApp {
 
     // --- NEW: Route Visualization Constants ---
     private readonly routeColorMap = {
-        fastest: Cesium.Color.fromCssColorString('#2ecc71'),
-        alternative: Cesium.Color.fromCssColorString('#3498db'),
-        scenic: Cesium.Color.fromCssColorString('#9b59b6'),
-        'toll-free': Cesium.Color.fromCssColorString('#f39c12')
+        fastest: '#2ecc71',
+        alternative: '#3498db',
+        scenic: '#9b59b6',
+        'toll-free': '#f39c12'
     };
 
-    private readonly activeRouteMaterial = (color: any) => new Cesium.PolylineGlowMaterialProperty({
-        glowPower: 0.3,
-        taperPower: 0.5,
-        color: color.withAlpha(1.0)
-    });
-
-    private readonly inactiveRouteMaterial = (color: any) => new Cesium.ColorMaterialProperty(color.withAlpha(0.4));
+    // --- NEW: Admin Panel State ---
+    private adminDataCache: { [key: string]: any[] } = {};
+    private currentAdminTab: string = 'Road';
+    private currentAdminSort = { key: '', order: 'asc' };
+    private isFetchingAdminData: boolean = false;
 
 
     constructor() {
@@ -271,6 +274,9 @@ class SadakSathiApp {
 
     async init() {
         this.updateLoadingProgress(10, 'loading_initializing');
+
+        this.initFirebase();
+        this.setupAuthListener();
 
         // --- Safe AI Initialization ---
         if (process.env.API_KEY) {
@@ -289,13 +295,13 @@ class SadakSathiApp {
         this.updateUIForLanguage();
         this.updateLoadingProgress(20, 'loading_map');
         
-        await this.initCesium();
+        await this.initMap();
         this.updateLoadingProgress(40, 'loading_voices');
 
         this.loadVoices();
         this.updateLoadingProgress(60, 'loading_data');
         
-        await this.loadInitialData();
+        this.listenForFirestoreData();
         this.updateLoadingProgress(80, 'loading_ui');
         
         this.setupEventListeners();
@@ -325,58 +331,165 @@ class SadakSathiApp {
             this.loadingOverlay.style.display = 'none';
         }, 700);
     }
+    
+    // --- NEW: Firebase Methods ---
 
-    async initCesium() {
-        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0YjFjNGFjMS1iMjExLTQyYWMtOTFkYy0wMDYxZGU5Y2QyYTMiLCJpZCI6MjI2NTg0LCJpYXQiOjE3MjExNTg4MDB9.sA-1z4P-6A8f6UgtMNQ8qfIq_v2O-u3a3e-rcQoTbow';
-    
+    initFirebase() {
         try {
-            // --- HYPER-ROBUST MAP INITIALIZATION ---
+            this.firebaseApp = firebase.app();
+            this.auth = firebase.auth();
+            this.db = firebase.firestore();
+        } catch (e) {
+            console.error("Error initializing Firebase:", e);
+            this.showToast("Could not connect to backend services.", "error");
+        }
+    }
+
+    setupAuthListener() {
+        if (!this.auth) return;
+        this.auth.onAuthStateChanged((user: any) => {
+            this.currentUser = user;
+            this.updateAuthUI(user);
+        });
+    }
     
-            // 1. GUARANTEE A 2D MAP IS SHOWN IMMEDIATELY.
-            // Create the viewer with a fast, reliable, built-in 2D map provider.
-            // This ensures the map widget renders instantly and is never blank.
-            this.viewer = new Cesium.Viewer('map', {
-                imageryProvider: new Cesium.OpenStreetMapImageryProvider(),
-                terrainProvider: new Cesium.EllipsoidTerrainProvider(), // Start with a simple, fast 2D ellipsoid.
-                geocoder: false, homeButton: false, sceneModePicker: false, baseLayerPicker: false,
-                navigationHelpButton: false, animation: false, timeline: false, fullscreenButton: false,
-                infoBox: false, selectionIndicator: false,
-            });
+    async updateAuthUI(user: any) {
+        const loginView = document.getElementById('login-view')!;
+        const profileView = document.getElementById('profile-view')!;
+        const otpView = document.getElementById('otp-view')!;
     
-            // 2. Set up camera and other initial settings now that the map is visible.
-            this.viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(INITIAL_CAMERA_POSITION.lon, INITIAL_CAMERA_POSITION.lat, INITIAL_CAMERA_POSITION.alt) });
-            this.viewer.camera.constrainedAxis = Cesium.Cartesian3.UNIT_Z;
-            this.viewer.scene.screenSpaceCameraController.minimumZoomDistance = 100;
-            this.viewer.scene.screenSpaceCameraController.maximumZoomDistance = 2000000;
-            this.viewer.camera.setView({ destination: NEPAL_BOUNDING_RECTANGLE });
+        if (user) {
+            loginView.classList.add('hidden');
+            otpView.classList.add('hidden');
+            profileView.classList.remove('hidden');
+            document.getElementById('profile-email')!.textContent = user.email;
     
-            // 3. If 3D is enabled, load the heavy assets in the background. The user already sees a 2D map.
-            const is3dEnabled = localStorage.getItem('sadakSathi3dView') === 'true';
-            (document.getElementById('toggle-3d') as HTMLInputElement).checked = is3dEnabled;
-            if (is3dEnabled) {
-                this.load3dAssetsInBackground();
+            // Check for admin privileges
+            try {
+                const adminsRef = this.db.collection('Admins');
+                const q = adminsRef.where('email', '==', user.email);
+                const querySnapshot = await q.get();
+                const adminPanelBtn = document.getElementById('admin-panel-btn')!;
+                if (!querySnapshot.empty) {
+                    adminPanelBtn.classList.remove('hidden');
+                } else {
+                    adminPanelBtn.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error("Failed to check admin status:", error);
             }
+        } else {
+            loginView.classList.remove('hidden');
+            profileView.classList.add('hidden');
+            otpView.classList.add('hidden');
+        }
+    }
+
+    listenForFirestoreData() {
+        if (!this.db) {
+            this.showToast('Could not fetch map data.', 'error');
+            return;
+        }
+
+        this.allRoadData = [];
+
+        const processSnapshot = (querySnapshot: any, type: string) => {
+            const featuresFromSnapshot: any[] = [];
+            querySnapshot.forEach((doc: any) => {
+                const data = doc.data();
+                let geometry = data.geometry;
+
+                if (!geometry && typeof data.lat === 'number' && typeof data.lon === 'number') {
+                    geometry = { type: 'Point', coordinates: [data.lon, data.lat] };
+                }
+
+                if (geometry) {
+                    const properties = { ...data, entityType: type, id: doc.id };
+                    delete properties.geometry;
+                    // Keep lat/lon for potential use
+                    // delete properties.lat;
+                    // delete properties.lon;
+
+                    featuresFromSnapshot.push({
+                        type: 'Feature',
+                        geometry: geometry,
+                        properties: properties,
+                    });
+                }
+            });
+
+            this.allRoadData = this.allRoadData.filter(f => f.properties.entityType !== type).concat(featuresFromSnapshot);
+            this.processAndDisplayData(this.allRoadData);
+            
+            // Update admin panel if it's open
+            if (!document.getElementById('admin-panel-modal')?.classList.contains('hidden')) {
+                const collectionName = type.charAt(0).toUpperCase() + type.slice(1);
+                if (['Road', 'Bridge', 'Toll'].includes(collectionName) || (collectionName === 'Incident' && type === 'incident')) {
+                   const adminCollectionName = type === 'incident' ? 'UserReported' : collectionName;
+                   const data = featuresFromSnapshot.map(f => ({...f.properties}));
+                   this.adminDataCache[adminCollectionName] = data;
+                   if (this.currentAdminTab === adminCollectionName) {
+                       this.displayAdminData(this.currentAdminTab);
+                   }
+                }
+            }
+        };
+        
+        // Clear old listeners before creating new ones
+        this.firestoreUnsubscribers.forEach(unsub => unsub());
+        this.firestoreUnsubscribers = [];
+
+        this.firestoreUnsubscribers.push(this.db.collection('Road').onSnapshot((snap: any) => processSnapshot(snap, 'road'), (err:any) => console.error("Road listener error:", err)));
+        this.firestoreUnsubscribers.push(this.db.collection('Bridge').onSnapshot((snap: any) => processSnapshot(snap, 'poi'), (err:any) => console.error("Bridge listener error:", err)));
+        this.firestoreUnsubscribers.push(this.db.collection('UserReported').onSnapshot((snap: any) => processSnapshot(snap, 'incident'), (err:any) => console.error("UserReported listener error:", err)));
+        this.firestoreUnsubscribers.push(this.db.collection('Toll').onSnapshot((snap: any) => processSnapshot(snap, 'poi'), (err:any) => console.error("Toll listener error:", err)));
+    }
+
+
+    async initMap() {
+        try {
+            this.map = L.map('map', {
+                zoomControl: false, // We have custom zoom controls
+                attributionControl: false,
+            }).setView(INITIAL_VIEW.center, INITIAL_VIEW.zoom);
     
-            // --- END OF ROBUST INITIALIZATION ---
+            this.tileLayers = {
+                streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }),
+                satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: 'Tiles &copy; Esri'
+                }),
+                dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                })
+            };
     
-            // Initialize data sources
-            this.roadDataSource = new Cesium.GeoJsonDataSource('roads');
-            this.poiDataSource = new Cesium.GeoJsonDataSource('pois');
-            this.incidentDataSource = new Cesium.GeoJsonDataSource('incidents');
-            this.routeDataSource = new Cesium.GeoJsonDataSource('route');
-            this.travelTimeDataSource = new Cesium.CustomDataSource('travelTime');
-            this.carLocationDataSource = new Cesium.CustomDataSource('carLocation');
-            this.viewer.dataSources.add(this.roadDataSource);
-            this.viewer.dataSources.add(this.poiDataSource);
-            this.viewer.dataSources.add(this.incidentDataSource);
-            this.viewer.dataSources.add(this.routeDataSource);
-            this.viewer.dataSources.add(this.travelTimeDataSource);
-            this.viewer.dataSources.add(this.carLocationDataSource);
+            this.tileLayers.streets.addTo(this.map);
+            L.control.attribution({ position: 'bottomright' }).addTo(this.map);
+
+            this.map.fitBounds(NEPAL_BOUNDS);
+            this.map.setMinZoom(6);
+    
+            // Initialize layer groups
+            this.roadLayer = L.layerGroup().addTo(this.map);
+            this.poiLayer = L.layerGroup().addTo(this.map);
+            this.incidentLayer = L.layerGroup().addTo(this.map);
+            this.routeLayer = L.layerGroup().addTo(this.map);
+            this.travelTimeLayer = L.layerGroup().addTo(this.map);
+            this.carLocationLayer = L.layerGroup().addTo(this.map);
     
             document.querySelector(`.style-option[data-style="streets"]`)?.classList.add('active');
             
+            // Map click listener to hide detail card
+            this.map.on('click', () => {
+                if (!this.isPickingTravelTimeOrigin) {
+                    this.hideDetailCard();
+                }
+            });
+
         } catch (error) {
-            console.error("CRITICAL: Cesium Viewer failed to initialize.", error);
+            console.error("CRITICAL: Leaflet Map failed to initialize.", error);
             const mapDiv = document.getElementById('map')!;
             mapDiv.innerHTML = `<div style="padding: 2rem; text-align: center; color: var(--danger-color);">
                 <h2>Map Failed to Load</h2>
@@ -386,89 +499,62 @@ class SadakSathiApp {
         }
     }
 
-    async loadInitialData() {
-        try {
-            const response = await fetch(ROAD_DATA_URL);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const data = await response.json();
-            this.allRoadData = data.data;
-            this.processAndDisplayData(this.allRoadData);
-            this.loadLocalIncidents();
-        } catch (error) {
-            console.error('Error fetching road data:', error);
-            this.showToast('Failed to load road data.', 'error');
-        }
-    }
-
-    processAndDisplayData(data: any[]) {
-        const roadFeatures: any[] = [], poiFeatures: any[] = [], incidentFeatures: any[] = [];
-        if (!Array.isArray(data)) {
-            console.error("Received non-array data for processing:", data);
+    processAndDisplayData(features: any[]) {
+        if (!Array.isArray(features)) {
+            console.error("Received non-array data for processing:", features);
             return;
         }
-        data.forEach(road => {
-            // Ensure the road object and its geometry are valid before processing
-            if (road && road.geometry) {
-                roadFeatures.push({ type: 'Feature', geometry: road.geometry, properties: { name: road.name, status: road.status, type: 'road', details: road.details, last_updated: road.last_updated, road_code: road.road_code, pavement_type: road.pavement_type, toll_free: road.toll_free, bridge_info: road.bridge_info, user_reported: road.user_reported, source: road.source } });
-            }
+        const roadFeatures = features.filter(f => f.properties.entityType === 'road');
+        const poiFeatures = features.filter(f => f.properties.entityType === 'poi');
+        // Only show approved incidents on the main map
+        const incidentFeatures = features.filter(f => f.properties.entityType === 'incident' && f.properties.approvalStatus === 'approved');
 
-            // Safely process points of interest
-            if (Array.isArray(road.points_of_interest)) {
-                road.points_of_interest.forEach((poi: any) => {
-                    if (poi && typeof poi.lon === 'number' && typeof poi.lat === 'number') {
-                        poiFeatures.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [poi.lon, poi.lat] }, properties: { ...poi, type: 'poi', entityType: 'poi' } });
-                    }
+        this.loadDataIntoLayer(this.roadLayer, { type: 'FeatureCollection', features: roadFeatures });
+        this.loadDataIntoLayer(this.poiLayer, { type: 'FeatureCollection', features: poiFeatures });
+        this.loadDataIntoLayer(this.incidentLayer, { type: 'FeatureCollection', features: incidentFeatures });
+    }
+
+    loadDataIntoLayer(layerGroup: any, geojson: any) {
+        layerGroup.clearLayers();
+        const geoJsonLayer = L.geoJSON(geojson, {
+            style: (feature: any) => {
+                if (feature.geometry.type !== 'Point') {
+                    return {
+                        color: this.getRoadColor(feature.properties.status),
+                        weight: 4,
+                        opacity: 0.8
+                    };
+                }
+            },
+            pointToLayer: (feature: any, latlng: any) => {
+                const props = feature.properties;
+                let iconStyle;
+                if (props.entityType === 'poi') {
+                    iconStyle = this.getIconStyleForPoi(props.category || props.name);
+                } else { // incident
+                    iconStyle = { icon: 'warning', color: '#e74c3c' };
+                }
+                const icon = this.getDivIcon(iconStyle.icon, iconStyle.color);
+                return L.marker(latlng, { icon: icon });
+            },
+            onEachFeature: (feature: any, layer: any) => {
+                layer.on('click', (e: any) => {
+                    L.DomEvent.stopPropagation(e); // Prevent map click from firing
+                    this.handleEntityClick(feature, layer);
                 });
             }
-            
-            // Safely process incidents
-            if (Array.isArray(road.incidents)) {
-                road.incidents.forEach((incident: any) => {
-                    if (incident && typeof incident.lon === 'number' && typeof incident.lat === 'number') {
-                        incidentFeatures.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [incident.lon, incident.lat] }, properties: { ...incident, type: 'incident', entityType: 'incident' } });
-                    }
-                });
-            }
         });
-        this.loadDataIntoSource(this.roadDataSource, { type: 'FeatureCollection', features: roadFeatures });
-        this.loadDataIntoSource(this.poiDataSource, { type: 'FeatureCollection', features: poiFeatures });
-        this.loadDataIntoSource(this.incidentDataSource, { type: 'FeatureCollection', features: incidentFeatures });
-        this.styleDataSources();
+        layerGroup.addLayer(geoJsonLayer);
     }
-
-    loadDataIntoSource(dataSource: any, geojson: any) {
-        dataSource.load(geojson).catch((error: any) => console.error(`Error loading data into source ${dataSource.name}:`, error));
-    }
-
-    styleDataSources() {
-        this.roadDataSource.entities.values.forEach((entity: any) => {
-            entity.polyline.width = 5;
-            entity.polyline.material = this.getRoadColor(entity.properties.status?.getValue(this.viewer.clock.currentTime));
-            entity.polyline.clampToGround = true;
-        });
-        this.poiDataSource.entities.values.forEach((entity: any) => {
-            const style = this.getIconStyleForPoi(entity.properties.category?.getValue(this.viewer.clock.currentTime));
-            this.styleEntityAsBillboard(entity, style.icon, style.color);
-        });
-        this.incidentDataSource.entities.values.forEach((entity: any) => this.styleEntityAsBillboard(entity, 'warning', '#e74c3c'));
-    }
-
-    styleEntityAsBillboard(entity: any, icon: string, color: string) {
-        entity.billboard = new Cesium.BillboardGraphics({
-            image: this.getIconCanvas(icon, color),
-            width: 32, height: 32, verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY
-        });
-    }
-
+    
     getRoadColor(status: any) {
         const statusString = this.getDisplayablePropertyValue(status, 'unknown').toLowerCase();
         switch (statusString) {
-            case 'open': case 'resumed': return Cesium.Color.fromCssColorString('#2ecc71');
-            case 'blocked': return Cesium.Color.fromCssColorString('#e74c3c');
-            case 'restricted': case 'one-lane': return Cesium.Color.fromCssColorString('#f39c12');
-            case 'construction': return Cesium.Color.fromCssColorString('#e67e22');
-            default: return Cesium.Color.fromCssColorString('#95a5a6');
+            case 'open': case 'resumed': return '#2ecc71';
+            case 'blocked': return '#e74c3c';
+            case 'restricted': case 'one-lane': return '#f39c12';
+            case 'construction': return '#e67e22';
+            default: return '#95a5a6';
         }
     }
 
@@ -482,23 +568,25 @@ class SadakSathiApp {
         if (cat.includes('mechanic')) return { icon: 'build', color: '#7f8c8d' };
         if (cat.includes('viewpoint')) return { icon: 'camera_alt', color: '#8e44ad' };
         if (cat.includes('parking')) return { icon: 'local_parking', color: '#2980b9' };
-        return { icon: 'place', color: '#3498db' };
+        if (cat.includes('bridge')) return { icon: 'water', color: '#3498db' };
+        if (cat.includes('toll')) return { icon: 'toll', color: '#9b59b6' };
+        return { icon: 'place', color: '#7f8c8d' };
     }
     
-    getIconCanvas(iconName: string, color: string): HTMLCanvasElement {
-        const canvas = document.createElement('canvas');
-        canvas.width = 48; canvas.height = 48;
-        const ctx = canvas.getContext('2d')!;
-        ctx.fillStyle = color;
-        ctx.beginPath(); ctx.arc(24, 24, 22, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke();
-        ctx.font = '28px "Material Icons"';
-        ctx.fillStyle = 'white'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(iconName, 24, 24);
-        return canvas;
+    getDivIcon(iconName: string, color: string): any {
+        return L.divIcon({
+            html: `<div style="background-color:${color}; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">
+                     <span class="material-icons" style="color:white; font-size: 20px;">${iconName}</span>
+                   </div>`,
+            className: '', // important to reset default leaflet styles
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
     }
 
     setupEventListeners() {
+        // ... (existing event listeners)
         document.getElementById('theme-toggle')?.addEventListener('click', () => this.toggleTheme());
         document.getElementById('live-cam-btn')?.addEventListener('click', () => this.toggleLiveCamPanel(true));
         
@@ -512,7 +600,6 @@ class SadakSathiApp {
         document.querySelectorAll('.lang-category-header').forEach(header => {
             header.addEventListener('click', () => {
                 const parent = header.parentElement;
-                const list = parent?.querySelector('.lang-options-list');
                 const icon = header.querySelector('.expand-icon');
                 if (parent?.classList.contains('open')) {
                     parent.classList.remove('open');
@@ -540,8 +627,8 @@ class SadakSathiApp {
             });
         });
 
-        document.getElementById('zoom-in-btn')?.addEventListener('click', () => this.viewer.camera.zoomIn());
-        document.getElementById('zoom-out-btn')?.addEventListener('click', () => this.viewer.camera.zoomOut());
+        document.getElementById('zoom-in-btn')?.addEventListener('click', () => this.map.zoomIn());
+        document.getElementById('zoom-out-btn')?.addEventListener('click', () => this.map.zoomOut());
         document.getElementById('center-location-btn')?.addEventListener('click', () => this.centerOnUserLocation());
 
         const mapOptionsBtn = document.getElementById('map-options-btn');
@@ -551,10 +638,9 @@ class SadakSathiApp {
             mapOptionsPopup?.classList.toggle('hidden');
         });
 
-        document.getElementById('toggle-roads')?.addEventListener('change', (e) => this.toggleDataSourceVisibility('roads', (e.target as HTMLInputElement).checked));
-        document.getElementById('toggle-pois')?.addEventListener('change', (e) => this.toggleDataSourceVisibility('pois', (e.target as HTMLInputElement).checked));
-        document.getElementById('toggle-incidents')?.addEventListener('change', (e) => this.toggleDataSourceVisibility('incidents', (e.target as HTMLInputElement).checked));
-        document.getElementById('toggle-3d')?.addEventListener('change', (e) => this.toggle3DView((e.target as HTMLInputElement).checked));
+        document.getElementById('toggle-roads')?.addEventListener('change', (e) => this.toggleDataSourceVisibility('road', (e.target as HTMLInputElement).checked));
+        document.getElementById('toggle-pois')?.addEventListener('change', (e) => this.toggleDataSourceVisibility('poi', (e.target as HTMLInputElement).checked));
+        document.getElementById('toggle-incidents')?.addEventListener('change', (e) => this.toggleDataSourceVisibility('incident', (e.target as HTMLInputElement).checked));
         
         document.querySelectorAll('.style-option').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -569,8 +655,7 @@ class SadakSathiApp {
 
         document.getElementById('detail-card-close')?.addEventListener('click', () => this.hideDetailCard());
         document.getElementById('close-cam-btn')?.addEventListener('click', () => this.toggleLiveCamPanel(false));
-        document.getElementById('save-ip-cam-btn')?.addEventListener('click', () => this.saveIpCamUrl());
-
+        
         // Unified Search Bar
         document.getElementById('unified-search-ai-btn')?.addEventListener('click', () => this.openChat());
         document.getElementById('unified-search-voice-btn')?.addEventListener('click', () => this.startVoiceCommand('unified-search'));
@@ -611,9 +696,11 @@ class SadakSathiApp {
             this.saveSettings();
         });
         document.getElementById('toggle-voice-response')?.addEventListener('change', () => this.saveSettings());
-        document.getElementById('pref-highways')?.addEventListener('change', () => this.saveSettings());
-        document.getElementById('pref-no-tolls')?.addEventListener('change', () => this.saveSettings());
-        document.getElementById('pref-scenic')?.addEventListener('change', () => this.saveSettings());
+        
+        // NEW: Route Preferences in routing panel
+        document.getElementById('route-pref-highways')?.addEventListener('change', () => this.saveSettings());
+        document.getElementById('route-pref-no-tolls')?.addEventListener('change', () => this.saveSettings());
+        document.getElementById('route-pref-scenic')?.addEventListener('change', () => this.saveSettings());
         
         // FAB Menu
         document.getElementById('fab-main-btn')?.addEventListener('click', (e) => {
@@ -622,8 +709,20 @@ class SadakSathiApp {
         });
         document.getElementById('fab-ai-btn')?.addEventListener('click', () => this.openChat());
         document.getElementById('fab-settings-btn')?.addEventListener('click', () => document.getElementById('settings-panel')?.classList.add('open'));
-        document.getElementById('fab-profile-btn')?.addEventListener('click', () => this.showToast('Profile feature coming soon!', 'info'));
+        document.getElementById('fab-profile-btn')?.addEventListener('click', () => this.openProfileModal());
         document.getElementById('fab-find-car-btn')?.addEventListener('click', () => this.openFindCarModal());
+
+        // --- Auth & Profile Event Listeners ---
+        document.getElementById('login-form')?.addEventListener('submit', (e) => this.handleLoginSubmit(e));
+        document.getElementById('otp-form')?.addEventListener('submit', (e) => this.handleOtpSubmitAsPassword(e));
+        document.getElementById('logout-btn')?.addEventListener('click', () => this.handleLogout());
+        document.querySelector('#profile-modal .modal-close-btn')?.addEventListener('click', () => document.getElementById('profile-modal')?.classList.add('hidden'));
+        document.getElementById('open-settings-btn')?.addEventListener('click', () => {
+            document.getElementById('profile-modal')?.classList.add('hidden');
+            document.getElementById('settings-panel')?.classList.add('open');
+        });
+        document.getElementById('admin-panel-btn')?.addEventListener('click', () => this.openAdminPanel());
+
 
         // Incident Reporting
         document.getElementById('report-incident-fab')?.addEventListener('click', () => this.openReportIncidentModal());
@@ -649,6 +748,17 @@ class SadakSathiApp {
         // Permission Modal
         document.getElementById('permission-modal-close-btn')?.addEventListener('click', () => document.getElementById('permission-help-modal')?.classList.add('hidden'));
 
+        // --- NEW: Admin Panel Listeners ---
+        document.getElementById('admin-panel-close-btn')?.addEventListener('click', () => document.getElementById('admin-panel-modal')?.classList.add('hidden'));
+        document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.addEventListener('click', (e) => this.handleAdminTabClick(e)));
+        document.getElementById('admin-form-modal')?.addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) this.closeAdminFormModal();
+        });
+        document.getElementById('admin-form-close-btn')?.addEventListener('click', () => this.closeAdminFormModal());
+        document.getElementById('admin-form-cancel-btn')?.addEventListener('click', () => this.closeAdminFormModal());
+        document.getElementById('admin-edit-form')?.addEventListener('submit', (e) => this.handleAdminFormSubmit(e));
+
+
         // Global listeners
         document.addEventListener('click', (e) => {
             if (!langSelectorBtn?.contains(e.target as Node) && !langPopup?.contains(e.target as Node)) {
@@ -658,28 +768,78 @@ class SadakSathiApp {
                 mapOptionsPopup?.classList.add('hidden');
             }
         });
-
-        // Cesium click handler
-        const handler = new Cesium.ScreenSpaceEventHandler(this.viewer.scene.canvas);
-        handler.setInputAction((movement: any) => {
-            if (this.isPickingTravelTimeOrigin) {
-                const cartesian = this.viewer.camera.pickEllipsoid(movement.position, this.viewer.scene.globe.ellipsoid);
-                if (cartesian) {
-                    this.setTravelTimeOrigin(cartesian);
-                }
-            } else {
-                const pickedObject = this.viewer.scene.pick(movement.position);
-                if (Cesium.defined(pickedObject) && Cesium.defined(pickedObject.id)) {
-                    this.handleEntityClick(pickedObject.id);
-                } else {
-                    this.hideDetailCard();
-                }
-            }
-        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
         
         this.initSpeechRecognition();
         this.startGeolocation();
     }
+
+    // --- Authentication ---
+
+    openProfileModal() {
+        document.getElementById('profile-modal')?.classList.remove('hidden');
+        if (!this.currentUser) {
+            document.getElementById('login-view')?.classList.remove('hidden');
+            document.getElementById('otp-view')?.classList.add('hidden');
+            document.getElementById('profile-view')?.classList.add('hidden');
+            (document.getElementById('login-email') as HTMLInputElement).value = '';
+            (document.getElementById('otp-input') as HTMLInputElement).value = '';
+        }
+    }
+
+    handleLoginSubmit(event: Event) {
+        event.preventDefault();
+        const emailInput = document.getElementById('login-email') as HTMLInputElement;
+        const email = emailInput.value.trim();
+        if (!email) return;
+
+        this.loginEmail = email; // Store email for the next step
+        document.getElementById('login-view')!.classList.add('hidden');
+        document.getElementById('otp-view')!.classList.remove('hidden');
+        document.getElementById('otp-email-display')!.textContent = email;
+        (document.getElementById('otp-input') as HTMLInputElement).focus();
+    }
+
+    async handleOtpSubmitAsPassword(event: Event) {
+        event.preventDefault();
+        const passwordInput = document.getElementById('otp-input') as HTMLInputElement;
+        const password = passwordInput.value;
+        if (!password || !this.loginEmail) return;
+
+        try {
+            await this.auth.signInWithEmailAndPassword(this.loginEmail, password);
+            this.showToast('Login successful!', 'success');
+            document.getElementById('profile-modal')?.classList.add('hidden');
+        } catch (error: any) {
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+                 try {
+                    await this.auth.createUserWithEmailAndPassword(this.loginEmail, password);
+                    this.showToast('New account created and logged in!', 'success');
+                    document.getElementById('profile-modal')?.classList.add('hidden');
+                } catch (createError: any) {
+                    console.error("Sign up error:", createError);
+                    this.showToast(`Sign up failed: ${createError.message}`, 'error');
+                }
+            } else {
+                console.error("Sign in error:", error);
+                this.showToast(`Login failed: ${error.message}`, 'error');
+            }
+        } finally {
+            this.loginEmail = '';
+            passwordInput.value = '';
+        }
+    }
+
+    async handleLogout() {
+        try {
+            await this.auth.signOut();
+            this.showToast('Logged out successfully.', 'info');
+            document.getElementById('profile-modal')?.classList.add('hidden');
+        } catch (error: any) {
+            console.error("Logout error:", error);
+            this.showToast(`Logout failed: ${error.message}`, 'error');
+        }
+    }
+
 
     // --- UI & State Management ---
 
@@ -701,22 +861,12 @@ class SadakSathiApp {
         document.getElementById('live-cam-panel')?.classList.toggle('hidden', !show);
     }
     
-    saveIpCamUrl() {
-        const input = document.getElementById('admin-ip-cam-url') as HTMLInputElement;
-        this.ipCamUrl = input.value;
-        localStorage.setItem('sadakSathiIpCamUrl', this.ipCamUrl);
-        this.showToast('IP Camera URL saved!', 'success');
-        document.getElementById('admin-panel-modal')?.classList.add('hidden');
-    }
-    
     async loadTranslations(lang: string) {
         if (lang === 'en') {
             this.translations = en_translations;
             return;
         }
         try {
-            // In a real app, this would fetch from a server: `/${lang}.json`
-            // For now, we'll just show a message.
             this.showToast(`Translation for ${lang} not available yet.`, 'info');
             this.translations = en_translations; // Fallback to English
         } catch (error) {
@@ -753,81 +903,33 @@ class SadakSathiApp {
     }
 
     toggleDataSourceVisibility(sourceName: string, isVisible: boolean) {
-        const dataSource = (this as any)[`${sourceName}DataSource`];
-        if (dataSource) {
-            dataSource.show = isVisible;
+        const layerGroup = (this as any)[`${sourceName}Layer`];
+        if (layerGroup) {
+            if (isVisible) {
+                this.map.addLayer(layerGroup);
+            } else {
+                this.map.removeLayer(layerGroup);
+            }
         }
     }
     
-    toggle3DView(enable: boolean) {
-        localStorage.setItem('sadakSathi3dView', String(enable));
-        if (enable) {
-            // Asynchronously load and apply 3D assets.
-            // This function is designed to be called multiple times; it will only load assets once.
-            this.load3dAssetsInBackground();
-        } else { // Disabling 3D
-            this.viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
-            if (this.osmBuildings) {
-                this.osmBuildings.show = false;
-            }
+    changeMapStyle(style: string) {
+        // Remove all existing tile layers
+        Object.values(this.tileLayers).forEach(layer => this.map.removeLayer(layer));
+        // Add the selected tile layer
+        if (this.tileLayers[style]) {
+            this.tileLayers[style].addTo(this.map);
+        } else {
+            this.tileLayers.streets.addTo(this.map); // Fallback
         }
     }
 
-    async load3dAssetsInBackground() {
-        // Load terrain, only if not already loaded
-        if (!this.worldTerrainProvider) {
-            try {
-                this.worldTerrainProvider = await Cesium.createWorldTerrainAsync();
-            } catch (error) {
-                console.error("Failed to load Cesium World Terrain. 3D view will be terrain-less.", error);
-                this.showToast('3D terrain failed to load.', 'warning');
-            }
-        }
-        // Apply the loaded terrain provider if it exists
-        if (this.worldTerrainProvider) {
-            this.viewer.terrainProvider = this.worldTerrainProvider;
-        }
-
-        // Load buildings, only if not already loaded
-        if (!this.osmBuildings) {
-            try {
-                this.osmBuildings = await Cesium.createOsmBuildingsAsync();
-                this.viewer.scene.primitives.add(this.osmBuildings);
-            } catch (error) {
-                console.error("Failed to load OSM Buildings:", error);
-                this.showToast("Could not load 3D buildings.", "warning");
-            }
-        }
-        // Ensure buildings are shown if they exist
-        if (this.osmBuildings) {
-            this.osmBuildings.show = true;
-        }
-    }
-    
-    async changeMapStyle(style: string) {
-        this.viewer.imageryLayers.removeAll();
-        let newProvider;
-        try {
-            if (style === 'satellite') {
-                newProvider = await Cesium.createWorldImageryAsync();
-            } else if (style === 'dark') {
-                newProvider = await Cesium.IonImageryProvider.fromAssetId(3812);
-            } else { // streets
-                newProvider = new Cesium.OpenStreetMapImageryProvider();
-            }
-            this.viewer.imageryLayers.addImageryProvider(newProvider);
-        } catch (error) {
-            console.error(`Failed to switch map style to ${style}:`, error);
-            this.showToast(`Failed to load ${style} map style.`, 'error');
-        }
-    }
-
-    showDetailCard(entity: any) {
+    showDetailCard(feature: any) {
         const card = document.getElementById('detail-card')!;
         const titleEl = document.getElementById('detail-card-title')!;
         const contentEl = document.getElementById('detail-card-content')!;
         const actionsEl = document.getElementById('detail-card-actions')!;
-        const props = entity.properties.getValue(this.viewer.clock.currentTime);
+        const props = feature.properties;
 
         this.selectedEntityContext = props;
         
@@ -839,13 +941,16 @@ class SadakSathiApp {
                 <p><strong>Category:</strong> ${this.getDisplayablePropertyValue(props.category, 'N/A')}</p>
                 <p><strong>Description:</strong> ${this.getDisplayablePropertyValue(props.description, 'No description available.')}</p>
             `;
+            this.displayMockWeather(feature.geometry.coordinates[1], feature.geometry.coordinates[0]);
         } else if (props.entityType === 'incident') {
              const incidentType = this.getDisplayablePropertyValue(props.incident_type, 'N/A');
+             const timestamp = props.timestamp?.toDate ? props.timestamp.toDate() : new Date(props.timestamp);
              contentHtml = `
                 <p><strong>Type:</strong> <span class="status-${incidentType.toLowerCase()}">${incidentType}</span></p>
                 <p><strong>Details:</strong> ${this.getDisplayablePropertyValue(props.details, 'No details provided.')}</p>
-                <p><strong>Reported:</strong> ${new Date(props.timestamp).toLocaleString()}</p>
+                <p><strong>Reported:</strong> ${timestamp.toLocaleString()}</p>
             `;
+            this.displayMockWeather(feature.geometry.coordinates[1], feature.geometry.coordinates[0]);
         } else { // road
             const roadStatus = this.getDisplayablePropertyValue(props.status, 'N/A');
             contentHtml = `
@@ -854,6 +959,7 @@ class SadakSathiApp {
                 <p><strong>Pavement:</strong> ${this.getDisplayablePropertyValue(props.pavement_type, 'N/A')}</p>
                 <p><strong>Last Updated:</strong> ${this.getDisplayablePropertyValue(props.last_updated, 'N/A')}</p>
             `;
+            document.getElementById('detail-card-weather')?.classList.add('hidden');
         }
         
         contentEl.innerHTML = contentHtml;
@@ -863,11 +969,37 @@ class SadakSathiApp {
             <button class="travel-mode-btn" id="dc-ask-ai"><span class="material-icons">auto_awesome</span><span>${this.translations.tell_me_about_this_place}</span></button>
         `;
         
-        document.getElementById('dc-dir-to')?.addEventListener('click', () => this.handleDirectionsTo(entity));
-        document.getElementById('dc-dir-from')?.addEventListener('click', () => this.handleDirectionsFrom(entity));
+        document.getElementById('dc-dir-to')?.addEventListener('click', () => this.handleDirectionsTo(feature));
+        document.getElementById('dc-dir-from')?.addEventListener('click', () => this.handleDirectionsFrom(feature));
         document.getElementById('dc-ask-ai')?.addEventListener('click', () => this.askAboutContext(true));
 
         card.classList.add('visible');
+    }
+
+    displayMockWeather(lat: number, lon: number) {
+        const weatherEl = document.getElementById('detail-card-weather')!;
+        const iconEl = document.getElementById('weather-icon')!;
+        const tempEl = document.getElementById('weather-temp')!;
+        const descEl = document.getElementById('weather-desc')!;
+
+        const weatherTypes = [
+            { icon: 'wb_sunny', desc: 'Clear Skies', temp: 28 },
+            { icon: 'partly_cloudy_day', desc: 'Partly Cloudy', temp: 25 },
+            { icon: 'cloud', desc: 'Cloudy', temp: 22 },
+            { icon: 'rainy', desc: 'Light Rain', temp: 20 },
+            { icon: 'thunderstorm', desc: 'Thunderstorm', temp: 18 }
+        ];
+
+        // "Random" based on location to be consistent
+        const seed = Math.floor(lat + lon);
+        const mockWeather = weatherTypes[seed % weatherTypes.length];
+        const tempVariation = (seed % 5) - 2; // -2 to +2 variation
+
+        iconEl.textContent = mockWeather.icon;
+        tempEl.textContent = `${mockWeather.temp + tempVariation}°C`;
+        descEl.textContent = mockWeather.desc;
+
+        weatherEl.classList.remove('hidden');
     }
 
     hideDetailCard() {
@@ -875,12 +1007,14 @@ class SadakSathiApp {
         this.selectedEntityContext = null;
     }
 
-    handleEntityClick(entity: any) {
-        this.viewer.flyTo(entity, {
-            duration: 1.0,
-            offset: new Cesium.HeadingPitchRange(0, -Cesium.Math.PI_OVER_FOUR, entity.billboard ? 2000 : 5000)
-        });
-        this.showDetailCard(entity);
+    handleEntityClick(feature: any, layer: any) {
+        if (feature.geometry.type === 'Point') {
+            const [lon, lat] = feature.geometry.coordinates;
+            this.map.flyTo([lat, lon], 14);
+        } else {
+            this.map.flyToBounds(layer.getBounds(), { paddingTopLeft: [0, 80], paddingBottomRight: [0, 350]});
+        }
+        this.showDetailCard(feature);
     }
     
     showToast(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') {
@@ -906,32 +1040,15 @@ class SadakSathiApp {
     }
 
     getDisplayablePropertyValue(value: any, fallback: string = ''): string {
-        // Handles Cesium's Property objects
-        if (value && typeof value.getValue === 'function') {
-            value = value.getValue(this.viewer.clock.currentTime);
-        }
-        
         if (value === null || typeof value === 'undefined') {
             return fallback;
         }
-        
-        // Handles cases where the value is an object, like { _value: "Open" }
-        if (typeof value === 'object' && value !== null && value.hasOwnProperty('_value')) {
-            return String(value._value);
-        }
-        
-        // Handles cases where the value might be a plain object with a text property
         if (typeof value === 'object' && value !== null) {
-            const potentialKeys = ['name', 'label', 'text', 'title'];
-            for (const key of potentialKeys) {
-                if (typeof value[key] === 'string' || typeof value[key] === 'number') {
-                    return String(value[key]);
-                }
+             if (value.toDate) { // Firebase Timestamp
+                return value.toDate().toLocaleString();
             }
-            // If no simple property is found, avoid returning [object Object]
-            return fallback;
+            return JSON.stringify(value); // Simple fallback for objects
         }
-        
         return String(value);
     }
 
@@ -947,57 +1064,40 @@ class SadakSathiApp {
     startGeolocation() {
         if (!this.hasRequestedGeolocation) {
             this.hasRequestedGeolocation = true;
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(
-                    (position) => this.updateUserLocation(position),
-                    (error) => {
-                        console.warn('Geolocation error:', error);
-                        this.showToast('Could not get your location.', 'warning');
-                        this.isGeolocationActive = false;
-                        document.getElementById('gps-status-indicator')?.classList.remove('active');
-                    },
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                );
+            if ('geolocation' in navigator) {
+                this.map.locate({ watch: true, setView: false, enableHighAccuracy: true });
+                this.map.on('locationfound', (e: any) => this.updateUserLocation(e));
+                this.map.on('locationerror', (e: any) => {
+                    console.warn('Geolocation error:', e.message);
+                    this.showToast('Could not get your location.', 'warning');
+                    this.isGeolocationActive = false;
+                    document.getElementById('gps-status-indicator')?.classList.remove('active');
+                });
             } else {
                 this.showToast('Geolocation is not supported by this browser.', 'error');
             }
         }
     }
-
-    updateUserLocation(position: GeolocationPosition) {
+    
+    updateUserLocation(e: any) {
         this.isGeolocationActive = true;
         this.userLocation = {
-            lon: position.coords.longitude,
-            lat: position.coords.latitude,
+            lon: e.latlng.lng,
+            lat: e.latlng.lat,
         };
-
-        const pos = Cesium.Cartesian3.fromDegrees(this.userLocation.lon, this.userLocation.lat);
-
-        if (!this.userLocationEntity) {
-            this.userLocationEntity = this.viewer.entities.add({
-                position: pos,
-                billboard: {
-                    image: this.getIconCanvas('navigation', '#007aff'),
-                    width: 32,
-                    height: 32,
-                    disableDepthTestDistance: Number.POSITIVE_INFINITY
-                },
-            });
+    
+        if (!this.userLocationMarker) {
+            const icon = this.getDivIcon('navigation', '#007aff');
+            this.userLocationMarker = L.marker(e.latlng, { icon: icon }).addTo(this.map);
         } else {
-            this.userLocationEntity.position = pos;
+            this.userLocationMarker.setLatLng(e.latlng);
         }
         document.getElementById('gps-status-indicator')?.classList.add('active');
     }
 
     centerOnUserLocation() {
         if (this.userLocation) {
-            this.viewer.camera.flyTo({
-                destination: Cesium.Cartesian3.fromDegrees(this.userLocation.lon, this.userLocation.lat, 10000),
-                orientation: {
-                    heading: Cesium.Math.toRadians(0.0),
-                    pitch: Cesium.Math.toRadians(-45.0),
-                }
-            });
+            this.map.flyTo([this.userLocation.lat, this.userLocation.lon], 15);
         } else {
             this.showToast('Your location is not available yet.', 'info');
             this.startGeolocation();
@@ -1019,7 +1119,7 @@ class SadakSathiApp {
         }
     }
 
-    handleDirectionsTo(entity: any) {
+    handleDirectionsTo(feature: any) {
         if (!this.userLocation) {
             this.showToast("Your location isn't available. Please enable GPS.", 'warning');
             return;
@@ -1027,17 +1127,17 @@ class SadakSathiApp {
         this.hideDetailCard();
         this.setUiMode('routing');
     
-        (document.getElementById('to-input') as HTMLInputElement).value = this.getDisplayablePropertyValue(entity.properties.name, 'Selected Location');
+        (document.getElementById('to-input') as HTMLInputElement).value = this.getDisplayablePropertyValue(feature.properties.name, 'Selected Location');
         (document.getElementById('from-input') as HTMLInputElement).value = this.translations.current_location_label;
     
         this.findRoute();
     }
     
-    handleDirectionsFrom(entity: any) {
+    handleDirectionsFrom(feature: any) {
         this.hideDetailCard();
         this.setUiMode('routing');
     
-        (document.getElementById('from-input') as HTMLInputElement).value = this.getDisplayablePropertyValue(entity.properties.name, 'Selected Location');
+        (document.getElementById('from-input') as HTMLInputElement).value = this.getDisplayablePropertyValue(feature.properties.name, 'Selected Location');
         const toInput = document.getElementById('to-input') as HTMLInputElement;
         toInput.value = '';
         toInput.focus();
@@ -1069,91 +1169,55 @@ class SadakSathiApp {
         const coordinates = [];
         coordinates.push([startLon, startLat]);
 
-        const numPoints = 20; // More points for a smoother line
+        const numPoints = 20;
         const dx = (endLon - startLon) / numPoints;
         const dy = (endLat - startLat) / numPoints;
 
         for (let i = 1; i < numPoints; i++) {
             let lon = startLon + i * dx;
             let lat = startLat + i * dy;
-
-            // Add some deviation to make it look like a real road
-            let deviationFactor = 0.08; // Base deviation
-            if (type === 'scenic') deviationFactor = 0.25; // More curvy
+            let deviationFactor = 0.08;
+            if (type === 'scenic') deviationFactor = 0.25;
             if (type === 'alternative') deviationFactor = 0.15;
-
-            // Use sine wave for smoother curves
             const progress = i / numPoints;
             lon += Math.sin(progress * Math.PI * 4) * deviationFactor * (endLat - startLat);
             lat += Math.cos(progress * Math.PI * 4) * deviationFactor * (endLon - startLon);
             
             coordinates.push([lon, lat]);
         }
-
         coordinates.push([endLon, endLat]);
-
-        return {
-            type: 'LineString',
-            coordinates: coordinates
-        };
+        return { type: 'LineString', coordinates: coordinates };
     }
 
     private drawAllRouteOptions() {
-        this.routeDataSource.entities.removeAll();
+        this.routeLayer.clearLayers();
         if (this.availableRoutes.length === 0) return;
     
-        // --- Add Start and End markers ---
         const firstRoute = this.availableRoutes[0];
         const startCoords = firstRoute.geometry.coordinates[0];
         const endCoords = firstRoute.geometry.coordinates[firstRoute.geometry.coordinates.length - 1];
     
-        this.routeDataSource.entities.add({
-            position: Cesium.Cartesian3.fromDegrees(startCoords[0], startCoords[1]),
-            billboard: {
-                image: this.getIconCanvas('flag', '#2ecc71'), // Green flag for start
-                width: 32, height: 32,
-                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                disableDepthTestDistance: Number.POSITIVE_INFINITY
-            }
-        });
+        this.routeLayer.addLayer(L.marker([startCoords[1], startCoords[0]], { icon: this.getDivIcon('flag', '#2ecc71') }));
+        this.routeLayer.addLayer(L.marker([endCoords[1], endCoords[0]], { icon: this.getDivIcon('place', '#e74c3c') }));
     
-        this.routeDataSource.entities.add({
-            position: Cesium.Cartesian3.fromDegrees(endCoords[0], endCoords[1]),
-            billboard: {
-                image: this.getIconCanvas('place', '#e74c3c'), // Red pin for end
-                width: 32, height: 32,
-                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                disableDepthTestDistance: Number.POSITIVE_INFINITY
-            }
-        });
-    
-        // --- Draw all route polylines ---
+        const routeLayers: any[] = [];
         this.availableRoutes.forEach(route => {
-            if (!route?.geometry?.coordinates) {
-                console.warn("Route in list is missing geometry", route);
-                return;
-            };
-    
-            const color = this.routeColorMap[route.id as keyof typeof this.routeColorMap] || Cesium.Color.GRAY;
-            
-            // All routes start in a de-emphasized state
-            this.routeDataSource.entities.add({
-                id: route.id,
-                name: route.name,
-                polyline: {
-                    positions: Cesium.Cartesian3.fromDegreesArray(route.geometry.coordinates.flat()),
-                    width: 2,
-                    material: this.inactiveRouteMaterial(color),
-                    clampToGround: true
-                }
+            const latLngs = route.geometry.coordinates.map((coord: number[]) => [coord[1], coord[0]]);
+            const color = this.routeColorMap[route.id as keyof typeof this.routeColorMap] || '#808080';
+            const polyline = L.polyline(latLngs, {
+                color: color,
+                weight: 3,
+                opacity: 0.5,
+                // Custom property to identify the route
+                routeId: route.id,
             });
+            this.routeLayer.addLayer(polyline);
+            routeLayers.push(polyline);
         });
-    
-        // --- Frame all entities (routes and markers) ---
-        if (this.routeDataSource.entities.values.length > 0) {
-            this.viewer.flyTo(this.routeDataSource.entities, {
-                duration: 1.5
-            });
+
+        if (routeLayers.length > 0) {
+            const routesBounds = L.featureGroup(routeLayers).getBounds();
+            this.map.flyToBounds(routesBounds, { padding: [50, 50] });
         }
     }
 
@@ -1164,128 +1228,90 @@ class SadakSathiApp {
             this.showToast('Please enter both start and end points.', 'warning');
             return;
         }
-    
         this.setUiMode('routing');
-    
-        // --- Show Loading State ---
         const routeDetailsPanel = document.getElementById('route-details-panel')!;
         const loader = document.getElementById('route-loading-overlay')!;
         routeDetailsPanel.classList.remove('hidden');
         loader.classList.remove('hidden');
-        
-        // Hide old results while calculating
         document.getElementById('route-alternatives-container')?.classList.add('hidden');
         document.getElementById('route-preferences-summary')?.classList.add('hidden');
     
-        // --- Dynamic Mock Route Generation (with simulated delay) ---
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate calculation time
+        await new Promise(resolve => setTimeout(resolve, 1500));
     
-        const baseTime = 120 + Math.floor(Math.random() * 30); // 2h to 2h30m
-        const baseDistance = 100 + Math.floor(Math.random() * 20); // 100km to 120km
-    
+        let baseTime = 120 + Math.floor(Math.random() * 30);
+        let baseDistance = 100 + Math.floor(Math.random() * 20);
         const roadConditions = [
             { status: 'Light Traffic', summaryKey: 'route_summary_traffic_light', timeModifier: 1.0 },
             { status: 'Moderate Traffic', summaryKey: 'route_summary_traffic_moderate', timeModifier: 1.2 },
             { status: 'Accident Ahead', summaryKey: 'route_summary_accident', timeModifier: 1.5 }
         ];
-    
-        // MOCK GEOCODING: Create random start/end points for this route search
-        const startLon = 81 + Math.random() * 6; // Within Nepal's lon range
-        const startLat = 27 + Math.random() * 2; // Within Nepal's lat range
+
+        // Check preferences
+        const preferHighways = (document.getElementById('route-pref-highways') as HTMLInputElement).checked;
+        const preferScenic = (document.getElementById('route-pref-scenic') as HTMLInputElement).checked;
+        const avoidTolls = (document.getElementById('route-pref-no-tolls') as HTMLInputElement).checked;
+        
+        if (preferHighways) {
+            baseTime -= 15; // 15 mins faster
+            baseDistance -= 5; // 5 km shorter
+        }
+
+        const startLon = 81 + Math.random() * 6;
+        const startLat = 27 + Math.random() * 2;
         const endLon = 81 + Math.random() * 6;
         const endLat = 27 + Math.random() * 2;
-
         const routes = [];
-    
-        // --- Route 1: Fastest ---
-        const fastestCondition = roadConditions[Math.floor(Math.random() * 2)]; // Usually good conditions
+        const fastestCondition = roadConditions[Math.floor(Math.random() * 2)];
         const fastestTime = Math.round(baseTime * fastestCondition.timeModifier);
-        const fastestRouteData = {
-            id: 'fastest', name: 'Fastest', timeMins: fastestTime,
-            distance: `${baseDistance} km`, time: `${Math.floor(fastestTime / 60)}h ${fastestTime % 60}m`,
-            status: fastestCondition.status, summary: this.translations[fastestCondition.summaryKey],
-            geometry: this.generateMockRouteGeometry(startLon, startLat, endLon, endLat, 'fastest')
-        };
+        const fastestRouteData = { id: 'fastest', name: 'Fastest', timeMins: fastestTime, distance: `${baseDistance} km`, time: `${Math.floor(fastestTime / 60)}h ${fastestTime % 60}m`, status: fastestCondition.status, summary: this.translations[fastestCondition.summaryKey], geometry: this.generateMockRouteGeometry(startLon, startLat, endLon, endLat, 'fastest') };
         routes.push({ ...fastestRouteData, directions: this.generateMockDirections(fastestRouteData, baseDistance) });
-    
-        // --- Route 2: Alternative ---
         const altCondition = roadConditions[Math.floor(Math.random() * roadConditions.length)];
         const altTime = Math.round((baseTime + 15) * altCondition.timeModifier);
         const altDistance = baseDistance + 10;
-        const altRouteData = {
-            id: 'alternative', name: 'Alternative', timeMins: altTime,
-            distance: `${altDistance} km`, time: `${Math.floor(altTime / 60)}h ${altTime % 60}m`,
-            status: altCondition.status, summary: this.translations[altCondition.summaryKey],
-            geometry: this.generateMockRouteGeometry(startLon, startLat, endLon, endLat, 'alternative')
-        };
+        const altRouteData = { id: 'alternative', name: 'Alternative', timeMins: altTime, distance: `${altDistance} km`, time: `${Math.floor(altTime / 60)}h ${altTime % 60}m`, status: altCondition.status, summary: this.translations[altCondition.summaryKey], geometry: this.generateMockRouteGeometry(startLon, startLat, endLon, endLat, 'alternative') };
         routes.push({ ...altRouteData, directions: this.generateMockDirections(altRouteData, altDistance) });
     
-        // --- Route 3: Based on preference ---
-        const preferScenic = (document.getElementById('pref-scenic') as HTMLInputElement).checked;
-        const avoidTolls = (document.getElementById('pref-no-tolls') as HTMLInputElement).checked;
-    
         if (preferScenic) {
-            const scenicTime = Math.round((baseTime + 40) * 1.1); // Scenic routes are slower
+            const scenicTime = Math.round((baseTime + 40) * 1.1);
             const scenicDistance = baseDistance + 25;
-            const scenicRouteData = {
-                id: 'scenic', name: 'Scenic', timeMins: scenicTime,
-                distance: `${scenicDistance} km`, time: `${Math.floor(scenicTime / 60)}h ${scenicTime % 60}m`,
-                status: 'Light Traffic', summary: this.translations.route_summary_scenic,
-                geometry: this.generateMockRouteGeometry(startLon, startLat, endLon, endLat, 'scenic')
-            };
+            const scenicRouteData = { id: 'scenic', name: 'Scenic', timeMins: scenicTime, distance: `${scenicDistance} km`, time: `${Math.floor(scenicTime / 60)}h ${scenicTime % 60}m`, status: 'Light Traffic', summary: this.translations.route_summary_scenic, geometry: this.generateMockRouteGeometry(startLon, startLat, endLon, endLat, 'scenic') };
             routes.push({ ...scenicRouteData, directions: this.generateMockDirections(scenicRouteData, scenicDistance) });
-        } else if (avoidTolls) {
-            const tollFreeTime = Math.round((baseTime + 25) * 1.15); // Toll-free can have more traffic
+        } 
+        
+        if (avoidTolls) {
+            const tollFreeTime = Math.round((baseTime + 25) * 1.15);
             const tollFreeDistance = baseDistance + 15;
-            const tollFreeRouteData = {
-                id: 'toll-free', name: 'No Tolls', timeMins: tollFreeTime,
-                distance: `${tollFreeDistance} km`, time: `${Math.floor(tollFreeTime / 60)}h ${tollFreeTime % 60}m`,
-                status: 'Moderate Traffic', summary: this.translations.route_summary_no_tolls,
-                geometry: this.generateMockRouteGeometry(startLon, startLat, endLon, endLat, 'toll-free')
-            };
+            const tollFreeRouteData = { id: 'toll-free', name: 'No Tolls', timeMins: tollFreeTime, distance: `${tollFreeDistance} km`, time: `${Math.floor(tollFreeTime / 60)}h ${tollFreeTime % 60}m`, status: 'Moderate Traffic', summary: this.translations.route_summary_no_tolls, geometry: this.generateMockRouteGeometry(startLon, startLat, endLon, endLat, 'toll-free') };
             routes.push({ ...tollFreeRouteData, directions: this.generateMockDirections(tollFreeRouteData, tollFreeDistance) });
         }
     
         this.availableRoutes = routes.sort((a, b) => a.timeMins - b.timeMins);
-        
-        // --- Hide Loader and Display Results ---
         loader.classList.add('hidden');
-        
-        // Draw all returned routes on the map first, in a de-emphasized state
         this.drawAllRouteOptions();
-        
-        // Display the route cards, which will also select and highlight the best route
         this.displayRouteOptions(from, to);
     }
 
     displayRouteOptions(from: string, to: string) {
         const alternativesContainer = document.getElementById('route-alternatives')!;
         const container = document.getElementById('route-alternatives-container')!;
-        alternativesContainer.innerHTML = ''; // Clear previous options
+        alternativesContainer.innerHTML = '';
     
         if (this.availableRoutes.length > 0) {
             const fastestTime = this.availableRoutes[0].timeMins;
-    
             this.availableRoutes.forEach(route => {
                 const timeDiff = route.timeMins - fastestTime;
                 const card = document.createElement('div');
                 card.className = `route-alternative-card route--${route.id}`;
                 card.dataset.routeId = route.id;
-    
                 card.innerHTML = `
                     <span class="time">${route.time}</span>
                     <span class="name">${route.name} ${timeDiff > 0 ? `(+${timeDiff} min)`: '(Fastest)'}</span>
                     <span class="summary">${route.summary}</span>
                 `;
-                card.addEventListener('click', () => {
-                    this.selectRoute(route.id);
-                });
+                card.addEventListener('click', () => this.selectRoute(route.id));
                 alternativesContainer.appendChild(card);
             });
-    
             container.classList.remove('hidden');
-            
-            // Select the first route by default
             this.selectRoute(this.availableRoutes[0].id, { from, to });
         }
     }
@@ -1293,29 +1319,18 @@ class SadakSathiApp {
     selectRoute(routeId: string, startEnd?: { from: string, to: string }) {
         const selectedRoute = this.availableRoutes.find(r => r.id === routeId);
         if (!selectedRoute) return;
-        
-        this.activeRouteData = {
-            ...selectedRoute,
-            from: startEnd?.from || (document.getElementById('from-input') as HTMLInputElement).value,
-            to: startEnd?.to || (document.getElementById('to-input') as HTMLInputElement).value,
-        };
+        this.activeRouteData = { ...selectedRoute, from: startEnd?.from || (document.getElementById('from-input') as HTMLInputElement).value, to: startEnd?.to || (document.getElementById('to-input') as HTMLInputElement).value };
+        document.querySelectorAll('.route-alternative-card').forEach(card => card.classList.toggle('active', card.getAttribute('data-route-id') === routeId));
     
-        document.querySelectorAll('.route-alternative-card').forEach(card => {
-            card.classList.toggle('active', card.getAttribute('data-route-id') === routeId);
-        });
-    
-        // Update visual style of polylines on map to highlight the selected one
-        this.routeDataSource.entities.values.forEach((entity: any) => {
-            // Skip non-polyline entities like our start/end markers
-            if (!entity.polyline) return;
-    
-            const isSelected = entity.id === routeId;
-            const routeData = this.availableRoutes.find(r => r.id === entity.id);
-            if (!routeData) return;
-            const color = this.routeColorMap[routeData.id as keyof typeof this.routeColorMap] || Cesium.Color.GRAY;
-            
-            entity.polyline.material = isSelected ? this.activeRouteMaterial(color) : this.inactiveRouteMaterial(color);
-            entity.polyline.width = isSelected ? 8 : 2; // Selected is thick, others are thin
+        this.routeLayer.eachLayer((layer: any) => {
+            if (layer.options.routeId) { // It's a polyline
+                const isSelected = layer.options.routeId === routeId;
+                layer.setStyle({
+                    weight: isSelected ? 8 : 3,
+                    opacity: isSelected ? 1.0 : 0.5
+                });
+                if(isSelected) layer.bringToFront();
+            }
         });
     
         this.displayRouteDetails(this.activeRouteData);
@@ -1325,7 +1340,7 @@ class SadakSathiApp {
     clearRoute() {
         (document.getElementById('from-input') as HTMLInputElement).value = '';
         (document.getElementById('to-input') as HTMLInputElement).value = '';
-        this.routeDataSource.entities.removeAll();
+        this.routeLayer.clearLayers();
         this.hideRouteDetails();
         this.activeRouteData = null;
         this.availableRoutes = [];
@@ -1333,22 +1348,31 @@ class SadakSathiApp {
         document.getElementById('route-preferences-summary')?.classList.add('hidden');
         localStorage.removeItem('sadakSathiLastRoute');
         this.setUiMode('search');
-        
-        // Fly back to default view
-        this.viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(INITIAL_CAMERA_POSITION.lon, INITIAL_CAMERA_POSITION.lat, INITIAL_CAMERA_POSITION.alt),
-            duration: 1.5
-        });
+        this.map.flyTo(INITIAL_VIEW.center, INITIAL_VIEW.zoom);
     }
     
     displayRouteDetails(routeData: any) {
-        document.getElementById('route-distance')!.textContent = routeData.distance;
-        document.getElementById('route-time')!.textContent = routeData.time;
-        document.getElementById('route-overall-status')!.textContent = routeData.status;
+        document.getElementById('route-distance')!.textContent = routeData.distance || '-- km';
+        document.getElementById('route-time')!.textContent = routeData.time || '-- min';
+        document.getElementById('route-overall-status')!.textContent = routeData.status || '--';
+
+        // Calculate and display ETA
+        if (routeData && typeof routeData.timeMins === 'number') {
+            const now = new Date();
+            const etaDate = new Date(now.getTime() + routeData.timeMins * 60000); // timeMins to milliseconds
+            const etaString = etaDate.toLocaleTimeString(this.currentLang.split('-')[0] || 'en', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+            document.getElementById('route-eta')!.textContent = etaString;
+        } else {
+            document.getElementById('route-eta')!.textContent = '--:--';
+        }
+        
         (document.getElementById('from-input') as HTMLInputElement).value = routeData.from || '';
         (document.getElementById('to-input') as HTMLInputElement).value = routeData.to || '';
 
-        // Update directions list
         const directionsListEl = document.getElementById('route-directions-list')!;
         directionsListEl.innerHTML = '';
         if (routeData.directions && Array.isArray(routeData.directions)) {
@@ -1365,14 +1389,13 @@ class SadakSathiApp {
             directionsListEl.innerHTML = '<p>No directions available for this route.</p>';
         }
     
-        // Update preferences summary
         const prefsContainer = document.getElementById('route-preferences-summary')!;
         const prefsList = document.getElementById('route-preferences-list')!;
         prefsList.innerHTML = '';
         const prefs = [];
-        if ((document.getElementById('pref-highways') as HTMLInputElement).checked) prefs.push({icon: 'add_road', text: this.translations.prefer_highways});
-        if ((document.getElementById('pref-no-tolls') as HTMLInputElement).checked) prefs.push({icon: 'no_transfer', text: this.translations.avoid_tolls});
-        if ((document.getElementById('pref-scenic') as HTMLInputElement).checked) prefs.push({icon: 'landscape', text: this.translations.prefer_scenic_route});
+        if ((document.getElementById('route-pref-highways') as HTMLInputElement).checked) prefs.push({icon: 'add_road', text: this.translations.prefer_highways});
+        if ((document.getElementById('route-pref-no-tolls') as HTMLInputElement).checked) prefs.push({icon: 'no_transfer', text: this.translations.avoid_tolls});
+        if ((document.getElementById('route-pref-scenic') as HTMLInputElement).checked) prefs.push({icon: 'landscape', text: this.translations.prefer_scenic_route});
     
         if (prefs.length > 0) {
             prefs.forEach(pref => {
@@ -1407,49 +1430,23 @@ class SadakSathiApp {
         if (lastRoute) {
             try {
                 this.activeRouteData = JSON.parse(lastRoute);
-                this.availableRoutes = [this.activeRouteData]; // Set available routes to just this one
+                this.availableRoutes = [this.activeRouteData];
                 this.displayRouteDetails(this.activeRouteData);
 
-                // Draw the single restored route
-                this.routeDataSource.entities.removeAll();
+                this.routeLayer.clearLayers();
                 if (this.activeRouteData?.geometry?.coordinates) {
                     const coords = this.activeRouteData.geometry.coordinates;
                     const startCoords = coords[0];
                     const endCoords = coords[coords.length - 1];
+                    this.routeLayer.addLayer(L.marker([startCoords[1], startCoords[0]], { icon: this.getDivIcon('flag', '#2ecc71') }));
+                    this.routeLayer.addLayer(L.marker([endCoords[1], endCoords[0]], { icon: this.getDivIcon('place', '#e74c3c') }));
 
-                    this.routeDataSource.entities.add({
-                        position: Cesium.Cartesian3.fromDegrees(startCoords[0], startCoords[1]),
-                        billboard: {
-                            image: this.getIconCanvas('flag', '#2ecc71'),
-                            width: 32, height: 32,
-                            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                            disableDepthTestDistance: Number.POSITIVE_INFINITY
-                        }
-                    });
+                    const latLngs = coords.map((c: number[]) => [c[1], c[0]]);
+                    const color = this.routeColorMap[this.activeRouteData.id as keyof typeof this.routeColorMap] || '#3388ff';
+                    const polyline = L.polyline(latLngs, { color: color, weight: 8, opacity: 1.0 });
+                    this.routeLayer.addLayer(polyline);
 
-                    this.routeDataSource.entities.add({
-                        position: Cesium.Cartesian3.fromDegrees(endCoords[0], endCoords[1]),
-                        billboard: {
-                            image: this.getIconCanvas('place', '#e74c3c'),
-                            width: 32, height: 32,
-                            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                            disableDepthTestDistance: Number.POSITIVE_INFINITY
-                        }
-                    });
-
-                    const color = this.routeColorMap[this.activeRouteData.id as keyof typeof this.routeColorMap] || Cesium.Color.DODGERBLUE;
-                    this.routeDataSource.entities.add({
-                        id: this.activeRouteData.id,
-                        name: this.activeRouteData.name,
-                        polyline: {
-                            positions: Cesium.Cartesian3.fromDegreesArray(coords.flat()),
-                            width: 8,
-                            material: this.activeRouteMaterial(color),
-                            clampToGround: true
-                        }
-                    });
-                    // Fly to the route, but without animation on load
-                    this.viewer.flyTo(this.routeDataSource.entities, { duration: 0 });
+                    this.map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
                 }
                 
                 document.getElementById('route-alternatives-container')?.classList.add('hidden');
@@ -1467,43 +1464,23 @@ class SadakSathiApp {
         const query = (document.getElementById('unified-search-input') as HTMLInputElement).value;
         if (query.trim()) {
             this.showToast(`Searching for: ${query}`, 'info');
-            // Mock search: fly to a random point in Nepal
             const randomLon = 80.0 + Math.random() * 8.2;
             const randomLat = 26.3 + Math.random() * 4.2;
-            this.viewer.camera.flyTo({
-                destination: Cesium.Cartesian3.fromDegrees(randomLon, randomLat, 20000)
-            });
+            this.map.flyTo([randomLat, randomLon], 12);
         }
     }
 
     // --- AI Chat ---
 
     getSystemInstruction(): string {
-        const personaMap = {
-            friendly: "You are Sadak Sathi, a friendly and cheerful AI road companion for Nepal. Be helpful and encouraging.",
-            formal: "You are a formal and precise AI assistant. Provide clear, concise, and accurate information about roads and travel in Nepal.",
-            guide: "You are an enthusiastic and knowledgeable tour guide for Nepal. Provide rich details about culture, history, and points of interest along the user's route.",
-            buddy: "You are a calm, focused, and reliable co-pilot. Prioritize safety, clear directions, and timely alerts. Keep your responses short and to the point."
-        };
-
-        const relationshipMap = {
-            friend: "Address the user casually, like a good friend.",
-            partner: "Address the user with warmth and support, like a caring partner.",
-            husband: "Address the user as you would your husband.",
-            wife: "Address the user as you would your wife."
-        };
-
+        const personaMap = { friendly: "You are Sadak Sathi, a friendly and cheerful AI road companion for Nepal. Be helpful and encouraging.", formal: "You are a formal and precise AI assistant. Provide clear, concise, and accurate information about roads and travel in Nepal.", guide: "You are an enthusiastic and knowledgeable tour guide for Nepal. Provide rich details about culture, history, and points of interest along the user's route.", buddy: "You are a calm, focused, and reliable co-pilot. Prioritize safety, clear directions, and timely alerts. Keep your responses short and to the point." };
+        const relationshipMap = { friend: "Address the user casually, like a good friend.", partner: "Address the user with warmth and support, like a caring partner.", husband: "Address the user as you would your husband.", wife: "Address the user as you would your wife." };
         return `${personaMap[this.aiPersonality as keyof typeof personaMap]} ${relationshipMap[this.aiRelationship as keyof typeof relationshipMap]}`;
     }
 
     resetChat() {
         if (!this.ai) return;
-        this.chat = this.ai.chats.create({
-            model: 'gemini-2.5-flash',
-            config: {
-                systemInstruction: this.getSystemInstruction()
-            }
-        });
+        this.chat = this.ai.chats.create({ model: 'gemini-2.5-flash', config: { systemInstruction: this.getSystemInstruction() } });
         this.chatHistory = [];
         const messagesContainer = document.querySelector('.chat-messages')!;
         messagesContainer.innerHTML = '';
@@ -1552,28 +1529,18 @@ class SadakSathiApp {
         const messagesContainer = document.querySelector('.chat-messages')!;
         const messageEl = document.createElement('div');
         messageEl.classList.add('chat-message', `${sender}-message`);
-
         const avatarSrc = sender === 'ai' ? this.aiAvatarUrl : 'https://i.imgur.com/uGAtGpj.png';
         const senderName = sender === 'ai' ? 'Sadak Sathi' : 'You';
-
         let messageContentHtml = text;
         if (sender === 'ai' && text !== this.translations.ai_welcome_message) {
             const personaPrefix = `<span class="ai-persona-prefix">(As your ${this.aiPersonality} ${this.aiRelationship}, ...) </span>`;
             messageContentHtml = `${personaPrefix}${text}`;
         }
-
-        messageEl.innerHTML = `
-            <img src="${avatarSrc}" alt="${senderName} avatar" class="message-avatar">
-            <div class="message-content">
-                <span class="message-sender">${senderName}</span>
-                ${messageContentHtml}
-            </div>
-        `;
+        messageEl.innerHTML = `<img src="${avatarSrc}" alt="${senderName} avatar" class="message-avatar"><div class="message-content"><span class="message-sender">${senderName}</span>${messageContentHtml}</div>`;
         messagesContainer.appendChild(messageEl);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        
         if (sender === 'ai' && (document.getElementById('toggle-voice-response') as HTMLInputElement).checked) {
-            this.speak(text); // Speak the original, unmodified text for a natural response.
+            this.speak(text);
         }
     }
 
@@ -1581,14 +1548,9 @@ class SadakSathiApp {
         if (!this.selectedEntityContext) return;
         const contextName = this.getDisplayablePropertyValue(this.selectedEntityContext.name, 'this location');
         const prompt = `Tell me about ${contextName}.`;
-        
-        if(openChatIfNeeded && !this.isChatOpen) {
-            this.openChat();
-        }
-
+        if(openChatIfNeeded && !this.isChatOpen) this.openChat();
         const input = document.getElementById('chat-input') as HTMLInputElement;
         input.value = prompt;
-        // Create a new submit event to trigger the handler
         const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
         document.getElementById('chat-form')?.dispatchEvent(submitEvent);
     }
@@ -1599,10 +1561,9 @@ class SadakSathiApp {
         if (!SpeechRecognition) return;
         this.recognition = new SpeechRecognition();
         this.recognition.continuous = false;
-        this.recognition.lang = 'en-US'; // Can be changed based on language selection
+        this.recognition.lang = 'en-US';
         this.recognition.interimResults = false;
         this.recognition.maxAlternatives = 1;
-
         this.recognition.onresult = (event: any) => {
             const transcript = event.results[0][0].transcript;
             if (this.activeVoiceContext === 'chat') {
@@ -1638,9 +1599,7 @@ class SadakSathiApp {
             this.recognition.stop();
             return;
         }
-        if (!this.hasRequestedMicrophone) {
-             this.hasRequestedMicrophone = true;
-        }
+        if (!this.hasRequestedMicrophone) this.hasRequestedMicrophone = true;
         this.activeVoiceContext = context;
         this.recognition.start();
         this.isRecognizing = true;
@@ -1650,9 +1609,7 @@ class SadakSathiApp {
     loadVoices() {
         const load = () => {
             this.availableVoices = SpeechSynthesis.getVoices();
-            if (this.availableVoices.length === 0) {
-                 setTimeout(load, 100);
-            }
+            if (this.availableVoices.length === 0) setTimeout(load, 100);
         };
         SpeechSynthesis.onvoiceschanged = load;
         load();
@@ -1660,15 +1617,16 @@ class SadakSathiApp {
     
     speak(text: string) {
         if (!SpeechSynthesis || !text) return;
-        
         const utterance = new SpeechSynthesisUtterance(text);
         const lang = this.currentLang.split('-')[0];
-        
         let voiceOptions = this.availableVoices.filter(v => v.lang.startsWith(lang));
         if (this.aiVoice === 'female') voiceOptions = voiceOptions.filter(v => v.name.toLowerCase().includes('female'));
         if (this.aiVoice === 'male') voiceOptions = voiceOptions.filter(v => v.name.toLowerCase().includes('male'));
-
         utterance.voice = voiceOptions[0] || this.availableVoices.find(v => v.lang.startsWith('en')) || this.availableVoices[0];
+        
+        const avatar = document.getElementById('chat-ai-avatar');
+        utterance.onstart = () => avatar?.classList.add('is-speaking');
+        utterance.onend = () => avatar?.classList.remove('is-speaking');
         
         SpeechSynthesis.cancel();
         SpeechSynthesis.speak(utterance);
@@ -1682,24 +1640,18 @@ class SadakSathiApp {
             document.getElementById('app-container')!.dataset.theme = theme;
             document.querySelector('#theme-toggle .material-icons')!.textContent = theme === 'dark' ? 'dark_mode' : 'light_mode';
         }
-        
         this.aiAvatarUrl = localStorage.getItem('sadakSathiAvatar') || this.aiAvatarUrl;
         this.aiPersonality = localStorage.getItem('sadakSathiPersonality') || this.aiPersonality;
         this.aiRelationship = localStorage.getItem('sadakSathiRelationship') || this.aiRelationship;
         this.aiVoice = localStorage.getItem('sadakSathiVoice') || this.aiVoice;
-        
         (document.getElementById('persona-avatar-preview') as HTMLImageElement).src = this.aiAvatarUrl;
         (document.getElementById('persona-personality-select') as HTMLSelectElement).value = this.aiPersonality;
         (document.getElementById('persona-relationship-select') as HTMLSelectElement).value = this.aiRelationship;
         (document.getElementById('persona-voice-select') as HTMLSelectElement).value = this.aiVoice;
         (document.getElementById('toggle-voice-response') as HTMLInputElement).checked = localStorage.getItem('sadakSathiVoiceResponse') !== 'false';
-        
-        (document.getElementById('pref-highways') as HTMLInputElement).checked = localStorage.getItem('sadakSathiPrefHighways') === 'true';
-        (document.getElementById('pref-no-tolls') as HTMLInputElement).checked = localStorage.getItem('sadakSathiPrefNoTolls') === 'true';
-        (document.getElementById('pref-scenic') as HTMLInputElement).checked = localStorage.getItem('sadakSathiPrefScenic') === 'true';
-        
-        this.ipCamUrl = localStorage.getItem('sadakSathiIpCamUrl') || '';
-
+        (document.getElementById('route-pref-highways') as HTMLInputElement).checked = localStorage.getItem('sadakSathiPrefHighways') === 'true';
+        (document.getElementById('route-pref-no-tolls') as HTMLInputElement).checked = localStorage.getItem('sadakSathiPrefNoTolls') === 'true';
+        (document.getElementById('route-pref-scenic') as HTMLInputElement).checked = localStorage.getItem('sadakSathiPrefScenic') === 'true';
         this.updateAiFeatureUiState();
         this.updatePersonalityDescription();
         this.loadSavedCarLocation();
@@ -1710,11 +1662,10 @@ class SadakSathiApp {
         localStorage.setItem('sadakSathiPersonality', this.aiPersonality);
         localStorage.setItem('sadakSathiRelationship', this.aiRelationship);
         localStorage.setItem('sadakSathiVoice', this.aiVoice);
-        
         localStorage.setItem('sadakSathiVoiceResponse', String((document.getElementById('toggle-voice-response') as HTMLInputElement).checked));
-        localStorage.setItem('sadakSathiPrefHighways', String((document.getElementById('pref-highways') as HTMLInputElement).checked));
-        localStorage.setItem('sadakSathiPrefNoTolls', String((document.getElementById('pref-no-tolls') as HTMLInputElement).checked));
-        localStorage.setItem('sadakSathiPrefScenic', String((document.getElementById('pref-scenic') as HTMLInputElement).checked));
+        localStorage.setItem('sadakSathiPrefHighways', String((document.getElementById('route-pref-highways') as HTMLInputElement).checked));
+        localStorage.setItem('sadakSathiPrefNoTolls', String((document.getElementById('route-pref-no-tolls') as HTMLInputElement).checked));
+        localStorage.setItem('sadakSathiPrefScenic', String((document.getElementById('route-pref-scenic') as HTMLInputElement).checked));
     }
 
     updatePersonalityDescription() {
@@ -1746,6 +1697,11 @@ class SadakSathiApp {
     // --- Incident Reporting ---
 
     openReportIncidentModal() {
+        if (!this.currentUser) {
+            this.showToast('Please log in to report an incident.', 'warning');
+            this.openProfileModal();
+            return;
+        }
         if (!this.userLocation) {
             document.getElementById('report-location-unavailable')?.classList.remove('hidden');
             document.getElementById('report-incident-form')?.classList.add('hidden');
@@ -1754,76 +1710,56 @@ class SadakSathiApp {
             document.getElementById('report-incident-form')?.classList.remove('hidden');
             (document.getElementById('incident-location') as HTMLInputElement).value = `Lat: ${this.userLocation.lat.toFixed(4)}, Lon: ${this.userLocation.lon.toFixed(4)}`;
         }
-        
-        // Reset image refinement UI
         this.originalIncidentImage = null;
         this.refinedIncidentImage = null;
         document.getElementById('image-refinement-area')?.classList.add('hidden');
         (document.getElementById('incident-image-preview') as HTMLImageElement).src = '#';
         (document.getElementById('refinement-prompt') as HTMLInputElement).value = '';
         const fileInput = document.getElementById('incident-image-upload') as HTMLInputElement;
-        if (fileInput) {
-            fileInput.value = ''; // This is important to allow re-uploading the same file
-        }
-
+        if (fileInput) fileInput.value = '';
         document.getElementById('report-incident-modal')?.classList.remove('hidden');
     }
 
-    handleIncidentReportSubmit(event: Event) {
+    async handleIncidentReportSubmit(event: Event) {
         event.preventDefault();
+        if (!this.currentUser) {
+            this.showToast('Please log in to report an incident.', 'warning');
+            this.openProfileModal();
+            return;
+        }
         if (!this.userLocation) {
             this.showToast('Cannot submit report without a location.', 'error');
             return;
         }
+
         const type = (document.getElementById('incident-type') as HTMLSelectElement).value;
         const description = (document.getElementById('incident-description') as HTMLTextAreaElement).value;
-        
         const imageToSubmit = this.refinedIncidentImage || this.originalIncidentImage;
-
-        const newIncident = {
-            type: 'Feature',
-            geometry: { type: 'Point', coordinates: [this.userLocation.lon, this.userLocation.lat] },
-            properties: {
-                incident_type: type,
-                details: description,
-                timestamp: new Date().toISOString(),
-                user_reported: true,
-                entityType: 'incident',
-                imageData: imageToSubmit ? `data:${imageToSubmit.mimeType};base64,${imageToSubmit.data}` : null
+        
+        const newIncidentData = {
+            incident_type: type,
+            details: description,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            approvalStatus: 'pending', // NEW: Default status
+            user_reported: true,
+            reporterId: this.currentUser.uid,
+            reporterEmail: this.currentUser.email,
+            lat: this.userLocation.lat,
+            lon: this.userLocation.lon,
+            geometry: {
+                type: 'Point',
+                coordinates: [this.userLocation.lon, this.userLocation.lat]
             }
         };
 
-        const incidentCollection = { type: 'FeatureCollection', features: [newIncident] };
-        this.loadDataIntoSource(this.incidentDataSource, incidentCollection);
-        this.incidentDataSource.entities.values.forEach((entity: any) => {
-            if (entity.properties.user_reported?.getValue()) {
-                 this.styleEntityAsBillboard(entity, 'warning', '#e74c3c')
-            }
-        });
-        
-        this.saveLocalIncidents(newIncident);
-        
-        this.showToast('Incident reported successfully!', 'success');
-        document.getElementById('report-incident-modal')?.classList.add('hidden');
-    }
-    
-    loadLocalIncidents() {
-        const localIncidents = JSON.parse(localStorage.getItem('sadakSathiUserIncidents') || '[]');
-        if (localIncidents.length > 0) {
-            const incidentCollection = { type: 'FeatureCollection', features: localIncidents };
-            this.loadDataIntoSource(this.incidentDataSource, incidentCollection);
-            this.incidentDataSource.entities.values.forEach((entity: any) => {
-                if (entity.properties.user_reported?.getValue()) {
-                     this.styleEntityAsBillboard(entity, 'warning', '#e74c3c')
-                }
-            });
+        try {
+            await this.db.collection('UserReported').add(newIncidentData);
+            this.showToast('Incident reported successfully! It will be reviewed by an admin.', 'success');
+            document.getElementById('report-incident-modal')?.classList.add('hidden');
+        } catch (error) {
+            console.error("Error submitting incident:", error);
+            this.showToast('Failed to submit incident report.', 'error');
         }
-    }
-    
-    saveLocalIncidents(incident: any) {
-        const localIncidents = JSON.parse(localStorage.getItem('sadakSathiUserIncidents') || '[]');
-        localIncidents.push(incident);
-        localStorage.setItem('sadakSathiUserIncidents', JSON.stringify(localIncidents));
     }
 
     // --- Image Refinement ---
@@ -1837,10 +1773,8 @@ class SadakSathiApp {
     private handleIncidentImageUpload(event: Event) {
         const input = event.target as HTMLInputElement;
         if (!input.files || !input.files[0]) return;
-    
         const file = input.files[0];
         const reader = new FileReader();
-    
         reader.onload = (e) => {
             const dataUrl = e.target!.result as string;
             const parts = this.dataUrlToParts(dataUrl);
@@ -1848,79 +1782,38 @@ class SadakSathiApp {
                 this.showToast('Invalid image file format.', 'error');
                 return;
             }
-    
             this.originalIncidentImage = parts;
-            this.refinedIncidentImage = null; // Reset refined image on new upload
-    
-            const preview = document.getElementById('incident-image-preview') as HTMLImageElement;
-            preview.src = dataUrl;
-    
+            this.refinedIncidentImage = null;
+            (document.getElementById('incident-image-preview') as HTMLImageElement).src = dataUrl;
             document.getElementById('image-refinement-area')?.classList.remove('hidden');
         };
-    
-        reader.onerror = () => {
-            this.showToast('Failed to read the image file.', 'error');
-        };
-    
+        reader.onerror = () => this.showToast('Failed to read the image file.', 'error');
         reader.readAsDataURL(file);
     }
 
     private async handleImageRefinement() {
-        if (!this.ai) {
-            this.showToast('AI features are unavailable.', 'error');
+        if (!this.ai || !this.originalIncidentImage) {
+            this.showToast(this.ai ? 'Please upload an image first.' : 'AI features are unavailable.', this.ai ? 'warning' : 'error');
             return;
         }
-        if (!this.originalIncidentImage) {
-            this.showToast('Please upload an image first.', 'warning');
-            return;
-        }
-        const promptInput = document.getElementById('refinement-prompt') as HTMLInputElement;
-        const prompt = promptInput.value.trim();
+        const prompt = (document.getElementById('refinement-prompt') as HTMLInputElement).value.trim();
         if (!prompt) {
             this.showToast('Please enter a refinement instruction.', 'warning');
             return;
         }
-    
         const loader = document.getElementById('refinement-loader')!;
         loader.classList.remove('hidden');
-    
         try {
-            const response = await this.ai.models.generateContent({
-                model: 'gemini-2.5-flash-image-preview',
-                contents: {
-                    parts: [
-                        {
-                            inlineData: {
-                                data: this.originalIncidentImage.data,
-                                mimeType: this.originalIncidentImage.mimeType,
-                            },
-                        },
-                        {
-                            text: prompt,
-                        },
-                    ],
-                },
-                config: {
-                    responseModalities: [Modality.IMAGE, Modality.TEXT],
-                },
-            });
-            
+            const response = await this.ai.models.generateContent({ model: 'gemini-2.5-flash-image-preview', contents: { parts: [ { inlineData: { data: this.originalIncidentImage.data, mimeType: this.originalIncidentImage.mimeType, } }, { text: prompt, }, ] }, config: { responseModalities: [Modality.IMAGE, Modality.TEXT], }, });
             const imagePart = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
-    
             if (imagePart && imagePart.inlineData) {
-                this.refinedIncidentImage = {
-                    data: imagePart.inlineData.data,
-                    mimeType: imagePart.inlineData.mimeType,
-                };
-                const preview = document.getElementById('incident-image-preview') as HTMLImageElement;
-                preview.src = `data:${this.refinedIncidentImage.mimeType};base64,${this.refinedIncidentImage.data}`;
+                this.refinedIncidentImage = { data: imagePart.inlineData.data, mimeType: imagePart.inlineData.mimeType, };
+                (document.getElementById('incident-image-preview') as HTMLImageElement).src = `data:${this.refinedIncidentImage.mimeType};base64,${this.refinedIncidentImage.data}`;
                 this.showToast('Image refined successfully!', 'success');
             } else {
                 const textPart = response.candidates?.[0]?.content?.parts?.find(part => part.text);
-                const errorMessage = textPart?.text || 'AI could not refine the image. Please try a different prompt.';
-                this.showToast(errorMessage, 'error');
+                this.showToast(textPart?.text || 'AI could not refine the image. Please try a different prompt.', 'error');
             }
-    
         } catch (error) {
             console.error('Image refinement error:', error);
             this.showToast('An error occurred during image refinement.', 'error');
@@ -1934,7 +1827,6 @@ class SadakSathiApp {
     toggleTravelTimePanel(show: boolean) {
         document.getElementById('travel-time-panel')?.classList.toggle('hidden', !show);
         if (!show) {
-            // Cleanup when closing
             this.isPickingTravelTimeOrigin = false;
             document.getElementById('app-container')?.classList.remove('picking-location');
         }
@@ -1943,8 +1835,7 @@ class SadakSathiApp {
     setTravelTimeOriginFromUserLocation() {
         if (this.userLocation) {
             this.travelTimeOrigin = this.userLocation;
-            const input = document.getElementById('travel-time-origin-input') as HTMLInputElement;
-            input.value = `Current Location (${this.userLocation.lat.toFixed(4)}, ${this.userLocation.lon.toFixed(4)})`;
+            (document.getElementById('travel-time-origin-input') as HTMLInputElement).value = `Current Location (${this.userLocation.lat.toFixed(4)}, ${this.userLocation.lon.toFixed(4)})`;
         } else {
             this.showToast('Your location is not yet available.', 'warning');
             this.startGeolocation();
@@ -1955,21 +1846,16 @@ class SadakSathiApp {
         this.isPickingTravelTimeOrigin = true;
         document.getElementById('app-container')?.classList.add('picking-location');
         this.showToast('Click on the map to select a starting point.', 'info');
-        this.toggleTravelTimePanel(false); // Hide panel while picking
+        this.toggleTravelTimePanel(false);
+        this.map.once('click', (e: any) => this.setTravelTimeOrigin(e));
     }
 
-    setTravelTimeOrigin(cartesian: any) {
-        const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
-        const lon = Cesium.Math.toDegrees(cartographic.longitude);
-        const lat = Cesium.Math.toDegrees(cartographic.latitude);
-        this.travelTimeOrigin = { lon, lat };
-
-        const input = document.getElementById('travel-time-origin-input') as HTMLInputElement;
-        input.value = `Picked Location (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
-
+    setTravelTimeOrigin(e: any) {
+        this.travelTimeOrigin = { lon: e.latlng.lng, lat: e.latlng.lat };
+        (document.getElementById('travel-time-origin-input') as HTMLInputElement).value = `Picked Location (${this.travelTimeOrigin.lat.toFixed(4)}, ${this.travelTimeOrigin.lon.toFixed(4)})`;
         this.isPickingTravelTimeOrigin = false;
         document.getElementById('app-container')?.classList.remove('picking-location');
-        this.toggleTravelTimePanel(true); // Show panel again
+        this.toggleTravelTimePanel(true);
     }
 
     handleGenerateTravelTimeMap() {
@@ -1977,48 +1863,36 @@ class SadakSathiApp {
             this.showToast('Please select a starting point first.', 'warning');
             return;
         }
-        
-        const intervals = [15, 30, 45, 60]
-            .filter(min => (document.getElementById(`tt-${min}`) as HTMLInputElement).checked)
-            .sort((a, b) => b - a); // Sort descending to draw largest circle first
-
+        const intervals = [15, 30, 45, 60].filter(min => (document.getElementById(`tt-${min}`) as HTMLInputElement).checked);
         if (intervals.length === 0) {
             this.showToast('Please select at least one time interval.', 'warning');
             return;
         }
-
-        this.handleClearTravelTimeMap(false); // Clear previous map without resetting inputs
-
-        const AVERAGE_SPEED_KPH = 40; // Average speed in km/h for estimation
+        this.handleClearTravelTimeMap(false);
+        const AVERAGE_SPEED_KPH = 40;
         const M_PER_SEC_PER_KPH = 1000 / 3600;
 
         intervals.forEach(minutes => {
             const distanceMeters = AVERAGE_SPEED_KPH * M_PER_SEC_PER_KPH * (minutes * 60);
-            
             let color;
-            if (minutes <= 15) color = Cesium.Color.fromCssColorString('rgba(46, 204, 113, 0.5)'); // Green
-            else if (minutes <= 30) color = Cesium.Color.fromCssColorString('rgba(241, 196, 15, 0.5)'); // Yellow
-            else if (minutes <= 45) color = Cesium.Color.fromCssColorString('rgba(230, 126, 34, 0.5)'); // Orange
-            else color = Cesium.Color.fromCssColorString('rgba(231, 76, 60, 0.5)'); // Red
-
-            this.travelTimeDataSource.entities.add({
-                position: Cesium.Cartesian3.fromDegrees(this.travelTimeOrigin!.lon, this.travelTimeOrigin!.lat),
-                ellipse: {
-                    semiMinorAxis: distanceMeters,
-                    semiMajorAxis: distanceMeters,
-                    material: color,
-                    outline: true,
-                    outlineColor: color.withAlpha(0.8),
-                    outlineWidth: 2,
-                }
-            });
+            if (minutes <= 15) color = 'rgba(46, 204, 113, 0.5)';
+            else if (minutes <= 30) color = 'rgba(241, 196, 15, 0.5)';
+            else if (minutes <= 45) color = 'rgba(230, 126, 34, 0.5)';
+            else color = 'rgba(231, 76, 60, 0.5)';
+            
+            this.travelTimeLayer.addLayer(L.circle([this.travelTimeOrigin!.lat, this.travelTimeOrigin!.lon], {
+                radius: distanceMeters,
+                color: color,
+                fillColor: color,
+                fillOpacity: 0.5,
+                weight: 1,
+            }));
         });
-
         document.getElementById('travel-time-legend')?.classList.remove('hidden');
     }
 
     handleClearTravelTimeMap(resetInputs = true) {
-        this.travelTimeDataSource.entities.removeAll();
+        this.travelTimeLayer.clearLayers();
         document.getElementById('travel-time-legend')?.classList.add('hidden');
         if (resetInputs) {
             this.travelTimeOrigin = null;
@@ -2033,7 +1907,6 @@ class SadakSathiApp {
         const noLocationView = document.getElementById('no-car-location-view')!;
         const savedLocationView = document.getElementById('car-location-saved-view')!;
         const savedAddressEl = document.getElementById('saved-car-address')!;
-
         if (this.carLocation) {
             noLocationView.classList.add('hidden');
             savedLocationView.classList.remove('hidden');
@@ -2054,7 +1927,7 @@ class SadakSathiApp {
         this.carLocation = { ...this.userLocation };
         localStorage.setItem('sadakSathiCarLocation', JSON.stringify(this.carLocation));
         this.updateCarLocationPin();
-        this.openFindCarModal(); // Refresh modal view
+        this.openFindCarModal();
         this.showToast(this.translations.car_location_saved_toast, 'success');
     }
     
@@ -2062,7 +1935,7 @@ class SadakSathiApp {
         this.carLocation = null;
         localStorage.removeItem('sadakSathiCarLocation');
         this.updateCarLocationPin();
-        this.openFindCarModal(); // Refresh modal view
+        this.openFindCarModal();
         this.showToast(this.translations.car_location_cleared_toast, 'info');
     }
 
@@ -2080,12 +1953,10 @@ class SadakSathiApp {
     }
 
     updateCarLocationPin() {
-        this.carLocationDataSource.entities.removeAll();
+        this.carLocationLayer.clearLayers();
         if (this.carLocation) {
-            const carEntity = this.carLocationDataSource.entities.add({
-                position: Cesium.Cartesian3.fromDegrees(this.carLocation.lon, this.carLocation.lat),
-            });
-            this.styleEntityAsBillboard(carEntity, 'directions_car', '#3498db');
+            const icon = this.getDivIcon('directions_car', '#3498db');
+            this.carLocationLayer.addLayer(L.marker([this.carLocation.lat, this.carLocation.lon], { icon }));
         }
     }
 
@@ -2098,15 +1969,328 @@ class SadakSathiApp {
             this.showToast("No car location is saved.", 'error');
             return;
         }
-
         document.getElementById('find-car-modal')?.classList.add('hidden');
         this.setUiMode('routing');
-
         (document.getElementById('from-input') as HTMLInputElement).value = this.translations.current_location_label;
         (document.getElementById('to-input') as HTMLInputElement).value = this.translations.route_to_my_car;
-        
         this.findRoute();
     }
+    
+    // --- NEW: Admin Panel ---
+
+    async openAdminPanel() {
+        document.getElementById('profile-modal')?.classList.add('hidden');
+        document.getElementById('admin-panel-modal')?.classList.remove('hidden');
+
+        // Fetch data if cache is empty
+        if (Object.keys(this.adminDataCache).length === 0) {
+            await this.fetchAdminData();
+        } else {
+            this.displayAdminData(this.currentAdminTab);
+        }
+    }
+
+    async fetchAdminData(forceRefresh = false) {
+        if (this.isFetchingAdminData) return;
+        this.isFetchingAdminData = true;
+        
+        const tableContainer = document.getElementById('admin-table-container')!;
+        tableContainer.innerHTML = `<div class="spinner-container"><div class="spinner"></div></div>`;
+        
+        if (forceRefresh) {
+            this.adminDataCache = {};
+        }
+
+        try {
+            const collectionsToFetch = ['Road', 'Bridge', 'Toll', 'UserReported'];
+            const fetchPromises = collectionsToFetch.map(async (name) => {
+                const snapshot = await this.db.collection(name).get();
+                const data = snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id }));
+                this.adminDataCache[name] = data;
+            });
+            await Promise.all(fetchPromises);
+            if (forceRefresh) {
+                this.showToast('Data refreshed successfully!', 'success');
+            }
+        } catch (error) {
+            console.error("Error fetching admin data:", error);
+            this.showToast('Failed to fetch admin data.', 'error');
+            tableContainer.innerHTML = `<p style="text-align: center; padding: 2rem;">Error loading data.</p>`;
+        } finally {
+            this.isFetchingAdminData = false;
+            this.displayAdminData(this.currentAdminTab);
+        }
+    }
+
+    handleAdminTabClick(event: Event) {
+        const target = event.currentTarget as HTMLElement;
+        const collectionName = target.dataset.collection;
+        if (!collectionName) return;
+
+        this.currentAdminTab = collectionName;
+        document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.classList.remove('active'));
+        target.classList.add('active');
+        
+        // Reset sort for new tab
+        this.currentAdminSort = { key: '', order: 'asc' };
+        
+        this.displayAdminData(collectionName);
+    }
+    
+    displayAdminData(collectionName: string) {
+        const data = this.adminDataCache[collectionName] || [];
+        const tableContainer = document.getElementById('admin-table-container')!;
+        const controlsContainer = document.getElementById('admin-controls-container')!;
+
+        // Render controls (search, add button)
+        controlsContainer.innerHTML = `
+            <div id="admin-search-input-wrapper" class="input-wrapper">
+                <span class="material-icons input-icon">search</span>
+                <input type="text" id="admin-search-input" placeholder="Search current table...">
+            </div>
+            <div>
+                <button id="admin-add-btn" class="primary-btn"><span class="material-icons">add</span> Add New</button>
+                <button id="admin-refresh-btn" class="secondary-btn icon-only" title="Refresh Data"><span class="material-icons">refresh</span></button>
+            </div>`;
+
+        // Add event listeners for new controls
+        document.getElementById('admin-search-input')?.addEventListener('input', () => this.displayAdminData(this.currentAdminTab));
+        document.getElementById('admin-add-btn')?.addEventListener('click', () => this.handleAdminAddClick(collectionName));
+        document.getElementById('admin-refresh-btn')?.addEventListener('click', () => this.fetchAdminData(true));
+        
+        if (this.isFetchingAdminData) {
+            tableContainer.innerHTML = `<div class="spinner-container"><div class="spinner"></div></div>`;
+            return;
+        }
+
+        if (data.length === 0) {
+            tableContainer.innerHTML = `<p style="text-align: center; padding: 2rem;">No data found in this collection.</p>`;
+            return;
+        }
+        
+        // --- Filtering ---
+        const searchInput = document.getElementById('admin-search-input') as HTMLInputElement;
+        const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+
+        let filteredData = data;
+        if (searchTerm) {
+            filteredData = data.filter(row => 
+                Object.values(row).some(val => 
+                    String(val).toLowerCase().includes(searchTerm)
+                )
+            );
+        }
+
+        // --- Sorting ---
+        if (this.currentAdminSort.key) {
+            const { key, order } = this.currentAdminSort;
+            filteredData.sort((a, b) => {
+                const valA = a[key];
+                const valB = b[key];
+                if (valA < valB) return order === 'asc' ? -1 : 1;
+                if (valA > valB) return order === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+
+        tableContainer.innerHTML = this.renderAdminTable(filteredData, collectionName);
+        
+        // Add event listeners to new header elements
+        tableContainer.querySelectorAll('th.sortable').forEach(th => {
+            th.addEventListener('click', () => {
+                const key = (th as HTMLElement).dataset.key!;
+                this.handleAdminSort(key);
+            });
+        });
+
+        tableContainer.querySelectorAll('.edit-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const docId = (e.currentTarget as HTMLElement).dataset.id!;
+                const record = this.adminDataCache[collectionName].find(r => r.id === docId);
+                this.handleAdminEditClick(collectionName, docId, record);
+            });
+        });
+
+        tableContainer.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const docId = (e.currentTarget as HTMLElement).dataset.id!;
+                this.handleAdminDeleteClick(collectionName, docId);
+            });
+        });
+    }
+
+    renderAdminTable(data: any[], collectionName: string): string {
+        if (!data || data.length === 0) {
+            return `<p style="text-align: center; padding: 2rem;">No matching records found.</p>`;
+        }
+
+        const headersToShow: { [key: string]: string[] } = {
+            'Road': ['name', 'status', 'pavement_type', 'details'],
+            'Bridge': ['name', 'status', 'length', 'width'],
+            'Toll': ['name', 'location', 'vehicle_type', 'fee'],
+            'UserReported': ['incident_type', 'approvalStatus', 'reporterEmail', 'timestamp', 'details']
+        };
+
+        const allHeaders = Object.keys(data.reduce((acc, row) => ({ ...acc, ...row }), {}));
+        const headers = headersToShow[collectionName] || allHeaders.filter(k => !['geometry', 'id'].includes(k));
+
+        const headerHtml = headers.map(key => {
+            const isSorted = this.currentAdminSort.key === key;
+            const sortClass = isSorted ? `sort-${this.currentAdminSort.order}` : '';
+            return `<th class="sortable ${sortClass}" data-key="${key}">${key.replace(/_/g, ' ')}</th>`;
+        }).join('') + '<th>Actions</th>';
+
+        const bodyHtml = data.map(row => {
+            const rowHtml = headers.map(key => `<td>${this.getDisplayablePropertyValue(row[key], 'N/A')}</td>`).join('');
+            const actionsHtml = `
+                <td class="admin-table-actions">
+                    <button class="icon-button edit-btn" data-id="${row.id}" title="Edit"><span class="material-icons">edit</span></button>
+                    <button class="icon-button delete-btn" data-id="${row.id}" title="Delete"><span class="material-icons">delete</span></button>
+                </td>`;
+            return `<tr>${rowHtml}${actionsHtml}</tr>`;
+        }).join('');
+
+        return `
+            <table class="admin-data-table">
+                <thead><tr>${headerHtml}</tr></thead>
+                <tbody>${bodyHtml}</tbody>
+            </table>
+        `;
+    }
+
+    handleAdminSort(key: string) {
+        if (this.currentAdminSort.key === key) {
+            this.currentAdminSort.order = this.currentAdminSort.order === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.currentAdminSort.key = key;
+            this.currentAdminSort.order = 'asc';
+        }
+        this.displayAdminData(this.currentAdminTab);
+    }
+    
+    // --- Admin CRUD Operations ---
+
+    handleAdminAddClick(collectionName: string) {
+        this.openAdminFormModal(collectionName);
+    }
+
+    handleAdminEditClick(collectionName: string, docId: string, data: any) {
+        this.openAdminFormModal(collectionName, data, docId);
+    }
+
+    async handleAdminDeleteClick(collectionName: string, docId: string) {
+        if (confirm(`Are you sure you want to delete this record from ${collectionName}? This action cannot be undone.`)) {
+            try {
+                await this.db.collection(collectionName).doc(docId).delete();
+                this.showToast('Record deleted successfully.', 'success');
+                // The firestore listener will automatically update the UI.
+            } catch (error) {
+                console.error("Error deleting record:", error);
+                this.showToast('Failed to delete record.', 'error');
+            }
+        }
+    }
+    
+    openAdminFormModal(collectionName: string, data: any = {}, docId: string | null = null) {
+        const modal = document.getElementById('admin-form-modal')!;
+        const titleEl = document.getElementById('admin-form-title')!;
+        const form = document.getElementById('admin-edit-form') as HTMLFormElement;
+        const fieldsContainer = document.getElementById('admin-form-fields')!;
+
+        titleEl.textContent = docId ? `Edit ${collectionName} Record` : `Add New ${collectionName} Record`;
+        form.dataset.collection = collectionName;
+        form.dataset.docId = docId || '';
+
+        // Generate form fields dynamically
+        fieldsContainer.innerHTML = this.generateFormHtml(collectionName, data);
+
+        modal.classList.remove('hidden');
+    }
+
+    closeAdminFormModal() {
+        document.getElementById('admin-form-modal')?.classList.add('hidden');
+    }
+
+    generateFormHtml(collectionName: string, data: any): string {
+        const defaultFields: { [key: string]: any[] } = {
+            'Road': ['name', 'status', 'pavement_type', 'details', 'lat', 'lon'],
+            'Bridge': ['name', 'status', 'length', 'width', 'lat', 'lon'],
+            'Toll': ['name', 'location', 'vehicle_type', 'fee', 'lat', 'lon'],
+            'UserReported': ['incident_type', 'approvalStatus', 'details', 'reporterEmail', 'lat', 'lon']
+        };
+        const fields = defaultFields[collectionName] || Object.keys(data).filter(k => !['id', 'geometry', 'timestamp'].includes(k));
+        
+        let html = '';
+        fields.forEach(key => {
+            const value = data[key] || '';
+            let inputHtml = `<input type="text" id="form-${key}" name="${key}" value="${this.getDisplayablePropertyValue(value, '')}">`;
+
+            // Special handling for certain fields
+            if (key === 'details') {
+                inputHtml = `<textarea id="form-${key}" name="${key}" rows="3">${this.getDisplayablePropertyValue(value, '')}</textarea>`;
+            } else if (key === 'status' || key === 'approvalStatus') {
+                const options = (key === 'approvalStatus') 
+                    ? ['pending', 'approved', 'rejected'] 
+                    : ['open', 'blocked', 'one-lane', 'construction'];
+                inputHtml = `<select id="form-${key}" name="${key}">
+                    ${options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+                </select>`;
+            } else if (typeof value === 'number' || ['lat', 'lon', 'fee', 'length', 'width'].includes(key)) {
+                inputHtml = `<input type="number" step="any" id="form-${key}" name="${key}" value="${this.getDisplayablePropertyValue(value, '0')}">`;
+            }
+
+            html += `<div class="setting-item-col">
+                        <label for="form-${key}">${key.replace(/_/g, ' ')}</label>
+                        ${inputHtml}
+                     </div>`;
+        });
+        return html;
+    }
+
+    async handleAdminFormSubmit(event: Event) {
+        event.preventDefault();
+        const form = event.target as HTMLFormElement;
+        const collectionName = form.dataset.collection;
+        const docId = form.dataset.docId;
+        if (!collectionName) return;
+
+        const formData = new FormData(form);
+        const data: { [key: string]: any } = {};
+        formData.forEach((value, key) => {
+            // Attempt to convert to number if it looks like one
+            if (!isNaN(Number(value)) && value.toString().trim() !== '') {
+                data[key] = Number(value);
+            } else {
+                data[key] = value;
+            }
+        });
+
+        // Add/update geometry if lat/lon are present
+        if (typeof data.lat === 'number' && typeof data.lon === 'number') {
+            data.geometry = {
+                type: 'Point',
+                coordinates: [data.lon, data.lat]
+            };
+        }
+
+        try {
+            if (docId) {
+                // Update existing document
+                await this.db.collection(collectionName).doc(docId).set(data, { merge: true });
+                this.showToast('Record updated successfully!', 'success');
+            } else {
+                // Add new document
+                await this.db.collection(collectionName).add(data);
+                this.showToast('New record added successfully!', 'success');
+            }
+            this.closeAdminFormModal();
+            // Firestore listener will handle the UI update
+        } catch (error) {
+            console.error("Error saving record:", error);
+            this.showToast('Failed to save record.', 'error');
+        }
+    }
+
 }
 
 // Instantiate the app to start it
