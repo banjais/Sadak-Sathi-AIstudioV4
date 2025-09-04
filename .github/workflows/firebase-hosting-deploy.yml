@@ -10,18 +10,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout repository
+      # 1️⃣ Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
       # 2️⃣ Restore vite.config.ts from backup
       - name: Restore vite.config.ts
-        run: |
-          if [ -f config-backup/vite.config.ts ]; then
-            cp config-backup/vite.config.ts vite.config.ts
-          else
-            echo "Backup vite.config.ts missing!" && exit 1
-          fi
+        run: cp config-backup/vite.config.ts vite.config.ts
 
       # 3️⃣ Setup Node.js
       - name: Setup Node.js
@@ -33,7 +28,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # 5️⃣ Build project
+      # 5️⃣ Build the project
       - name: Build project
         run: npm run build
 
@@ -41,12 +36,16 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      # 7️⃣ Setup Firebase Credentials (Service Account)
+      # 7️⃣ Setup Firebase Credentials from GitHub secret
       - name: Setup Firebase Credentials
         run: |
-          echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}" > $GITHUB_WORKSPACE/firebase-key.json
-          export GOOGLE_APPLICATION_CREDENTIALS="$GITHUB_WORKSPACE/firebase-key.json"
+          echo '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}' > $GITHUB_WORKSPACE/firebase-key.json
+          export GOOGLE_APPLICATION_CREDENTIALS=$GITHUB_WORKSPACE/firebase-key.json
 
-      # 8️⃣ Deploy to Firebase Hosting
+      # 8️⃣ Optional: Verify authentication
+      - name: Test Firebase Auth
+        run: firebase projects:list
+
+      # 9️⃣ Deploy to Firebase Hosting
       - name: Deploy to Firebase Hosting
         run: npx firebase deploy --only hosting
