@@ -10,38 +10,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2. Restore vite.config.ts from backup
       - name: Restore vite.config.ts
         run: cp config-backup/vite.config.ts vite.config.ts
 
-      # 3. Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '20'
 
-      # 4. Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # 5. Build project
       - name: Build project
         run: npm run build
 
-      # 6. Setup Firebase credentials
       - name: Setup Firebase Credentials
         run: |
-          echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}" > ${{ github.workspace }}/firebase-key.json
-          export GOOGLE_APPLICATION_CREDENTIALS="${{ github.workspace }}/firebase-key.json"
+          echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}" > "${GITHUB_WORKSPACE}/firebase-key.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="${GITHUB_WORKSPACE}/firebase-key.json"
 
-      # 7. Install Firebase CLI
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      # 8. Deploy to Firebase Hosting
       - name: Deploy to Firebase Hosting
         run: npx firebase deploy --only hosting
