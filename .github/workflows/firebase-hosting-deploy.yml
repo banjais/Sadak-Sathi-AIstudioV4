@@ -27,15 +27,15 @@ jobs:
       - name: Build project
         run: npm run build
 
-      - name: Install Firebase CLI
+      - name: Setup Firebase Credentials
+        run: |
+          echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}" > ${{ github.workspace }}/firebase-key.json
+          export GOOGLE_APPLICATION_CREDENTIALS="${{ github.workspace }}/firebase-key.json"
+
+      - name: Install Firebase Tools
         run: npm install -g firebase-tools
 
-      - name: Setup Firebase Credentials
-        run: echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}" > ${{ github.workspace }}/firebase-key.json
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/firebase-key.json
-
       - name: Deploy to Firebase Hosting
-        run: firebase deploy --only hosting --project sadak-sathi-3ab73 --non-interactive
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/firebase-key.json
+        run: firebase deploy --only hosting --project sadak-sathi-3ab73 --non-interactive
