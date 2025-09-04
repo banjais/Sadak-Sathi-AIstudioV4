@@ -3,45 +3,57 @@ name: Build & Deploy Sadak-Sathi to Firebase Hosting
 on:
   push:
     branches:
-      - main
+      - main  # triggers on main branch
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout repository
+      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Restore vite.config.ts from backup
+      # 2. Restore vite.config.ts if needed
       - name: Restore vite.config.ts
         run: cp config-backup/vite.config.ts vite.config.ts
 
-      # 3️⃣ Setup Node.js
+      # 3. Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '20'
 
-      # 4️⃣ Install dependencies
+      # 4. Cache Node modules to speed up installs
+      - name: Cache Node modules
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      # 5. Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # 5️⃣ Build project
+      # 6. Build project
       - name: Build project
         run: npm run build
 
-      # 6️⃣ Install Firebase CLI locally
-      - name: Install Firebase CLI
-        run: npm install firebase-tools
-
-      # 7️⃣ Setup Firebase credentials from secret
+      # 7. Setup Firebase credentials
       - name: Setup Firebase Credentials
-        run: echo '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}' > $GITHUB_WORKSPACE/firebase-key.json
+        run: |
+          echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}" > ${{ github.workspace }}/firebase-key.json
+          export GOOGLE_APPLICATION_CREDENTIALS="${{ github.workspace }}/firebase-key.json"
 
-      # 8️⃣ Deploy to Firebase Hosting
+      # 8. Deploy to Firebase Hosting (main site)
       - name: Deploy to Firebase Hosting
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/firebase-key.json
-        run: npx firebase deploy --only hosting --project sadak-sathi-3ab73
+        run: npx firebase deploy --only hosting
+
+      # 9. Optional: Deploy to staging site
+      # Uncomment below lines if you created a Firebase staging site
+      #- name: Deploy to Firebase Staging
+      #  run: |
+      #    npx firebase target:apply hosting staging-site dist
+      #    npx firebase deploy --only hos
