@@ -26,14 +26,20 @@ jobs:
         working-directory: functions
         run: npm install
 
-      - name: Authenticate to Google Cloud
+      # Authenticate to GCP using Service Account Key
+      - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Deploy Cloud Functions
+      # Set Firebase project (optional if project already set in firebase.json)
+      - name: Set Firebase Project
+        run: firebase use --add ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+
+      # Deploy Cloud Functions
+      - name: Deploy Firebase Functions
         env:
-          # Main backend keys for functions
+          # Main backend keys
           VITE_DHM_API_KEY: ${{ secrets.VITE_DHM_API_KEY }}
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
@@ -49,7 +55,7 @@ jobs:
           VITE_WAZE_API_KEY: ${{ secrets.VITE_WAZE_API_KEY }}
           VITE_WEATHER_API_KEY: ${{ secrets.VITE_WEATHER_API_KEY }}
 
-          # Extra 3rd-party keys
+          # Other 3rd-party keys
           VITE_OTHER_3RD_PARTY_KEY: ${{ secrets.VITE_OTHER_3RD_PARTY_KEY }}
           VITE_3RD_PARTY_1: ${{ secrets.VITE_3RD_PARTY_1 }}
           VITE_3RD_PARTY_2: ${{ secrets.VITE_3RD_PARTY_2 }}
@@ -58,4 +64,5 @@ jobs:
           VITE_3RD_PARTY_5: ${{ secrets.VITE_3RD_PARTY_5 }}
 
         run: |
+          cd functions
           firebase deploy --only functions --project ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
