@@ -3,7 +3,7 @@ name: Deploy Firebase Functions
 on:
   push:
     branches:
-      - main   # deploy on push to main branch
+      - main
   workflow_dispatch:
 
 jobs:
@@ -11,56 +11,51 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      # 2. Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 20
 
-      # 3. Install Firebase CLI
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      # 4. Authenticate Firebase
-      - name: Firebase Auth
-        env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-        run: |
-          echo "${GCP_SA_KEY}" > gcp-key.json
-          firebase login:ci --token $(firebase login:ci) || true
-          firebase use --add
-          export GOOGLE_APPLICATION_CREDENTIALS="gcp-key.json"
-
-      # 5. Install dependencies for functions
-      - name: Install Functions Dependencies
+      - name: Install dependencies
         working-directory: functions
         run: npm install
 
-      # 6. Set Firebase environment config for all keys
-      - name: Set Firebase Environment Config
+      - name: Deploy Cloud Functions
+        env:
+          # Firebase authentication (CI/Service Account)
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+
+          # Main backend keys for functions
+          VITE_DHM_API_KEY: ${{ secrets.VITE_DHM_API_KEY }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          VITE_MAPBOX_API_KEY: ${{ secrets.VITE_MAPBOX_API_KEY }}
+          VITE_OPENROUTER_API_KEY: ${{ secrets.VITE_OPENROUTER_API_KEY }}
+          VITE_OPENWEATHER_API_KEY: ${{ secrets.VITE_OPENWEATHER_API_KEY }}
+          VITE_PUSHER_KEY: ${{ secrets.VITE_PUSHER_KEY }}
+          VITE_WAZE_API_KEY: ${{ secrets.VITE_WAZE_API_KEY }}
+          VITE_WEATHER_API_KEY: ${{ secrets.VITE_WEATHER_API_KEY }}
+
+          # Extra 3rd-party keys
+          VITE_OTHER_3RD_PARTY_KEY: ${{ secrets.VITE_OTHER_3RD_PARTY_KEY }}
+          VITE_3RD_PARTY_1: ${{ secrets.VITE_3RD_PARTY_1 }}
+          VITE_3RD_PARTY_2: ${{ secrets.VITE_3RD_PARTY_2 }}
+          VITE_3RD_PARTY_3: ${{ secrets.VITE_3RD_PARTY_3 }}
+          VITE_3RD_PARTY_4: ${{ secrets.VITE_3RD_PARTY_4 }}
+          VITE_3RD_PARTY_5: ${{ secrets.VITE_3RD_PARTY_5 }}
+
         run: |
-          firebase functions:config:set \
-            dhm.key="${{ secrets.VITE_DHM_API_KEY }}" \
-            firebase.api_key="${{ secrets.VITE_FIREBASE_API_KEY }}" \
-            firebase.app_id="${{ secrets.VITE_FIREBASE_APP_ID }}" \
-            firebase.messaging_sender_id="${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}" \
-            firebase.project_id="${{ secrets.VITE_FIREBASE_PROJECT_ID }}" \
-            firebase.storage_bucket="${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}" \
-            gemini.key="${{ secrets.VITE_GEMINI_API_KEY }}" \
-            google_maps.key="${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}" \
-            mapbox.key="${{ secrets.VITE_MAPBOX_API_KEY }}" \
-            openrouter.key="${{ secrets.VITE_OPENROUTER_API_KEY }}" \
-            openweather.key="${{ secrets.VITE_OPENWEATHER_API_KEY }}" \
-            other.key3="${{ secrets.VITE_OTHER_3RD_PARTY_KEY }}" \
-            pusher.key="${{ secrets.VITE_PUSHER_KEY }}" \
-            waze.key="${{ secrets.VITE_WAZE_API_KEY }}" \
-            weather.key="${{ secrets.VITE_WEATHER_API_KEY }}"
-          
-      # 7. Deploy Cloud Functions
-      - name: Deploy Functions
-        working-directory: functions
-        run: firebase deploy --only functions --token ${{ secrets.GCP_SA_KEY }}
+          firebase login:ci --no-localhost
+          firebase deploy --only functions
