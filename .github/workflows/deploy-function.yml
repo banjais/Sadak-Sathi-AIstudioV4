@@ -26,12 +26,13 @@ jobs:
         working-directory: functions
         run: npm install
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
       - name: Deploy Cloud Functions
         env:
-          # Firebase authentication (CI/Service Account)
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
-
           # Main backend keys for functions
           VITE_DHM_API_KEY: ${{ secrets.VITE_DHM_API_KEY }}
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
@@ -57,5 +58,4 @@ jobs:
           VITE_3RD_PARTY_5: ${{ secrets.VITE_3RD_PARTY_5 }}
 
         run: |
-          firebase login:ci --no-localhost
-          firebase deploy --only functions
+          firebase deploy --only functions --project ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
