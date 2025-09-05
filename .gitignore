@@ -1,25 +1,33 @@
+# ========================
 # Node.js
+# ========================
 node_modules/
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
-# Firebase Functions build output
+# ========================
+# Firebase Functions build
+# ========================
 functions/node_modules/
 functions/lib/
 
-# Vite / Frontend
-dist/
+# ========================
+# Frontend build
+# ========================
+dist/               # ephemeral build output, safe to regenerate
 *.local
 *.log
 
+# ========================
 # TypeScript
+# ========================
 *.tsbuildinfo
 
+# ========================
 # Environment files
-.env
+# ========================
+.env                 # secret, don't commit
 .env.local
 .env.*.local
 .env.production
@@ -28,24 +36,38 @@ dist/
 .env.development.local
 .env.test
 .env.test.local
-.env.example   # You can keep if needed as placeholder
+.env.example         # keep as placeholder, safe to commit
 
+# ========================
 # OS files
+# ========================
 .DS_Store
 Thumbs.db
 
+# ========================
 # IDE / Editor
+# ========================
 .vscode/
 .idea/
-*.sublime-workspace
-*.sublime-project
 
+# ========================
 # Firebase
+# ========================
 firebase-debug.log
-.firebase/
+.firebase/           # Firebase cache, safe to ignore
 
-# GitHub Actions
-.github/workflows/*.secret.yml
+# ========================
+# GitHub Actions secrets
+# ========================
+.github/workflows/*.secret.yml  # CI secrets, keep out of repo
 
-# Optional: PWA / Service Worker cache
+# ========================
+# PWA / Service Worker cache
+# ========================
 /.sw-cache/
+
+# ========================
+# Permanent code folders (SAFE, DO NOT DELETE)
+# ========================
+/functions/          # Firebase backend functions
+/src/utils/          # fetchRoadStatus.ts, weather.ts, etc.
