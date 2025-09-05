@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -792,17 +791,36 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script>
-      // Your web app's Firebase configuration
+      // =================================================================================
+      // ** Firebase Configuration Notice **
+      // =================================================================================
+      // The application is currently running in OFFLINE DEMO MODE because the Firebase
+      // credentials below are placeholders. This allows you to explore the UI and core
+      // features without any setup.
+      //
+      // To enable real-time data, user accounts, and incident reporting:
+      // 1. Create a free Firebase project at https://firebase.google.com/
+      // 2. In your Firebase project, go to Project Settings > General.
+      // 3. Under "Your apps", register a new web app.
+      // 4. Copy the generated `firebaseConfig` object.
+      // 5. Replace the placeholder object below with your actual config.
+      // =================================================================================
       const firebaseConfig = {
-        apiKey: "AIzaSyADzQbCTo5_0p3WnUUFlO8kHTrK4BWHic0",
-        authDomain: "sadak-sathi-3ab73.firebaseapp.com",
-        projectId: "sadak-sathi-3ab73",
-        storageBucket: "sadak-sathi-3ab73.appspot.com",
-        messagingSenderId: "1042834733622",
-        appId: "1:1042834733622:web:a1b2c3d4e5f6a1b2c3d4e5" // App ID can be a placeholder if not used
+        apiKey: "YOUR_FIREBASE_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
       };
-      // Initialize Firebase
-      firebase.initializeApp(firebaseConfig);
+
+      // Initialize Firebase ONLY if real credentials are provided.
+      // The main application script will handle the fallback to demo mode.
+      if (firebaseConfig.apiKey !== "YOUR_FIREBASE_API_KEY") {
+        firebase.initializeApp(firebaseConfig);
+      } else {
+        console.warn("Firebase SDK initialization skipped: Using placeholder credentials. App will run in Demo Mode.");
+      }
     </script>
     <script type="module" src="index.js"></script>
 </body>
