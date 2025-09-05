@@ -1,4 +1,4 @@
-name: Deploy Sadak-Sathi Frontend
+name: Deploy Sadak-Sathi App
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,20 +21,32 @@ jobs:
         with:
           node-version: 20
 
-      # 3️⃣ Install dependencies
-      - name: Install dependencies
-        run: npm install
-
-      # 3.5️⃣ Install Firebase CLI globally
+      # 3️⃣ Install Firebase CLI globally
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      # 4️⃣ Build the frontend
-      - name: Build frontend
-        run: npm run build
+      # 4️⃣ Install backend dependencies
+      - name: Install backend dependencies
+        working-directory: functions
+        run: npm install
 
-      # 5️⃣ Deploy to Firebase Hosting
+      # 5️⃣ Deploy Cloud Functions
+      - name: Deploy Cloud Functions
+        working-directory: functions
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+          # Dynamically include all VITE_* secrets
+          $(for key in VITE_DHM_API_KEY VITE_FIREBASE_API_KEY VITE_FIREBASE_APP_ID VITE_FIREBASE_MESSAGING_SENDER_ID VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_STORAGE_BUCKET VITE_GEMINI_API_KEY VITE_GOOGLE_MAPS_API_KEY VITE_MAPBOX_API_KEY VITE_OPENROUTER_API_KEY VITE_OPENWEATHER_API_KEY VITE_PUSHER_KEY VITE_WAZE_API_KEY VITE_WEATHER_API_KEY VITE_OTHER_3RD_PARTY_KEY VITE_3RD_PARTY_1 VITE_3RD_PARTY_2 VITE_3RD_PARTY_3 VITE_3RD_PARTY_4 VITE_3RD_PARTY_5; do echo "$key=${{ secrets[$key] }}"; done)
+        run: firebase deploy --only functions --token $FIREBASE_TOKEN
+
+      # 6️⃣ Build frontend
+      - name: Build frontend
+        run: npm install && npm run build
+
+      # 7️⃣ Deploy to Firebase Hosting
       - name: Deploy to Firebase Hosting
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: firebase deploy --only hosting
+        run: firebase deploy --only hosting --token $FIREBASE_TOKEN
