@@ -1,37 +1,51 @@
-# Logs
-logs
-*.log
+# Node.js
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
-# Dependency directories
-node_modules/
+# Firebase Functions build output
+functions/node_modules/
+functions/lib/
 
-# Build output
+# Vite / Frontend
 dist/
-dist-ssr/
 *.local
+*.log
 
-# Editor directories and files
-.vscode/
-!.vscode/extensions.json
-.idea/
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# TypeScript
+*.tsbuildinfo
 
 # Environment files
 .env
 .env.local
 .env.*.local
+.env.production
+.env.production.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.example   # You can keep if needed as placeholder
 
-# Protect utils folder and any future files inside
-/src/utils/**
+# OS files
+.DS_Store
+Thumbs.db
 
-# Firebase config or other secret keys (if any)
-firebase-key.json
+# IDE / Editor
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Firebase
+firebase-debug.log
+.firebase/
+
+# GitHub Actions
+.github/workflows/*.secret.yml
+
+# Optional: PWA / Service Worker cache
+/.sw-cache/
