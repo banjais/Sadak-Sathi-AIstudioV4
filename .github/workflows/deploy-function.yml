@@ -25,6 +25,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      # 3.5️⃣ Install Firebase CLI globally
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
       # 4️⃣ Build the frontend
       - name: Build frontend
         run: npm run build
