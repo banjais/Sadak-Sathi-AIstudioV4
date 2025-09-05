@@ -3,9 +3,17 @@
   "version": "1.0.0",
   "description": "Firebase Cloud Functions for Sadak-Sathi App",
   "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
   "dependencies": {
     "axios": "^1.6.0",
     "cors": "^2.8.5",
     "firebase-functions": "^4.6.0"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "deploy": "firebase deploy --only functions",
+    "serve": "firebase emulators:start --only functions"
   }
 }
