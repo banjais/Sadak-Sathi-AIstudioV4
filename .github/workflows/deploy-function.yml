@@ -21,18 +21,18 @@ jobs:
         with:
           node-version: 20
 
-      # 3️⃣ Install Firebase CLI and Google Cloud SDK
-      - name: Install Firebase CLI & gcloud
+      # 3️⃣ Install Firebase CLI & gcloud
+      - name: Install Firebase CLI and gcloud
         run: |
           npm install -g firebase-tools
-          curl -sSL https://sdk.cloud.google.com | bash
+          curl https://sdk.cloud.google.com | bash > /dev/null;
           source $HOME/google-cloud-sdk/path.bash.inc
           gcloud --version
 
-      # 4️⃣ Authenticate Firebase using service account JSON
-      - name: Authenticate Firebase
+      # 4️⃣ Decode Service Account & Authenticate
+      - name: Authenticate Firebase / gcloud
         run: |
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > "${GITHUB_WORKSPACE}/service-account.json"
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" | base64 --decode > "${GITHUB_WORKSPACE}/service-account.json"
           gcloud auth activate-service-account --key-file="${GITHUB_WORKSPACE}/service-account.json"
           gcloud config set project ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
 
@@ -43,13 +43,13 @@ jobs:
 
       # 6️⃣ Deploy Firebase Functions
       - name: Deploy Functions
-        run: firebase deploy --only functions
+        run: firebase deploy --only functions --project ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
 
-      # 7️⃣ Deploy Hosting (if firebase.json exists)
+      # 7️⃣ Deploy Hosting if firebase.json exists
       - name: Deploy Hosting
         run: |
           if [ -f "firebase.json" ]; then
-            firebase deploy --only hosting
+            firebase deploy --only hosting --project ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
           else
             echo "No firebase.json found, skipping hosting deployment."
           fi
