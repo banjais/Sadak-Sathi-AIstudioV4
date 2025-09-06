@@ -39,12 +39,11 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      # 6. Configure Firebase CLI to use service account
-      - name: Configure Firebase CLI
+      # 6. Save service account JSON and set environment variable
+      - name: Configure Firebase Service Account
         run: |
           echo "${{ secrets.SERVICE_ACCOUNT_JSON }}" > $HOME/service-account.json
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: $HOME/service-account.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/service-account.json" >> $GITHUB_ENV
 
       # 7. Set deployment target based on branch
       - name: Set deployment target
@@ -62,5 +61,3 @@ jobs:
       # 8. Deploy to Firebase Hosting
       - name: Firebase Deploy
         run: firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: $HOME/service-account.json
