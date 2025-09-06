@@ -10,35 +10,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # 2️⃣ Set up Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
 
+      # 3️⃣ Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # Save service account JSON from GitHub secret
-      - name: Save service account JSON
+      # 4️⃣ Save service account JSON from GitHub secret
+      - name: Set up service account
         run: |
-          echo "${{ secrets.SERVICE_ACCOUNT_KEY }}" > service-account.json
-
-      # Convert literal \n into actual newlines
-      - name: Fix newlines in private key
-        run: |
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > service-account.json
           sed -i 's/\\n/\n/g' service-account.json
 
+      # 5️⃣ Authenticate with Google Cloud
       - name: Authenticate with Google Cloud
         run: gcloud auth activate-service-account --key-file=service-account.json
 
-      - name: Set GCP project
-        run: gcloud config set project sadak-sathi-3ab73
-
+      # 6️⃣ Install Firebase CLI
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
+      # 7️⃣ Deploy to Firebase functions
       - name: Deploy to Firebase
         run: firebase deploy --only functions --project sadak-sathi-3ab73
