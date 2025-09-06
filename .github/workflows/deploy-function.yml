@@ -3,14 +3,14 @@ name: Deploy to Firebase
 on:
   push:
     branches:
-      - main
+      - main  # Trigger deploy only on main branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout repo
+      # 1️⃣ Checkout the repo
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -20,21 +20,20 @@ jobs:
         with:
           node-version: '18'
 
-      # 3️⃣ Install dependencies
+      # 3️⃣ Install npm dependencies
       - name: Install dependencies
         run: npm install
 
       # 4️⃣ Set up Firebase service account
-      - name: Set up Firebase service account
+      - name: Set up service account
         run: |
-          # Convert \n to real newlines and save JSON
           echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" | sed 's/\\n/\n/g' > service-account.json
 
       # 5️⃣ Authenticate with Google Cloud
       - name: Authenticate with Google Cloud
         run: gcloud auth activate-service-account --key-file=service-account.json
 
-      # 6️⃣ Install Firebase CLI
+      # 6️⃣ Install Firebase CLI globally
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
