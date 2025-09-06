@@ -21,16 +21,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # Save service account JSON from GitHub secret (base64-encoded)
+      # Decode base64 service account key into service-account.json
       - name: Set up service account
         run: |
           echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}" | base64 --decode > service-account.json
 
+      # Authenticate with Google Cloud
       - name: Authenticate with Google Cloud
         run: gcloud auth activate-service-account --key-file=service-account.json
 
+      # Install Firebase CLI
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
+      # Deploy Firebase functions
       - name: Deploy to Firebase
         run: firebase deploy --only functions --project sadak-sathi-3ab73
