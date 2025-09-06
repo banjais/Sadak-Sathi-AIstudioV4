@@ -1,4 +1,4 @@
-name: Deploy Firebase Functions
+name: Deploy Sadak-Sathi (Hosting + Functions)
 
 on:
   push:
@@ -7,31 +7,35 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout repo
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2️⃣ Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 20
 
-      # 3️⃣ Install Firebase CLI
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      # 4️⃣ Install dependencies (for functions)
-      - name: Install dependencies
+      - name: Authenticate with Google
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Install functions dependencies
         working-directory: functions
         run: npm install
 
-      # 5️⃣ Deploy Firebase Functions
       - name: Deploy to Firebase
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: firebase deploy --only functions
+        run: firebase deploy --only hosting,functions --project sadak-sathi-3ab73
