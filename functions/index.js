@@ -2,7 +2,9 @@ const functions = require("firebase-functions");
 const axios = require("axios");
 const cors = require("cors")({ origin: true });
 
-// ===== Load Keys from Firebase Functions Config =====
+// ========================
+// Load all API keys from Firebase Functions Config
+// ========================
 const dhmKey = functions.config().dhm?.key;
 const firebaseKey = functions.config().firebase?.key;
 const firebaseAppId = functions.config().firebase?.appid;
@@ -19,14 +21,18 @@ const pusherKey = functions.config().pusher?.key;
 const wazeKey = functions.config().waze?.key;
 const weatherKey = functions.config().weather?.key;
 
-// ===== Extra 3rd-Party Keys Slots (Future-proofing) =====
+// ========================
+// Extra future-proof API slots
+// ========================
 const otherKey1 = functions.config().other1?.key;
 const otherKey2 = functions.config().other2?.key;
 const otherKey3 = functions.config().other3?.key;
 const otherKey4 = functions.config().other4?.key;
 const otherKey5 = functions.config().other5?.key;
 
-// ===== Weather Endpoint (OpenWeather) =====
+// ========================
+// Weather Endpoint (OpenWeather)
+// ========================
 exports.getWeather = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (!openWeatherKey) return res.status(500).send("Missing OpenWeather API key");
@@ -56,20 +62,19 @@ exports.getWeather = functions.https.onRequest((req, res) => {
   });
 });
 
-// ===== Traffic Endpoint (Waze + Optional Google Maps fallback) =====
+// ========================
+// Traffic Endpoint (Waze + Google Maps fallback)
+// ========================
 exports.getTraffic = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     try {
       if (wazeKey) {
-        // Example Waze API call (replace with real Waze API if available)
         const trafficResponse = await axios.get(`https://www.waze.com/live-traffic-api?apikey=${wazeKey}`);
         return res.status(200).json(trafficResponse.data);
       } else if (googleMapsKey) {
-        // Optional Google Maps Traffic fallback
         const response = await axios.get(`https://maps.googleapis.com/maps/api/traffic/json?key=${googleMapsKey}`);
         return res.status(200).json(response.data);
       } else {
-        // Fallback mock
         return res.status(200).json({
           type: "FeatureCollection",
           features: [
@@ -86,7 +91,9 @@ exports.getTraffic = functions.https.onRequest((req, res) => {
   });
 });
 
-// ===== Routing Endpoint (Google Maps + OpenRouter + Mapbox) =====
+// ========================
+// Routing Endpoint (Google Maps + OpenRouter + Mapbox)
+// ========================
 exports.findRoute = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     const { startLat, startLon, endLat, endLon, provider } = req.query;
@@ -99,16 +106,14 @@ exports.findRoute = functions.https.onRequest((req, res) => {
           start: [parseFloat(startLon), parseFloat(startLat)],
           end: [parseFloat(endLon), parseFloat(endLat)]
         }, { headers: { "Authorization": `Bearer ${openRouterKey}` } });
-        return res.status(200).json(response.data);
       } else if (provider === "mapbox" && mapboxKey) {
         response = await axios.get(`https://api.mapbox.com/directions/v5/mapbox/driving/${startLon},${startLat};${endLon},${endLat}?access_token=${mapboxKey}`);
-        return res.status(200).json(response.data);
       } else if (googleMapsKey) {
         response = await axios.get(`https://maps.googleapis.com/maps/api/directions/json?origin=${startLat},${startLon}&destination=${endLat},${endLon}&key=${googleMapsKey}`);
-        return res.status(200).json(response.data);
       } else {
         return res.status(500).send("No routing provider key available");
       }
+      res.status(200).json(response.data);
     } catch (err) {
       console.error("Routing fetch error:", err);
       res.status(500).send("Failed to fetch route");
@@ -116,7 +121,9 @@ exports.findRoute = functions.https.onRequest((req, res) => {
   });
 });
 
-// ===== Gemini AI Endpoint =====
+// ========================
+// Gemini AI Endpoint
+// ========================
 exports.askAI = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     const { prompt } = req.body;
@@ -136,11 +143,12 @@ exports.askAI = functions.https.onRequest((req, res) => {
   });
 });
 
-// ===== DHM Endpoint =====
+// ========================
+// DHM Endpoint
+// ========================
 exports.getDHMData = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (!dhmKey) return res.status(500).send("Missing DHM API key");
-
     try {
       const response = await axios.get(`https://api.dhm.gov.np/data?apikey=${dhmKey}`);
       res.status(200).json(response.data);
@@ -151,12 +159,13 @@ exports.getDHMData = functions.https.onRequest((req, res) => {
   });
 });
 
-// ===== Push / Pusher Endpoint =====
+// ========================
+// Push / Pusher Endpoint
+// ========================
 exports.pushNotification = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (!pusherKey) return res.status(500).send("Missing Pusher API key");
     try {
-      // Example: You can integrate Pusher API here
       res.status(200).json({ status: "Push sent (demo)" });
     } catch (err) {
       console.error("Push error:", err);
@@ -165,7 +174,9 @@ exports.pushNotification = functions.https.onRequest((req, res) => {
   });
 });
 
-// ===== Other 3rd Party Endpoint Example =====
+// ========================
+// Other 3rd Party Endpoint Example
+// ========================
 exports.otherThirdParty = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (!otherKey) return res.status(500).send("Missing Other 3rd Party API key");
@@ -179,34 +190,15 @@ exports.otherThirdParty = functions.https.onRequest((req, res) => {
   });
 });
 
-// ===== Extra 3rd Party Slots =====
-exports.otherThirdParty1 = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    if (!otherKey1) return res.status(500).send("Missing Other Key 1");
-    res.status(200).json({ status: "Other Key 1 endpoint ready" });
-  });
-});
-exports.otherThirdParty2 = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    if (!otherKey2) return res.status(500).send("Missing Other Key 2");
-    res.status(200).json({ status: "Other Key 2 endpoint ready" });
-  });
-});
-exports.otherThirdParty3 = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    if (!otherKey3) return res.status(500).send("Missing Other Key 3");
-    res.status(200).json({ status: "Other Key 3 endpoint ready" });
-  });
-});
-exports.otherThirdParty4 = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    if (!otherKey4) return res.status(500).send("Missing Other Key 4");
-    res.status(200).json({ status: "Other Key 4 endpoint ready" });
-  });
-});
-exports.otherThirdParty5 = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    if (!otherKey5) return res.status(500).send("Missing Other Key 5");
-    res.status(200).json({ status: "Other Key 5 endpoint ready" });
+// ========================
+// Extra 3rd Party Slots
+// ========================
+const extraOtherHandlers = [otherKey1, otherKey2, otherKey3, otherKey4, otherKey5];
+extraOtherHandlers.forEach((key, idx) => {
+  exports[`otherThirdParty${idx + 1}`] = functions.https.onRequest((req, res) => {
+    cors(req, res, async () => {
+      if (!key) return res.status(500).send(`Missing Other Key ${idx + 1}`);
+      res.status(200).json({ status: `Other Key ${idx + 1} endpoint ready` });
+    });
   });
 });
