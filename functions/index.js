@@ -3,7 +3,7 @@ const axios = require("axios");
 const cors = require("cors")({ origin: true });
 
 // ========================
-// Load all API keys from Firebase Functions Config via process.env
+// Load API keys from Firebase Functions Config (via GitHub secrets / environment)
 // ========================
 const dhmKey = process.env.VITE_DHM_API_KEY;
 const firebaseKey = process.env.VITE_FIREBASE_API_KEY;
@@ -20,11 +20,13 @@ const otherKey = process.env.VITE_OTHER_3RD_PARTY_KEY;
 const pusherKey = process.env.VITE_PUSHER_KEY;
 const wazeKey = process.env.VITE_WAZE_API_KEY;
 const weatherKey = process.env.VITE_WEATHER_API_KEY;
-const thirdParty1 = process.env.VITE_3RD_PARTY_1;
-const thirdParty2 = process.env.VITE_3RD_PARTY_2;
-const thirdParty3 = process.env.VITE_3RD_PARTY_3;
-const thirdParty4 = process.env.VITE_3RD_PARTY_4;
-const thirdParty5 = process.env.VITE_3RD_PARTY_5;
+const thirdPartyKeys = [
+  process.env.VITE_3RD_PARTY_1,
+  process.env.VITE_3RD_PARTY_2,
+  process.env.VITE_3RD_PARTY_3,
+  process.env.VITE_3RD_PARTY_4,
+  process.env.VITE_3RD_PARTY_5
+];
 
 // ========================
 // Weather Endpoint
@@ -91,7 +93,10 @@ exports.findRoute = functions.https.onRequest((req, res) => {
     try {
       let response;
       if (provider === "openrouter" && openRouterKey) {
-        response = await axios.post("https://api.openrouter.ai/v1/directions", { start:[parseFloat(startLon),parseFloat(startLat)], end:[parseFloat(endLon),parseFloat(endLat)] }, { headers:{ "Authorization": `Bearer ${openRouterKey}` } });
+        response = await axios.post("https://api.openrouter.ai/v1/directions", {
+          start:[parseFloat(startLon),parseFloat(startLat)],
+          end:[parseFloat(endLon),parseFloat(endLat)]
+        }, { headers:{ "Authorization": `Bearer ${openRouterKey}` } });
       } else if (provider === "mapbox" && mapboxKey) {
         response = await axios.get(`https://api.mapbox.com/directions/v5/mapbox/driving/${startLon},${startLat};${endLon},${endLat}?access_token=${mapboxKey}`);
       } else if (googleMapsKey) {
@@ -116,7 +121,10 @@ exports.askAI = functions.https.onRequest((req, res) => {
     if (!prompt) return res.status(400).send("Missing 'prompt'");
     if (!geminiKey) return res.status(500).send("Missing Gemini API key");
     try {
-      const response = await axios.post("https://api.openrouter.ai/v1/chat/completions", { model:"gemini-2.5", messages:[{role:"user",content:prompt}] }, { headers:{ "Authorization": `Bearer ${geminiKey}` } });
+      const response = await axios.post("https://api.openrouter.ai/v1/chat/completions", {
+        model:"gemini-2.5",
+        messages:[{role:"user",content:prompt}]
+      }, { headers:{ "Authorization": `Bearer ${geminiKey}` } });
       res.status(200).json(response.data);
     } catch (err) {
       console.error("AI fetch error:", err);
@@ -147,20 +155,27 @@ exports.getDHMData = functions.https.onRequest((req, res) => {
 exports.pushNotification = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (!pusherKey) return res.status(500).send("Missing Pusher API key");
-    try { res.status(200).json({ status: "Push sent (demo)" }); }
-    catch (err) { console.error("Push error:", err); res.status(500).send("Failed to send push"); }
+    try {
+      res.status(200).json({ status: "Push sent (demo)" });
+    } catch (err) {
+      console.error("Push error:", err);
+      res.status(500).send("Failed to send push");
+    }
   });
 });
 
 // ========================
-// Other 3rd Party Endpoint (combined 6 keys)
+// Other 3rd Party Endpoint (single unified)
 // ========================
-const thirdPartyKeys = [otherKey, thirdParty1, thirdParty2, thirdParty3, thirdParty4, thirdParty5];
-thirdPartyKeys.forEach((key, idx) => {
-  exports[`otherThirdParty${idx+1}`] = functions.https.onRequest((req,res)=>{
-    cors(req,res,async()=>{
-      if(!key) return res.status(500).send(`Missing Other Key ${idx+1}`);
-      res.status(200).json({ status: `Other Key ${idx+1} endpoint ready` });
-    });
+exports.otherThirdParty = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    if (!otherKey) return res.status(500).send("Missing Other 3rd Party API key");
+    try {
+      const response = await axios.get(`https://api.example.com/data?apikey=${otherKey}`);
+      res.status(200).json(response.data);
+    } catch (err) {
+      console.error("Other 3rd Party fetch error:", err);
+      res.status(500).send("Failed to fetch Other 3rd Party data");
+    }
   });
 });
