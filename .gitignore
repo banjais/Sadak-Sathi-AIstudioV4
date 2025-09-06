@@ -27,7 +27,7 @@ dist/               # ephemeral build output, safe to regenerate
 # ========================
 # Environment files
 # ========================
-.env                 # do NOT commit, secret
+.env                 # secret, do NOT commit
 .env.local
 .env.*.local
 .env.production
@@ -66,11 +66,3 @@ firebase-debug.log
 
 # ========================
 # PWA / Service Worker cache
-# ========================
-/.sw-cache/
-
-# ========================
-# Permanent code folders (SAFE, DO NOT DELETE)
-# ========================
-/functions/          # Firebase backend functions
-/src/utils/          # fetchRoadStatus.ts, weather.ts, etc.
