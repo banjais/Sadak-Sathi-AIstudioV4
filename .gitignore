@@ -70,7 +70,7 @@ firebase-debug.log
 /.sw-cache/
 
 # ========================
-# Permanent code folders (SAFE, DO NOT DELETE)
+# Extra project-specific safe folders
 # ========================
 /functions/          # Firebase backend functions
-/src/utils/          # fetchRoadStatus.ts, weather.ts, etc.
+/src/utils/          # helper TS files, e.g., fetchRoadStatus.ts, weather.ts
