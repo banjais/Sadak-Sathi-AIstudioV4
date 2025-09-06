@@ -3,35 +3,26 @@ const axios = require("axios");
 const cors = require("cors")({ origin: true });
 
 // ========================
-// Load API keys from Firebase Functions Config
+// Load API keys from Firebase Functions Config / GitHub Secrets
 // ========================
-const dhmKey = functions.config().dhm?.key;
-const firebaseKey = functions.config().firebase?.key;
-const firebaseAppId = functions.config().firebase?.appid;
-const firebaseSenderId = functions.config().firebase?.senderid;
-const firebaseProjectId = functions.config().firebase?.projectid;
-const firebaseStorage = functions.config().firebase?.storage;
-const geminiKey = functions.config().gemini?.key;
-const googleMapsKey = functions.config().googlemaps?.key;
-const mapboxKey = functions.config().mapbox?.key;
-const openRouterKey = functions.config().openrouter?.key;
-const openWeatherKey = functions.config().openweather?.key;
-const otherKey = functions.config().other?.key;
-const pusherKey = functions.config().pusher?.key;
-const wazeKey = functions.config().waze?.key;
-const weatherKey = functions.config().weather?.key;
-
-const otherKeys = [
-  otherKey,
-  functions.config().other1?.key,
-  functions.config().other2?.key,
-  functions.config().other3?.key,
-  functions.config().other4?.key,
-  functions.config().other5?.key
-].filter(k => k); // only include available keys
+const dhmKey = process.env.VITE_DHM_API_KEY;
+const firebaseKey = process.env.VITE_FIREBASE_API_KEY;
+const firebaseAppId = process.env.VITE_FIREBASE_APP_ID;
+const firebaseSenderId = process.env.VITE_FIREBASE_MESSAGING_SENDER_ID;
+const firebaseProjectId = process.env.VITE_FIREBASE_PROJECT_ID;
+const firebaseStorage = process.env.VITE_FIREBASE_STORAGE_BUCKET;
+const geminiKey = process.env.VITE_GEMINI_API_KEY;
+const googleMapsKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
+const mapboxKey = process.env.VITE_MAPBOX_API_KEY;
+const openRouterKey = process.env.VITE_OPENROUTER_API_KEY;
+const openWeatherKey = process.env.VITE_OPENWEATHER_API_KEY;
+const otherKey = process.env.VITE_OTHER_3RD_PARTY_KEY;
+const pusherKey = process.env.VITE_PUSHER_KEY;
+const wazeKey = process.env.VITE_WAZE_API_KEY;
+const weatherKey = process.env.VITE_WEATHER_API_KEY;
 
 // ========================
-// Weather Endpoint
+// Weather Endpoint (OpenWeather)
 // ========================
 exports.getWeather = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
@@ -43,7 +34,7 @@ exports.getWeather = functions.https.onRequest((req, res) => {
       const response = await axios.get(apiUrl);
       const data = response.data;
       const iconMap = {
-        "01d":"wb_sunny","01n":"nightlight_round","02d":"partly_cloudy_day","02n":"partly_cloudy_night",
+        "01d": "wb_sunny","01n":"nightlight_round","02d":"partly_cloudy_day","02n":"partly_cloudy_night",
         "03d":"cloud","03n":"cloud","04d":"cloudy","04n":"cloudy","09d":"rainy","09n":"rainy",
         "10d":"rainy","10n":"rainy","11d":"thunderstorm","11n":"thunderstorm",
         "13d":"ac_unit","13n":"ac_unit","50d":"foggy","50n":"foggy"
@@ -57,7 +48,7 @@ exports.getWeather = functions.https.onRequest((req, res) => {
 });
 
 // ========================
-// Traffic Endpoint
+// Traffic Endpoint (Waze + Google Maps fallback)
 // ========================
 exports.getTraffic = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
@@ -86,7 +77,7 @@ exports.getTraffic = functions.https.onRequest((req, res) => {
 });
 
 // ========================
-// Routing Endpoint
+// Routing Endpoint (Google Maps + OpenRouter + Mapbox)
 // ========================
 exports.findRoute = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
@@ -95,10 +86,7 @@ exports.findRoute = functions.https.onRequest((req, res) => {
     try {
       let response;
       if (provider === "openrouter" && openRouterKey) {
-        response = await axios.post("https://api.openrouter.ai/v1/directions", {
-          start:[parseFloat(startLon),parseFloat(startLat)],
-          end:[parseFloat(endLon),parseFloat(endLat)]
-        }, { headers:{ "Authorization": `Bearer ${openRouterKey}` } });
+        response = await axios.post("https://api.openrouter.ai/v1/directions", { start:[parseFloat(startLon),parseFloat(startLat)], end:[parseFloat(endLon),parseFloat(endLat)] }, { headers:{ "Authorization": `Bearer ${openRouterKey}` } });
       } else if (provider === "mapbox" && mapboxKey) {
         response = await axios.get(`https://api.mapbox.com/directions/v5/mapbox/driving/${startLon},${startLat};${endLon},${endLat}?access_token=${mapboxKey}`);
       } else if (googleMapsKey) {
@@ -123,10 +111,7 @@ exports.askAI = functions.https.onRequest((req, res) => {
     if (!prompt) return res.status(400).send("Missing 'prompt'");
     if (!geminiKey) return res.status(500).send("Missing Gemini API key");
     try {
-      const response = await axios.post("https://api.openrouter.ai/v1/chat/completions", {
-        model:"gemini-2.5",
-        messages:[{role:"user",content:prompt}]
-      }, { headers:{ "Authorization": `Bearer ${geminiKey}` } });
+      const response = await axios.post("https://api.openrouter.ai/v1/chat/completions", { model:"gemini-2.5", messages:[{role:"user",content:prompt}] }, { headers:{ "Authorization": `Bearer ${geminiKey}` } });
       res.status(200).json(response.data);
     } catch (err) {
       console.error("AI fetch error:", err);
@@ -163,13 +148,13 @@ exports.pushNotification = functions.https.onRequest((req, res) => {
 });
 
 // ========================
-// Unified 3rd Party Endpoint
+// Other 3rd Party Endpoint Example (single key for all 3rd party use)
 // ========================
 exports.otherThirdParty = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
-    if (otherKeys.length === 0) return res.status(500).send("No 3rd Party API keys configured");
+    if (!otherKey) return res.status(500).send("Missing Other 3rd Party API key");
     try {
-      const response = await axios.get(`https://api.example.com/data?apikey=${otherKeys[0]}`);
+      const response = await axios.get(`https://api.example.com/data?apikey=${otherKey}`);
       res.status(200).json(response.data);
     } catch (err) {
       console.error("Other 3rd Party fetch error:", err);
