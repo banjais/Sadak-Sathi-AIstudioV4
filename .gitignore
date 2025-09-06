@@ -1,33 +1,33 @@
 # ========================
-# Node.js
+# Node.js / Package
 # ========================
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
+node_modules/              # Node.js dependencies
+npm-debug.log*             # NPM debug logs
+yarn-debug.log*            # Yarn debug logs
+pnpm-debug.log*            # PNPM debug logs
 
 # ========================
 # Firebase Functions build
 # ========================
-functions/node_modules/
-functions/lib/
+functions/node_modules/     # Firebase Functions dependencies
+functions/lib/              # Compiled Functions code (if using TypeScript)
 
 # ========================
-# Frontend build
+# Frontend build / artifacts
 # ========================
-dist/               # ephemeral build output, safe to regenerate
-*.local
-*.log
+dist/                       # Frontend build output
+*.local                     # Local environment overrides
+*.log                       # Any log files
 
 # ========================
-# TypeScript
+# TypeScript / caches
 # ========================
-*.tsbuildinfo
+*.tsbuildinfo               # TypeScript incremental build info
 
 # ========================
 # Environment files
 # ========================
-.env                 # secret, do NOT commit
+.env                         # Secret environment variables (do NOT commit)
 .env.local
 .env.*.local
 .env.production
@@ -36,8 +36,8 @@ dist/               # ephemeral build output, safe to regenerate
 .env.development.local
 .env.test
 .env.test.local
-.env.example         # placeholder, safe to commit
-service-account.json # Firebase service account key, keep secret
+.env.example                 # Template/example env file (safe to commit)
+service-account.json         # Firebase service account (secret, DO NOT commit)
 
 # ========================
 # OS files
@@ -54,15 +54,23 @@ Thumbs.db
 *.sublime-project
 
 # ========================
-# Firebase
+# Firebase cache / logs
 # ========================
 firebase-debug.log
-.firebase/           # Firebase cache, safe to ignore
+.firebase/                   # Firebase CLI cache (safe to ignore)
 
 # ========================
 # GitHub Actions secrets
 # ========================
-.github/workflows/*.secret.yml  # CI secrets, keep out of repo
+.github/workflows/*.secret.yml  # Workflow secret files (keep out of repo)
 
 # ========================
 # PWA / Service Worker cache
+# ========================
+/.sw-cache/                  # PWA offline cache
+
+# ========================
+# Permanent code folders (SAFE, DO NOT DELETE)
+# ========================
+/functions/                  # Firebase Functions backend
+/src/utils/                  # Utility files (fetchRoadStatus.ts, weather.ts, etc.)
