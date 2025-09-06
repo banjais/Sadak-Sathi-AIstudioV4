@@ -37,7 +37,6 @@ dist/               # ephemeral build output, safe to regenerate
 .env.test
 .env.test.local
 .env.example         # placeholder, safe to commit
-/firebase-service-account.json  # GitHub Actions JSON key, do NOT commit
 
 # ========================
 # OS files
@@ -73,4 +72,4 @@ firebase-debug.log
 # Permanent code folders (SAFE, DO NOT DELETE)
 # ========================
 /functions/          # Firebase backend functions
-/src/utils/          # fetchRoadStatus.ts, weather.ts, etc.
+/src/utils/          # utility scripts like fetchRoadStatus.ts, weather.ts, etc.
