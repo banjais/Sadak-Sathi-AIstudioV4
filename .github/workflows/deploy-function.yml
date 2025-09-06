@@ -26,6 +26,7 @@ jobs:
         run: |
           echo "${{ secrets.SERVICE_ACCOUNT_KEY }}" > service-account.json
 
+      # Convert literal \n into actual newlines
       - name: Fix newlines in private key
         run: |
           sed -i 's/\\n/\n/g' service-account.json
@@ -39,5 +40,5 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Deploy to Firebase Functions
+      - name: Deploy to Firebase
         run: firebase deploy --only functions --project sadak-sathi-3ab73
