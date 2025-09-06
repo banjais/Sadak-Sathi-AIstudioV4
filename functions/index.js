@@ -3,37 +3,33 @@ const axios = require("axios");
 const cors = require("cors")({ origin: true });
 
 // ========================
-// Load all API keys from Firebase Functions Config (via environment variables)
+// Load API keys from Firebase Functions Config
 // ========================
-const dhmKey = process.env.VITE_DHM_API_KEY;
-const firebaseKey = process.env.VITE_FIREBASE_API_KEY;
-const firebaseAppId = process.env.VITE_FIREBASE_APP_ID;
-const firebaseSenderId = process.env.VITE_FIREBASE_MESSAGING_SENDER_ID;
-const firebaseProjectId = process.env.VITE_FIREBASE_PROJECT_ID;
-const firebaseStorage = process.env.VITE_FIREBASE_STORAGE_BUCKET;
-const geminiKey = process.env.VITE_GEMINI_API_KEY;
-const googleMapsKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
-const mapboxKey = process.env.VITE_MAPBOX_API_KEY;
-const openRouterKey = process.env.VITE_OPENROUTER_API_KEY;
-const openWeatherKey = process.env.VITE_OPENWEATHER_API_KEY;
-const otherKey = process.env.VITE_OTHER_3RD_PARTY_KEY;
-const pusherKey = process.env.VITE_PUSHER_KEY;
-const wazeKey = process.env.VITE_WAZE_API_KEY;
-const weatherKey = process.env.VITE_WEATHER_API_KEY;
+const dhmKey = functions.config().dhm?.key || process.env.VITE_DHM_API_KEY;
+const firebaseKey = functions.config().firebase?.key || process.env.VITE_FIREBASE_API_KEY;
+const firebaseAppId = functions.config().firebase?.appid || process.env.VITE_FIREBASE_APP_ID;
+const firebaseSenderId = functions.config().firebase?.senderid || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID;
+const firebaseProjectId = functions.config().firebase?.projectid || process.env.VITE_FIREBASE_PROJECT_ID;
+const firebaseStorage = functions.config().firebase?.storage || process.env.VITE_FIREBASE_STORAGE_BUCKET;
+const geminiKey = functions.config().gemini?.key || process.env.VITE_GEMINI_API_KEY;
+const googleMapsKey = functions.config().googlemaps?.key || process.env.VITE_GOOGLE_MAPS_API_KEY;
+const mapboxKey = functions.config().mapbox?.key || process.env.VITE_MAPBOX_API_KEY;
+const openRouterKey = functions.config().openrouter?.key || process.env.VITE_OPENROUTER_API_KEY;
+const openWeatherKey = functions.config().openweather?.key || process.env.VITE_OPENWEATHER_API_KEY;
+const otherKey = functions.config().other?.key || process.env.VITE_OTHER_3RD_PARTY_KEY;
+const pusherKey = functions.config().pusher?.key || process.env.VITE_PUSHER_KEY;
+const wazeKey = functions.config().waze?.key || process.env.VITE_WAZE_API_KEY;
+const weatherKey = functions.config().weather?.key || process.env.VITE_WEATHER_API_KEY;
+
+// 3rd Party placeholders
+const thirdParty1 = process.env.VITE_3RD_PARTY_1;
+const thirdParty2 = process.env.VITE_3RD_PARTY_2;
+const thirdParty3 = process.env.VITE_3RD_PARTY_3;
+const thirdParty4 = process.env.VITE_3RD_PARTY_4;
+const thirdParty5 = process.env.VITE_3RD_PARTY_5;
 
 // ========================
-// Additional 3rd Party slots (optional / future-proof)
-// ========================
-const otherKeys = [
-  process.env.VITE_3RD_PARTY_1,
-  process.env.VITE_3RD_PARTY_2,
-  process.env.VITE_3RD_PARTY_3,
-  process.env.VITE_3RD_PARTY_4,
-  process.env.VITE_3RD_PARTY_5
-];
-
-// ========================
-// Weather Endpoint (OpenWeather)
+// Weather Endpoint
 // ========================
 exports.getWeather = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
@@ -88,7 +84,7 @@ exports.getTraffic = functions.https.onRequest((req, res) => {
 });
 
 // ========================
-// Routing Endpoint (Google Maps + OpenRouter + Mapbox)
+// Routing Endpoint
 // ========================
 exports.findRoute = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
@@ -98,9 +94,11 @@ exports.findRoute = functions.https.onRequest((req, res) => {
       let response;
       if (provider === "openrouter" && openRouterKey) {
         response = await axios.post("https://api.openrouter.ai/v1/directions", {
-          start:[parseFloat(startLon),parseFloat(startLat)],
-          end:[parseFloat(endLon),parseFloat(endLat)]
-        }, { headers:{ "Authorization": `Bearer ${openRouterKey}` } });
+          start: [parseFloat(startLon), parseFloat(startLat)],
+          end: [parseFloat(endLon), parseFloat(endLat)]
+        }, {
+          headers: { "Authorization": `Bearer ${openRouterKey}` }
+        });
       } else if (provider === "mapbox" && mapboxKey) {
         response = await axios.get(`https://api.mapbox.com/directions/v5/mapbox/driving/${startLon},${startLat};${endLon},${endLat}?access_token=${mapboxKey}`);
       } else if (googleMapsKey) {
@@ -126,9 +124,9 @@ exports.askAI = functions.https.onRequest((req, res) => {
     if (!geminiKey) return res.status(500).send("Missing Gemini API key");
     try {
       const response = await axios.post("https://api.openrouter.ai/v1/chat/completions", {
-        model:"gemini-2.5",
-        messages:[{role:"user",content:prompt}]
-      }, { headers:{ "Authorization": `Bearer ${geminiKey}` } });
+        model: "gemini-2.5",
+        messages: [{ role: "user", content: prompt }]
+      }, { headers: { "Authorization": `Bearer ${geminiKey}` } });
       res.status(200).json(response.data);
     } catch (err) {
       console.error("AI fetch error:", err);
@@ -159,17 +157,17 @@ exports.getDHMData = functions.https.onRequest((req, res) => {
 exports.pushNotification = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (!pusherKey) return res.status(500).send("Missing Pusher API key");
-    try { 
-      res.status(200).json({ status: "Push sent (demo)" }); 
-    } catch (err) { 
-      console.error("Push error:", err); 
-      res.status(500).send("Failed to send push"); 
+    try {
+      res.status(200).json({ status: "Push sent (demo)" });
+    } catch (err) {
+      console.error("Push error:", err);
+      res.status(500).send("Failed to send push");
     }
   });
 });
 
 // ========================
-// Other 3rd Party Endpoint (single endpoint for simplicity)
+// Other 3rd Party Endpoint (single)
 // ========================
 exports.otherThirdParty = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
