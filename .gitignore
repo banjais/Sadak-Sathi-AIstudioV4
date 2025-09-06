@@ -25,9 +25,9 @@ dist/               # ephemeral build output, safe to regenerate
 *.tsbuildinfo
 
 # ========================
-# Environment / Secrets
+# Environment files
 # ========================
-.env                 # secret, do NOT commit
+.env                 # actual environment, secret, do NOT commit
 .env.local
 .env.*.local
 .env.production
