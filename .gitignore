@@ -72,4 +72,5 @@ firebase-debug.log
 # Permanent code folders (SAFE, DO NOT DELETE)
 # ========================
 /functions/          # Firebase backend functions
-/src/utils/          # fetchRoadStatus.ts, weather.ts, etc.
+/src/utils/          # fetchRoadStatus.ts, weather.ts, and all extra API helpers
+/src/utils/api/      # extra API helpers (DHM, OpenWeather, Gemini, Waze, Mapbox)
