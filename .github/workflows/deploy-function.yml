@@ -51,7 +51,6 @@ jobs:
 
       # 7. Configure Service Account
       - name: Configure Service Account
-        if: ${{ secrets.SERVICE_ACCOUNT_JSON != '' }}
         run: |
           echo "${{ secrets.SERVICE_ACCOUNT_JSON }}" > $HOME/service-account.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/service-account.json" >> $GITHUB_ENV
@@ -69,7 +68,6 @@ jobs:
           else
             echo "TARGET=dev-hosting" >> $GITHUB_ENV
             echo "DEPLOY_URL=https://your-dev-domain.web.app" >> $GITHUB_ENV
-          fi
 
       # 9. Build frontend
       - name: Build Frontend
@@ -92,26 +90,18 @@ jobs:
       # 12. Deploy to Firebase Hosting with rollback
       - name: Firebase Deploy
         id: firebase-deploy
-        continue-on-error: true
         env:
           GOOGLE_APPLICATION_CREDENTIALS: $HOME/service-account.json
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
           PATH: ~/.npm-global/bin:$PATH
         run: |
           DEPLOY_STATUS=success
-          if [ -f "$HOME/service-account.json" ]; then
-            firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73 --message "Deploy $DEPLOY_VERSION" || DEPLOY_STATUS=failure
-          elif [ -n "$FIREBASE_TOKEN" ]; then
-            firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73 --token "$FIREBASE_TOKEN" --message "Deploy $DEPLOY_VERSION" || DEPLOY_STATUS=failure
-          else
-            echo "Error: No authentication method found. Set SERVICE_ACCOUNT_JSON or FIREBASE_TOKEN."
-            exit 1
-          fi
-
+          firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73 --message "Deploy $DEPLOY_VERSION" || DEPLOY_STATUS=failure
           echo "DEPLOY_STATUS=$DEPLOY_STATUS" >> $GITHUB_ENV
-
+          
           if [ "$DEPLOY_STATUS" = "failure" ] && [ -n "$PREV_RELEASE" ]; then
+            echo "Deployment failed. Rolling back to previous release $PREV_RELEASE"
             firebase hosting:rollback --version "$PREV_RELEASE" --project sadak-sathi-3ab73
+            exit 1
           fi
 
       # 13. Slack Notification with rollback info
@@ -157,14 +147,12 @@ jobs:
             echo "{\"schemaVersion\":1,\"label\":\"Staging\",\"message\":\"$DEPLOY_VERSION\",\"color\":\"orange\"}" > badges/staging.json
           else
             echo "{\"schemaVersion\":1,\"label\":\"Dev\",\"message\":\"$DEPLOY_VERSION\",\"color\":\"green\"}" > badges/dev.json
-          fi
 
-      # 15. Commit version badges (optional)
+      # 15. Commit version badges
       - name: Commit version badges
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add badges/*.json
           git commit -m "Update deploy version badges" || echo "No changes to commit"
-          git push origin HEAD:main
-        if: success()
+          git push origin HEAD:${GITHUB_REF_NAME}
