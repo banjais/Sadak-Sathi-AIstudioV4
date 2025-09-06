@@ -27,7 +27,7 @@ dist/               # ephemeral build output, safe to regenerate
 # ========================
 # Environment files
 # ========================
-.env                 # secret, don't commit
+.env                 # secret, do NOT commit
 .env.local
 .env.*.local
 .env.production
@@ -36,7 +36,7 @@ dist/               # ephemeral build output, safe to regenerate
 .env.development.local
 .env.test
 .env.test.local
-.env.example         # keep as placeholder, safe to commit
+.env.example         # placeholder, safe to commit
 
 # ========================
 # OS files
@@ -49,6 +49,8 @@ Thumbs.db
 # ========================
 .vscode/
 .idea/
+*.sublime-workspace
+*.sublime-project
 
 # ========================
 # Firebase
