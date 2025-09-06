@@ -3,40 +3,30 @@ const axios = require("axios");
 const cors = require("cors")({ origin: true });
 
 // ========================
-// Load all API keys from Firebase Functions Config
+// Load API keys from Firebase Functions Config (your GitHub secrets)
 // ========================
-const dhmKey = functions.config().dhm?.key;
-const geminiKey = functions.config().gemini?.key;
-const googleMapsKey = functions.config().googlemaps?.key;
-const mapboxKey = functions.config().mapbox?.key;
-const openRouterKey = functions.config().openrouter?.key;
-const openWeatherKey = functions.config().openweather?.key;
-const wazeKey = functions.config().waze?.key;
-const pusherKey = functions.config().pusher?.key;
-const otherKey = functions.config().other?.key;
-
-// Extra future-proof API slots
-const otherKeys = [
-  functions.config().other1?.key,
-  functions.config().other2?.key,
-  functions.config().other3?.key,
-  functions.config().other4?.key,
-  functions.config().other5?.key
-];
-
-// -------------------
-// Helper: safe handler
-// -------------------
-const safeHandler = (key, handler) => {
-  if (!key) return (req, res) => res.status(500).send("Missing API key");
-  return handler;
-};
+const dhmKey = functions.config().vite_dhm_api_key?.key;
+const firebaseKey = functions.config().vite_firebase_api_key?.key;
+const firebaseAppId = functions.config().vite_firebase_app_id?.key;
+const firebaseSenderId = functions.config().vite_firebase_messaging_sender_id?.key;
+const firebaseProjectId = functions.config().vite_firebase_project_id?.key;
+const firebaseStorage = functions.config().vite_firebase_storage_bucket?.key;
+const geminiKey = functions.config().vite_gemini_api_key?.key;
+const googleMapsKey = functions.config().vite_google_maps_api_key?.key;
+const mapboxKey = functions.config().vite_mapbox_api_key?.key;
+const openRouterKey = functions.config().vite_openrouter_api_key?.key;
+const openWeatherKey = functions.config().vite_openweather_api_key?.key;
+const otherKey = functions.config().vite_other_3rd_party_key?.key;
+const pusherKey = functions.config().vite_pusher_key?.key;
+const wazeKey = functions.config().vite_waze_api_key?.key;
+const weatherKey = functions.config().vite_weather_api_key?.key;
 
 // ========================
-// Weather Endpoint
+// Weather Endpoint (OpenWeather)
 // ========================
-exports.getWeather = safeHandler(openWeatherKey, functions.https.onRequest((req, res) => {
+exports.getWeather = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
+    if (!openWeatherKey) return res.status(500).send("Missing OpenWeather API key");
     const { lat, lon } = req.query;
     if (!lat || !lon) return res.status(400).send("Missing 'lat' or 'lon'");
     try {
@@ -55,10 +45,10 @@ exports.getWeather = safeHandler(openWeatherKey, functions.https.onRequest((req,
       res.status(500).send("Failed to fetch weather");
     }
   });
-}));
+});
 
 // ========================
-// Traffic Endpoint
+// Traffic Endpoint (Waze + Google Maps fallback)
 // ========================
 exports.getTraffic = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
@@ -87,7 +77,7 @@ exports.getTraffic = functions.https.onRequest((req, res) => {
 });
 
 // ========================
-// Routing Endpoint
+// Routing Endpoint (Google Maps + OpenRouter + Mapbox)
 // ========================
 exports.findRoute = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
@@ -115,10 +105,11 @@ exports.findRoute = functions.https.onRequest((req, res) => {
 // ========================
 // Gemini AI Endpoint
 // ========================
-exports.askAI = safeHandler(geminiKey, functions.https.onRequest((req, res) => {
+exports.askAI = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     const { prompt } = req.body;
     if (!prompt) return res.status(400).send("Missing 'prompt'");
+    if (!geminiKey) return res.status(500).send("Missing Gemini API key");
     try {
       const response = await axios.post("https://api.openrouter.ai/v1/chat/completions", { model:"gemini-2.5", messages:[{role:"user",content:prompt}] }, { headers:{ "Authorization": `Bearer ${geminiKey}` } });
       res.status(200).json(response.data);
@@ -127,13 +118,14 @@ exports.askAI = safeHandler(geminiKey, functions.https.onRequest((req, res) => {
       res.status(500).send("Failed to fetch AI response");
     }
   });
-}));
+});
 
 // ========================
 // DHM Endpoint
 // ========================
-exports.getDHMData = safeHandler(dhmKey, functions.https.onRequest((req, res) => {
+exports.getDHMData = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
+    if (!dhmKey) return res.status(500).send("Missing DHM API key");
     try {
       const response = await axios.get(`https://api.dhm.gov.np/data?apikey=${dhmKey}`);
       res.status(200).json(response.data);
@@ -142,22 +134,25 @@ exports.getDHMData = safeHandler(dhmKey, functions.https.onRequest((req, res) =>
       res.status(500).send("Failed to fetch DHM data");
     }
   });
-}));
+});
 
 // ========================
 // Push / Pusher Endpoint
 // ========================
-exports.pushNotification = safeHandler(pusherKey, functions.https.onRequest((req, res) => {
+exports.pushNotification = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
-    res.status(200).json({ status: "Push sent (demo)" });
+    if (!pusherKey) return res.status(500).send("Missing Pusher API key");
+    try { res.status(200).json({ status: "Push sent (demo)" }); }
+    catch (err) { console.error("Push error:", err); res.status(500).send("Failed to send push"); }
   });
-}));
+});
 
 // ========================
 // Other 3rd Party Endpoint
 // ========================
-exports.otherThirdParty = safeHandler(otherKey, functions.https.onRequest((req, res) => {
+exports.otherThirdParty = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
+    if (!otherKey) return res.status(500).send("Missing Other 3rd Party API key");
     try {
       const response = await axios.get(`https://api.example.com/data?apikey=${otherKey}`);
       res.status(200).json(response.data);
@@ -166,13 +161,4 @@ exports.otherThirdParty = safeHandler(otherKey, functions.https.onRequest((req, 
       res.status(500).send("Failed to fetch Other 3rd Party data");
     }
   });
-}));
-
-// ========================
-// Extra Other Keys (1-5)
-// ========================
-otherKeys.forEach((key, idx) => {
-  exports[`otherThirdParty${idx+1}`] = safeHandler(key, functions.https.onRequest((req,res)=>{
-    cors(req,res,()=>res.status(200).json({ status: `Other Key ${idx+1} endpoint ready` }));
-  }));
 });
