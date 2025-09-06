@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository
+      # 1. Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -22,18 +22,30 @@ jobs:
         with:
           node-version: 20
 
-      # 3. Setup gcloud & Firebase CLI
-      - name: Setup gcloud & Firebase CLI
+      # 3. Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+
+      # 4. Setup gcloud CLI
+      - name: Setup gcloud CLI
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: sadak-sathi-3ab73
-          service_account_key: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          install_components: 'beta'
 
-      # 4. Install Firebase Tools
+      # 5. Install Firebase CLI
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      # 5. Determine hosting target based on branch
+      # 6. Configure Firebase CLI to use service account
+      - name: Configure Firebase CLI
+        run: |
+          echo "${{ secrets.SERVICE_ACCOUNT_JSON }}" > $HOME/service-account.json
+          firebase login:ci --token "$(gcloud auth print-access-token)"
+
+      # 7. Set deployment target based on branch
       - name: Set deployment target
         id: set-target
         run: |
@@ -46,7 +58,6 @@ jobs:
           fi
           echo "Deploying to $TARGET"
 
-      # 6. Deploy to Firebase Hosting
+      # 8. Deploy to Firebase Hosting
       - name: Firebase Deploy
-        run: |
-          firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73
+        run: firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73 --token "$(gcloud auth print-access-token)"
