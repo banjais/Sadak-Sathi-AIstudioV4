@@ -27,7 +27,7 @@ dist/
 # ========================
 # Environment files
 # ========================
-.env
+.env                 # secret, do NOT commit
 .env.local
 .env.*.local
 .env.production
@@ -36,7 +36,7 @@ dist/
 .env.development.local
 .env.test
 .env.test.local
-.env.example
+.env.example         # placeholder, safe to commit
 
 # ========================
 # OS files
@@ -69,7 +69,7 @@ firebase-debug.log
 /.sw-cache/
 
 # ========================
-# Permanent code folders
+# Permanent code folders (SAFE, DO NOT DELETE)
 # ========================
 /functions/
 /src/utils/
