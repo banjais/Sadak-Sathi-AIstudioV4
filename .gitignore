@@ -15,7 +15,7 @@ functions/lib/
 # ========================
 # Frontend build
 # ========================
-dist/
+dist/               # ephemeral build output, safe to regenerate
 *.local
 *.log
 
@@ -27,7 +27,7 @@ dist/
 # ========================
 # Environment files
 # ========================
-.env
+.env                 # secret, do NOT commit
 .env.local
 .env.*.local
 .env.production
@@ -36,8 +36,8 @@ dist/
 .env.development.local
 .env.test
 .env.test.local
-.env.example
-service-account.json
+.env.example         # placeholder, safe to commit
+service-account.json # Firebase service account key, keep secret
 
 # ========================
 # OS files
@@ -57,12 +57,12 @@ Thumbs.db
 # Firebase
 # ========================
 firebase-debug.log
-.firebase/
+.firebase/           # Firebase cache, safe to ignore
 
 # ========================
 # GitHub Actions secrets
 # ========================
-.github/workflows/*.secret.yml
+.github/workflows/*.secret.yml  # CI secrets, keep out of repo
 
 # ========================
 # PWA / Service Worker cache
@@ -72,5 +72,5 @@ firebase-debug.log
 # ========================
 # Permanent code folders (SAFE, DO NOT DELETE)
 # ========================
-/functions/
-/src/utils/
+/functions/          # Firebase backend functions
+/src/utils/          # fetchRoadStatus.ts, weather.ts, etc. 
