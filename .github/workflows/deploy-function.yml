@@ -43,7 +43,8 @@ jobs:
       - name: Configure Firebase CLI
         run: |
           echo "${{ secrets.SERVICE_ACCOUNT_JSON }}" > $HOME/service-account.json
-          firebase login:ci --token "$(gcloud auth print-access-token)"
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: $HOME/service-account.json
 
       # 7. Set deployment target based on branch
       - name: Set deployment target
@@ -60,4 +61,6 @@ jobs:
 
       # 8. Deploy to Firebase Hosting
       - name: Firebase Deploy
-        run: firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73 --token "$(gcloud auth print-access-token)"
+        run: firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: $HOME/service-account.json
