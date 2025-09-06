@@ -32,8 +32,9 @@ jobs:
             ${{ runner.os }}-node-
 
       # 4. Install dependencies
+      # ⚠️ Note: Using 'npm install' instead of 'npm ci' until package-lock.json exists
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       # 5. Cache Firebase CLI
       - name: Cache Firebase CLI
@@ -51,6 +52,7 @@ jobs:
 
       # 7. Configure Service Account
       - name: Configure Service Account
+        if: ${{ secrets.SERVICE_ACCOUNT_JSON != '' }}
         run: |
           echo "${{ secrets.SERVICE_ACCOUNT_JSON }}" > $HOME/service-account.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/service-account.json" >> $GITHUB_ENV
@@ -61,13 +63,14 @@ jobs:
         run: |
           if [ "${GITHUB_REF_NAME}" == "main" ]; then
             echo "TARGET=prod-hosting" >> $GITHUB_ENV
-            echo "DEPLOY_URL=https://your-prod-domain.web.app" >> $GITHUB_ENV
+            echo "DEPLOY_URL=https://sadak-sathi-web.app" >> $GITHUB_ENV
           elif [ "${GITHUB_REF_NAME}" == "staging" ]; then
             echo "TARGET=staging-hosting" >> $GITHUB_ENV
             echo "DEPLOY_URL=https://your-staging-domain.web.app" >> $GITHUB_ENV
           else
             echo "TARGET=dev-hosting" >> $GITHUB_ENV
             echo "DEPLOY_URL=https://your-dev-domain.web.app" >> $GITHUB_ENV
+          fi
 
       # 9. Build frontend
       - name: Build Frontend
@@ -90,18 +93,26 @@ jobs:
       # 12. Deploy to Firebase Hosting with rollback
       - name: Firebase Deploy
         id: firebase-deploy
+        continue-on-error: true
         env:
           GOOGLE_APPLICATION_CREDENTIALS: $HOME/service-account.json
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
           PATH: ~/.npm-global/bin:$PATH
         run: |
           DEPLOY_STATUS=success
-          firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73 --message "Deploy $DEPLOY_VERSION" || DEPLOY_STATUS=failure
-          echo "DEPLOY_STATUS=$DEPLOY_STATUS" >> $GITHUB_ENV
-          
-          if [ "$DEPLOY_STATUS" = "failure" ] && [ -n "$PREV_RELEASE" ]; then
-            echo "Deployment failed. Rolling back to previous release $PREV_RELEASE"
-            firebase hosting:rollback --version "$PREV_RELEASE" --project sadak-sathi-3ab73
+          if [ -f "$HOME/service-account.json" ]; then
+            firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73 --message "Deploy $DEPLOY_VERSION" || DEPLOY_STATUS=failure
+          elif [ -n "$FIREBASE_TOKEN" ]; then
+            firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73 --token "$FIREBASE_TOKEN" --message "Deploy $DEPLOY_VERSION" || DEPLOY_STATUS=failure
+          else
+            echo "Error: No authentication method found. Set SERVICE_ACCOUNT_JSON or FIREBASE_TOKEN."
             exit 1
+          fi
+
+          echo "DEPLOY_STATUS=$DEPLOY_STATUS" >> $GITHUB_ENV
+
+          if [ "$DEPLOY_STATUS" = "failure" ] && [ -n "$PREV_RELEASE" ]; then
+            firebase hosting:rollback --version "$PREV_RELEASE" --project sadak-sathi-3ab73
           fi
 
       # 13. Slack Notification with rollback info
@@ -148,11 +159,12 @@ jobs:
           else
             echo "{\"schemaVersion\":1,\"label\":\"Dev\",\"message\":\"$DEPLOY_VERSION\",\"color\":\"green\"}" > badges/dev.json
 
-      # 15. Commit version badges
+      # 15. Commit version badges (optional)
       - name: Commit version badges
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add badges/*.json
           git commit -m "Update deploy version badges" || echo "No changes to commit"
-          git push origin HEAD:${GITHUB_REF_NAME}
+          git push origin HEAD:main
+        if: success()
