@@ -1,5 +1,5 @@
 # ========================
-# Node.js dependencies
+# Node.js
 # ========================
 node_modules/
 npm-debug.log*
@@ -25,7 +25,7 @@ dist/               # ephemeral build output, safe to regenerate
 *.tsbuildinfo
 
 # ========================
-# Environment files
+# Environment / Secrets
 # ========================
 .env                 # secret, do NOT commit
 .env.local
@@ -36,7 +36,7 @@ dist/               # ephemeral build output, safe to regenerate
 .env.development.local
 .env.test
 .env.test.local
-.env.example         # template, safe to commit
+.env.example         # placeholder, safe to commit
 service-account.json # Firebase service account key, keep secret
 
 # ========================
@@ -73,4 +73,4 @@ firebase-debug.log
 # Permanent code folders (SAFE, DO NOT DELETE)
 # ========================
 /functions/          # Firebase backend functions
-/src/utils/          # fetchRoadStatus.ts, weather.ts, etc.
+/src/utils/          # utility scripts like fetchRoadStatus.ts, weather.ts
