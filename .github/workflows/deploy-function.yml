@@ -1,53 +1,52 @@
-name: Firebase Multi-Env Deploy with Hosting Targets
+name: Firebase Multi-Hosting Deploy
 
 on:
   push:
     branches:
       - main
       - staging
-      - dev
+      - develop
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      # Step 1: Checkout code
+      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Step 2: Authenticate to GCP
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v1
+      # 2. Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          credentials_json: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          node-version: 20
 
-      # Step 3: Setup gcloud CLI
-      - name: Setup gcloud
+      # 3. Setup gcloud & Firebase CLI
+      - name: Setup gcloud & Firebase CLI
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: sadak-sathi-3ab73
-          version: '426.0.0'
+          service_account_key: ${{ secrets.SERVICE_ACCOUNT_JSON }}
 
-      # Step 4: Install Firebase CLI
+      # 4. Install Firebase Tools
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      # Step 5: Determine environment and hosting target
-      - name: Set environment
-        id: env
+      # 5. Determine hosting target based on branch
+      - name: Set deployment target
+        id: set-target
         run: |
           if [ "${GITHUB_REF_NAME}" == "main" ]; then
-            echo "project=sadak-sathi-prod" >> $GITHUB_ENV
-            echo "target=prod-hosting" >> $GITHUB_ENV
+            echo "TARGET=prod-hosting" >> $GITHUB_ENV
           elif [ "${GITHUB_REF_NAME}" == "staging" ]; then
-            echo "project=sadak-sathi-staging" >> $GITHUB_ENV
-            echo "target=staging-hosting" >> $GITHUB_ENV
+            echo "TARGET=staging-hosting" >> $GITHUB_ENV
           else
-            echo "project=sadak-sathi-dev" >> $GITHUB_ENV
-            echo "target=dev-hosting" >> $GITHUB_ENV
+            echo "TARGET=dev-hosting" >> $GITHUB_ENV
           fi
+          echo "Deploying to $TARGET"
 
-      # Step 6: Deploy to the correct hosting target
-      - name: Deploy to Firebase Hosting
+      # 6. Deploy to Firebase Hosting
+      - name: Firebase Deploy
         run: |
-          firebase deploy --only hosting:${{ env.target }} --project ${{ env.project }}
+          firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73
