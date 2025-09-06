@@ -22,42 +22,149 @@ jobs:
         with:
           node-version: 20
 
-      # 3. Authenticate to Google Cloud
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
+      # 3. Cache node_modules
+      - name: Cache node_modules
+        uses: actions/cache@v3
         with:
-          credentials_json: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
-      # 4. Setup gcloud CLI
-      - name: Setup gcloud CLI
-        uses: google-github-actions/setup-gcloud@v2
+      # 4. Install dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      # 5. Cache Firebase CLI
+      - name: Cache Firebase CLI
+        uses: actions/cache@v3
         with:
-          project_id: sadak-sathi-3ab73
-          install_components: 'beta'
+          path: ~/.npm-global
+          key: firebase-cli-${{ hashFiles('package-lock.json') }}
+          restore-keys: firebase-cli-
 
-      # 5. Install Firebase CLI
+      # 6. Install Firebase CLI
       - name: Install Firebase CLI
-        run: npm install -g firebase-tools
+        run: npm install -g firebase-tools --prefix ~/.npm-global
+        env:
+          PATH: ~/.npm-global/bin:$PATH
 
-      # 6. Save service account JSON and set environment variable
-      - name: Configure Firebase Service Account
+      # 7. Configure Service Account
+      - name: Configure Service Account
+        if: ${{ secrets.SERVICE_ACCOUNT_JSON != '' }}
         run: |
           echo "${{ secrets.SERVICE_ACCOUNT_JSON }}" > $HOME/service-account.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/service-account.json" >> $GITHUB_ENV
 
-      # 7. Set deployment target based on branch
-      - name: Set deployment target
+      # 8. Set deployment target and URL
+      - name: Set deployment target and URL
         id: set-target
         run: |
           if [ "${GITHUB_REF_NAME}" == "main" ]; then
             echo "TARGET=prod-hosting" >> $GITHUB_ENV
+            echo "DEPLOY_URL=https://your-prod-domain.web.app" >> $GITHUB_ENV
           elif [ "${GITHUB_REF_NAME}" == "staging" ]; then
             echo "TARGET=staging-hosting" >> $GITHUB_ENV
+            echo "DEPLOY_URL=https://your-staging-domain.web.app" >> $GITHUB_ENV
           else
             echo "TARGET=dev-hosting" >> $GITHUB_ENV
+            echo "DEPLOY_URL=https://your-dev-domain.web.app" >> $GITHUB_ENV
           fi
-          echo "Deploying to $TARGET"
 
-      # 8. Deploy to Firebase Hosting
+      # 9. Build frontend
+      - name: Build Frontend
+        run: npm run build
+
+      # 10. Generate deploy version
+      - name: Generate Deploy Version
+        id: deploy-version
+        run: |
+          VERSION="v$(date +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          echo "DEPLOY_VERSION=$VERSION" >> $GITHUB_ENV
+
+      # 11. Get previous release version
+      - name: Get Previous Firebase Hosting Release
+        id: get-prev-release
+        run: |
+          PREV_RELEASE=$(firebase hosting:channel:list --project sadak-sathi-3ab73 --json | jq -r '.[] | select(.status=="live") | .release.version')
+          echo "PREV_RELEASE=$PREV_RELEASE" >> $GITHUB_ENV
+
+      # 12. Deploy to Firebase Hosting with rollback
       - name: Firebase Deploy
-        run: firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73
+        id: firebase-deploy
+        continue-on-error: true
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: $HOME/service-account.json
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          PATH: ~/.npm-global/bin:$PATH
+        run: |
+          DEPLOY_STATUS=success
+          if [ -f "$HOME/service-account.json" ]; then
+            firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73 --message "Deploy $DEPLOY_VERSION" || DEPLOY_STATUS=failure
+          elif [ -n "$FIREBASE_TOKEN" ]; then
+            firebase deploy --only hosting:$TARGET --project sadak-sathi-3ab73 --token "$FIREBASE_TOKEN" --message "Deploy $DEPLOY_VERSION" || DEPLOY_STATUS=failure
+          else
+            echo "Error: No authentication method found. Set SERVICE_ACCOUNT_JSON or FIREBASE_TOKEN."
+            exit 1
+          fi
+
+          echo "DEPLOY_STATUS=$DEPLOY_STATUS" >> $GITHUB_ENV
+
+          if [ "$DEPLOY_STATUS" = "failure" ] && [ -n "$PREV_RELEASE" ]; then
+            firebase hosting:rollback --version "$PREV_RELEASE" --project sadak-sathi-3ab73
+          fi
+
+      # 13. Slack Notification with rollback info
+      - name: Slack Notification
+        if: always()
+        run: |
+          STATUS_ICON="✅"
+          COLOR="#36a64f"
+          MESSAGE="Deployment succeeded"
+          if [ "${DEPLOY_STATUS}" != "success" ]; then
+            STATUS_ICON="❌"
+            COLOR="#ff0000"
+            MESSAGE="Deployment failed! Rolled back to $PREV_RELEASE"
+          fi
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [
+                {
+                  \"color\": \"$COLOR\",
+                  \"title\": \"$STATUS_ICON Firebase Deploy Status\",
+                  \"fields\": [
+                    {\"title\": \"Branch\", \"value\": \"${GITHUB_REF_NAME}\", \"short\": true},
+                    {\"title\": \"Target\", \"value\": \"$TARGET\", \"short\": true},
+                    {\"title\": \"Repository\", \"value\": \"${GITHUB_REPOSITORY}\", \"short\": false},
+                    {\"title\": \"Commit\", \"value\": \"${GITHUB_SHA}\", \"short\": false},
+                    {\"title\": \"Version\", \"value\": \"$DEPLOY_VERSION\", \"short\": true},
+                    {\"title\": \"Status\", \"value\": \"$MESSAGE\", \"short\": true},
+                    {\"title\": \"Live URL\", \"value\": \"<$DEPLOY_URL|Click to view>\", \"short\": false}
+                  ],
+                  \"ts\": $(date +%s)
+                }
+              ]
+            }" ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      # 14. Update version badges JSON
+      - name: Update Version Badge JSON
+        run: |
+          mkdir -p badges
+          if [ "${GITHUB_REF_NAME}" == "main" ]; then
+            echo "{\"schemaVersion\":1,\"label\":\"Prod\",\"message\":\"$DEPLOY_VERSION\",\"color\":\"blue\"}" > badges/prod.json
+          elif [ "${GITHUB_REF_NAME}" == "staging" ]; then
+            echo "{\"schemaVersion\":1,\"label\":\"Staging\",\"message\":\"$DEPLOY_VERSION\",\"color\":\"orange\"}" > badges/staging.json
+          else
+            echo "{\"schemaVersion\":1,\"label\":\"Dev\",\"message\":\"$DEPLOY_VERSION\",\"color\":\"green\"}" > badges/dev.json
+          fi
+
+      # 15. Commit version badges (optional)
+      - name: Commit version badges
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add badges/*.json
+          git commit -m "Update deploy version badges" || echo "No changes to commit"
+          git push origin HEAD:main
+        if: success()
