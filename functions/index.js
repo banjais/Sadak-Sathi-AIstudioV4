@@ -3,7 +3,7 @@ const axios = require("axios");
 const cors = require("cors")({ origin: true });
 
 // ========================
-// Load API keys from GitHub secrets via environment
+// Load API keys from environment
 // ========================
 const dhmKey = process.env.VITE_DHM_API_KEY;
 const firebaseKey = process.env.VITE_FIREBASE_API_KEY;
