@@ -3,7 +3,7 @@ const axios = require("axios");
 const cors = require("cors")({ origin: true });
 
 // ========================
-// Load API keys from Firebase Functions Config (via GitHub secrets / environment)
+// Load all API keys from Firebase Functions Config (via environment variables)
 // ========================
 const dhmKey = process.env.VITE_DHM_API_KEY;
 const firebaseKey = process.env.VITE_FIREBASE_API_KEY;
@@ -20,7 +20,11 @@ const otherKey = process.env.VITE_OTHER_3RD_PARTY_KEY;
 const pusherKey = process.env.VITE_PUSHER_KEY;
 const wazeKey = process.env.VITE_WAZE_API_KEY;
 const weatherKey = process.env.VITE_WEATHER_API_KEY;
-const thirdPartyKeys = [
+
+// ========================
+// Additional 3rd Party slots (optional / future-proof)
+// ========================
+const otherKeys = [
   process.env.VITE_3RD_PARTY_1,
   process.env.VITE_3RD_PARTY_2,
   process.env.VITE_3RD_PARTY_3,
@@ -29,7 +33,7 @@ const thirdPartyKeys = [
 ];
 
 // ========================
-// Weather Endpoint
+// Weather Endpoint (OpenWeather)
 // ========================
 exports.getWeather = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
@@ -55,7 +59,7 @@ exports.getWeather = functions.https.onRequest((req, res) => {
 });
 
 // ========================
-// Traffic Endpoint
+// Traffic Endpoint (Waze + Google Maps fallback)
 // ========================
 exports.getTraffic = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
@@ -84,7 +88,7 @@ exports.getTraffic = functions.https.onRequest((req, res) => {
 });
 
 // ========================
-// Routing Endpoint
+// Routing Endpoint (Google Maps + OpenRouter + Mapbox)
 // ========================
 exports.findRoute = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
@@ -155,17 +159,17 @@ exports.getDHMData = functions.https.onRequest((req, res) => {
 exports.pushNotification = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (!pusherKey) return res.status(500).send("Missing Pusher API key");
-    try {
-      res.status(200).json({ status: "Push sent (demo)" });
-    } catch (err) {
-      console.error("Push error:", err);
-      res.status(500).send("Failed to send push");
+    try { 
+      res.status(200).json({ status: "Push sent (demo)" }); 
+    } catch (err) { 
+      console.error("Push error:", err); 
+      res.status(500).send("Failed to send push"); 
     }
   });
 });
 
 // ========================
-// Other 3rd Party Endpoint (single unified)
+// Other 3rd Party Endpoint (single endpoint for simplicity)
 // ========================
 exports.otherThirdParty = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
