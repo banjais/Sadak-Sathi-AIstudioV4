@@ -32,7 +32,7 @@ jobs:
             ${{ runner.os }}-node-
 
       # 4. Install dependencies
-      # ⚠️ Note: Using 'npm install' instead of 'npm ci' until package-lock.json exists
+      # Using 'npm install' until package-lock.json exists
       - name: Install dependencies
         run: npm install
 
@@ -70,7 +70,6 @@ jobs:
           else
             echo "TARGET=dev-hosting" >> $GITHUB_ENV
             echo "DEPLOY_URL=https://your-dev-domain.web.app" >> $GITHUB_ENV
-          fi
 
       # 9. Build frontend
       - name: Build Frontend
@@ -113,7 +112,6 @@ jobs:
 
           if [ "$DEPLOY_STATUS" = "failure" ] && [ -n "$PREV_RELEASE" ]; then
             firebase hosting:rollback --version "$PREV_RELEASE" --project sadak-sathi-3ab73
-          fi
 
       # 13. Slack Notification with rollback info
       - name: Slack Notification
