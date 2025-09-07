@@ -5,10 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="copyright" content="Copyright (c) 2024 Your Company or Name. All Rights Reserved.">
     <title>Sadak Sathi - Your Road Companion</title>
-    <!-- Replaced Cesium with LeafletJS -->
+    <!-- 2D Map Library -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
+    <!-- Charting Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- PDF Generation Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="index.css">
@@ -41,6 +49,23 @@
                 <p id="gps-status-text" data-lang-key="gps_searching" class="hidden">GPS Status: Searching...</p>
             </div>
             <div class="header-right">
+                <!-- NEW: Notifications Bell for Admins -->
+                <div id="notifications-container" class="hidden">
+                    <button id="notifications-btn" class="icon-button" title="Notifications">
+                        <span class="material-icons">notifications</span>
+                        <span id="notifications-badge" class="badge hidden"></span>
+                    </button>
+                    <div id="notifications-panel" class="hidden">
+                        <div class="panel-header" style="padding: 0.75rem 1rem;">
+                            <h4>Notifications</h4>
+                        </div>
+                        <ul id="notifications-list">
+                           <!-- Notifications will be injected here -->
+                           <p class="no-notifications">No new notifications.</p>
+                        </ul>
+                    </div>
+                </div>
+
                 <button id="live-cam-btn" class="icon-button" title="Live Cam">
                     <span class="material-icons">videocam</span>
                 </button>
@@ -133,6 +158,23 @@
                             <div class="layer-toggle">
                                 <label for="toggle-traffic" data-lang-key="traffic">Live Traffic</label>
                                 <input type="checkbox" id="toggle-traffic" class="toggle-switch">
+                            </div>
+                        </div>
+                        <hr>
+                        <!-- NEW: POI Filters Section -->
+                        <div class="map-options-section">
+                            <h4>POI Filters</h4>
+                            <div class="poi-filter-toggle">
+                                <label for="filter-poi-heritage">Heritage</label>
+                                <input type="checkbox" id="filter-poi-heritage" class="toggle-switch" data-poi-type="heritage" checked>
+                            </div>
+                             <div class="poi-filter-toggle">
+                                <label for="filter-poi-park">Parks</label>
+                                <input type="checkbox" id="filter-poi-park" class="toggle-switch" data-poi-type="park" checked>
+                            </div>
+                             <div class="poi-filter-toggle">
+                                <label for="filter-poi-food">Food</label>
+                                <input type="checkbox" id="filter-poi-food" class="toggle-switch" data-poi-type="food" checked>
                             </div>
                         </div>
                         <hr>
@@ -345,6 +387,14 @@
                     <span class="stat-value" id="route-overall-status">--</span>
                 </div>
             </div>
+            <!-- NEW: AI Summary Section -->
+            <div id="route-ai-summary-container" class="hidden">
+                <div class="ai-summary-header">
+                   <span class="material-icons">auto_awesome</span>
+                   <h4>AI Route Summary</h4>
+               </div>
+               <p id="route-ai-summary"></p>
+           </div>
             <!-- NEW: Alternative Routes Container -->
             <div id="route-alternatives-container" class="hidden">
                 <h4>Alternative Routes</h4>
@@ -358,10 +408,10 @@
             </div>
             <div class="directions-container">
                  <h3 id="route-directions-title" data-lang-key="route_details_directions">Directions</h3>
-                 <div id="route-directions-list"></div>
+                 <div id="route-directions-list" class="directions-list"></div>
             </div>
             <div class="route-details-actions">
-                 <button id="share-route-btn" class="secondary-btn icon-only" data-lang-key-aria-label="share_route"><span class="material-icons">share</span></button>
+                 <button id="share-route-btn" class="secondary-btn icon-only" data-lang-key-aria-label="share_route" title="Share route"><span class="material-icons">share</span></button>
                  <button id="view-gmaps-btn" class="secondary-btn icon-only" data-lang-key-aria-label="view_on_gmaps"><span class="material-icons">map</span></button>
                  <button id="start-navigation-btn" class="primary-btn">
                     <span class="material-icons">navigation</span>
@@ -374,7 +424,7 @@
         <aside id="settings-panel">
             <div class="panel-header">
                 <h2 data-lang-key="app_settings">App Settings</h2>
-                <button class="icon-button" onclick="document.getElementById('settings-panel').classList.remove('open')" data-lang-key-aria-label="close">
+                <button class="icon-button" data-lang-key-aria-label="close">
                     <span class="material-icons">close</span>
                 </button>
             </div>
@@ -423,6 +473,18 @@
                         <input type="checkbox" id="toggle-voice-response" class="toggle-switch" checked>
                     </div>
                  </div>
+                 <!-- NEW: Offline Maps Section -->
+                 <div class="settings-section">
+                    <h3 data-lang-key="offline_maps_title">Offline Maps</h3>
+                    <p class="setting-description" style="margin-top: -0.75rem; margin-bottom: 1rem;" data-lang-key="offline_maps_desc">Download map areas for use without an internet connection.</p>
+                    <ul id="offline-regions-list">
+                        <!-- Downloaded regions will be listed here -->
+                    </ul>
+                    <button id="add-offline-region-btn" class="primary-btn" style="width: 100%;">
+                        <span class="material-icons">add</span>
+                        <span data-lang-key="download_new_area">Download New Area</span>
+                    </button>
+                 </div>
             </div>
         </aside>
 
@@ -442,16 +504,8 @@
                 <div class="chat-messages">
                     <!-- Messages will be added here -->
                 </div>
-                 <div id="language-switch-proposal" class="hidden">
-                    <p id="language-proposal-text"></p>
-                    <div class="proposal-actions">
-                        <button id="confirm-lang-switch" class="proposal-btn">Yes</button>
-                        <button id="decline-lang-switch" class="proposal-btn">No</button>
-                    </div>
-                </div>
                 <div class="typing-indicator hidden"><span></span><span></span><span></span></div>
                 <div class="chat-input-area">
-                     <button id="context-chat-btn" class="hidden" data-lang-key="ask_about_location">Ask about this location</button>
                     <form id="chat-form">
                         <button type="button" id="voice-command-btn" class="icon-button" data-lang-key-aria-label="use_microphone" title="Use Microphone">
                             <span class="material-icons">mic</span>
@@ -465,6 +519,121 @@
             </div>
         </div>
         
+        <!-- NEW: Offline Maps Modal -->
+        <div id="offline-maps-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <div class="panel-header" style="padding: 0 0 1.5rem 0;">
+                    <h3 data-lang-key="download_offline_map_title">Download Offline Map</h3>
+                    <button id="offline-maps-close-btn" class="modal-close-btn icon-button"><span class="material-icons">close</span></button>
+                </div>
+                <ul id="download-region-options">
+                    <li data-region="kathmandu">
+                        <div class="region-info">
+                            <strong data-lang-key="kathmandu_valley">Kathmandu Valley</strong>
+                            <span data-lang-key="kathmandu_valley_desc">Capital city, heritage sites, and surrounding hills.</span>
+                        </div>
+                        <div class="region-actions">
+                            <span class="region-size">~52 MB</span>
+                            <button class="secondary-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
+                            <div class="download-progress-container hidden">
+                                <progress value="0" max="100"></progress>
+                                <span>0%</span>
+                            </div>
+                        </div>
+                    </li>
+                    <li data-region="pokhara">
+                        <div class="region-info">
+                            <strong data-lang-key="pokhara">Pokhara</strong>
+                            <span data-lang-key="pokhara_desc">Annapurna gateway, lakes, and city.</span>
+                        </div>
+                        <div class="region-actions">
+                            <span class="region-size">~45 MB</span>
+                            <button class="secondary-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
+                            <div class="download-progress-container hidden">
+                                <progress value="0" max="100"></progress>
+                                <span>0%</span>
+                            </div>
+                        </div>
+                    </li>
+                    <li data-region="chitwan">
+                        <div class="region-info">
+                            <strong data-lang-key="chitwan">Chitwan National Park</strong>
+                            <span data-lang-key="chitwan_desc">Wildlife, jungles, and the Terai plains.</span>
+                        </div>
+                        <div class="region-actions">
+                            <span class="region-size">~38 MB</span>
+                            <button class="secondary-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
+                             <div class="download-progress-container hidden">
+                                <progress value="0" max="100"></progress>
+                                <span>0%</span>
+                            </div>
+                        </div>
+                    </li>
+                    <li data-region="lumbini">
+                        <div class="region-info">
+                            <strong data-lang-key="lumbini">Lumbini</strong>
+                            <span data-lang-key="lumbini_desc">Birthplace of Lord Buddha and monasteries.</span>
+                        </div>
+                        <div class="region-actions">
+                            <span class="region-size">~25 MB</span>
+                            <button class="secondary-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
+                             <div class="download-progress-container hidden">
+                                <progress value="0" max="100"></progress>
+                                <span>0%</span>
+                            </div>
+                        </div>
+                    </li>
+                     <li data-region="everest">
+                        <div class="region-info">
+                            <strong data-lang-key="everest_region">Everest Region</strong>
+                            <span data-lang-key="everest_region_desc">Sagarmatha National Park and high Himalayas.</span>
+                        </div>
+                        <div class="region-actions">
+                            <span class="region-size">~60 MB</span>
+                            <button class="secondary-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
+                             <div class="download-progress-container hidden">
+                                <progress value="0" max="100"></progress>
+                                <span>0%</span>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- NEW: Share Route Modal -->
+        <div id="share-route-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <div class="panel-header" style="padding: 0 0 1.5rem 0;">
+                    <h3 data-lang-key="share_route_title">Share Route</h3>
+                    <button id="share-route-close-btn" class="modal-close-btn icon-button"><span class="material-icons">close</span></button>
+                </div>
+                <div class="share-content">
+                    <label for="share-route-link">Share this link with others:</label>
+                    <div class="share-link-wrapper">
+                        <input type="text" id="share-route-link" readonly>
+                        <button id="copy-share-link-btn" class="primary-btn">
+                            <span class="material-icons">content_copy</span>
+                            <span data-lang-key="copy_link">Copy Link</span>
+                        </button>
+                    </div>
+                    <div class="share-options">
+                        <a id="share-email-btn" href="#" target="_blank" class="share-option-btn">
+                            <span class="material-icons">email</span> <span data-lang-key="share_via_email">Email</span>
+                        </a>
+                        <a id="share-x-btn" href="#" target="_blank" class="share-option-btn">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                             <span data-lang-key="share_on_x">X</span>
+                        </a>
+                        <a id="share-facebook-btn" href="#" target="_blank" class="share-option-btn">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.04c-5.5 0-10 4.49-10 10.02 0 5 3.66 9.15 8.44 9.9v-7.02H7.97v-2.89H10.4v-2.16c0-2.42 1.44-3.76 3.67-3.76 1.05 0 2.15.19 2.15.19v2.47h-1.26c-1.18 0-1.55.71-1.55 1.48v1.8h2.77l-.44 2.89h-2.33v7.02c4.77-.75 8.44-4.9 8.44-9.9C22 6.53 17.5 2.04 12 2.04z"/></svg>
+                            <span data-lang-key="share_on_facebook">Facebook</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="route-options-modal" class="modal-overlay hidden">
             <div class="modal-content">
                 <h3 data-lang-key="route_options_title">Route Options</h3>
@@ -538,10 +707,14 @@
                              <span class="material-icons">settings</span>
                              <span data-lang-key="app_settings">App Settings</span>
                          </button>
-                         <button id="admin-panel-btn" class="secondary-btn hidden">
+                         <button id="admin-dashboard-btn" class="secondary-btn hidden">
                              <span class="material-icons">admin_panel_settings</span>
-                             <span>Admin Panel</span>
+                             <span>Admin Dashboard</span>
                          </button>
+                         <button id="superadmin-settings-btn" class="secondary-btn hidden">
+                            <span class="material-icons">manage_accounts</span>
+                            <span>Superadmin Settings</span>
+                        </button>
                          <button id="logout-btn" class="danger-btn">
                              <span class="material-icons">logout</span>
                              <span>Log Out</span>
@@ -551,47 +724,79 @@
             </div>
         </div>
         
-        <!-- NEW: Admin Panel Modal -->
-        <div id="admin-panel-modal" class="modal-overlay hidden">
-            <div class="modal-content admin-panel">
+        <!-- NEW: Admin Dashboard Modal -->
+        <div id="admin-dashboard-modal" class="modal-overlay hidden">
+            <div class="modal-content admin-panel"> <!-- Re-use admin-panel for large modal style -->
                 <div class="panel-header">
-                    <h2>Admin Data Viewer</h2>
-                    <button id="admin-panel-close-btn" class="icon-button"><span class="material-icons">close</span></button>
+                    <h2>Admin Dashboard</h2>
+                    <button id="admin-dashboard-close-btn" class="icon-button"><span class="material-icons">close</span></button>
                 </div>
                 <div class="admin-panel-body">
                     <div class="admin-tabs">
-                        <button class="admin-tab-btn active" data-collection="Road">Roads</button>
-                        <button class="admin-tab-btn" data-collection="Bridge">Bridges</button>
-                        <button class="admin-tab-btn" data-collection="Toll">Tolls</button>
-                        <button class="admin-tab-btn" data-collection="UserReported">User Reports</button>
+                        <button class="admin-tab-btn active" data-tab="pending">Pending Reports <span id="pending-reports-badge" class="badge hidden"></span></button>
+                        <button class="admin-tab-btn" data-tab="jurisdiction">My Jurisdiction</button>
                     </div>
-                    <div id="admin-controls-container">
-                        <!-- Controls will be rendered here by JS -->
+                    <div class="admin-tab-content active" data-tab-content="pending">
+                        <div id="pending-reports-list" class="report-list-container">
+                             <!-- Pending reports will be rendered here -->
+                        </div>
                     </div>
-                    <div id="admin-table-container">
-                        <!-- Table will be rendered here by JS -->
-                        <div class="spinner-container"><div class="spinner"></div></div>
+                    <div class="admin-tab-content" data-tab-content="jurisdiction">
+                        <div id="jurisdiction-reports-list" class="report-list-container">
+                            <!-- Jurisdiction reports will be rendered here -->
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- NEW: Admin Edit/Add Form Modal -->
+        <!-- NEW: Admin Approve/Relay Form Modal -->
         <div id="admin-form-modal" class="modal-overlay hidden">
-            <div class="modal-content">
+            <div class="modal-content admin-form-modal-content">
                  <div class="panel-header" style="padding: 0 0 1.5rem 0;">
-                    <h3 id="admin-form-title">Edit Record</h3>
+                    <h3 id="admin-form-title">Review Incident Report</h3>
                     <button id="admin-form-close-btn" class="modal-close-btn icon-button"><span class="material-icons">close</span></button>
                 </div>
                 <form id="admin-edit-form">
-                    <div id="admin-form-fields" class="admin-form-fields-grid">
-                        <!-- Form fields will be dynamically generated here -->
+                    <div class="admin-form-columns">
+                        <div id="admin-form-fields" class="admin-form-fields-grid">
+                            <!-- Form fields will be dynamically generated here -->
+                        </div>
+                        <div class="admin-form-map-container">
+                            <label>Pin Location</label>
+                            <div id="admin-form-map"></div>
+                        </div>
+                    </div>
+                    <!-- NEW: AI Assistant Bar -->
+                    <div id="admin-form-ai-assistant">
+                        <button type="button" id="admin-form-mic-btn" class="icon-button" title="Use Voice Commands">
+                            <span class="material-icons">mic</span>
+                        </button>
+                        <p id="admin-form-ai-status">AI Assistant ready. Say "Fill description..." or "Pin location".</p>
                     </div>
                     <div class="form-actions">
                          <button type="button" id="admin-form-cancel-btn" class="secondary-btn">Cancel</button>
-                         <button type="submit" class="primary-btn">Save Changes</button>
+                         <button type="submit" class="primary-btn">Approve & Post Incident</button>
                     </div>
                 </form>
+            </div>
+        </div>
+        
+        <!-- NEW: Admin Relay Modal -->
+        <div id="admin-relay-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <h3 id="admin-relay-title">Relay Incident</h3>
+                <p>Forward this report to the correct jurisdiction.</p>
+                <div class="setting-item-col">
+                    <label for="relay-jurisdiction-select">Select Jurisdiction</label>
+                    <select id="relay-jurisdiction-select">
+                        <!-- Options will be populated here -->
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button id="admin-relay-cancel-btn" class="secondary-btn">Cancel</button>
+                    <button id="admin-relay-confirm-btn" class="primary-btn">Confirm & Relay</button>
+                </div>
             </div>
         </div>
 
@@ -603,61 +808,51 @@
                         <span class="material-icons">close</span>
                     </button>
                 </div>
-                <div id="report-incident-content">
-                    <div id="report-location-unavailable" class="hidden">
-                        <p data-lang-key="report_location_unavailable">Your current location is not available. Please enable GPS to report an incident.</p>
-                    </div>
-                    <form id="report-incident-form">
-                        <div class="setting-item-col" style="margin-bottom: 1rem;">
-                            <label for="incident-location" data-lang-key="location">Location</label>
-                            <div class="input-wrapper">
-                                <span class="material-icons input-icon">my_location</span>
-                                <input type="text" id="incident-location" disabled data-lang-key-placeholder="current_location">
-                            </div>
-                        </div>
-                        <div class="setting-item-col" style="margin-bottom: 1rem;">
-                            <label for="incident-type" data-lang-key="incident_type">Type of Incident</label>
-                            <select id="incident-type" required>
-                                <option value="Accident" data-lang-key="incident_type_accident">Accident</option>
-                                <option value="Roadblock" data-lang-key="incident_type_roadblock">Roadblock</option>
-                                <option value="Construction" data-lang-key="incident_type_construction">Construction</option>
-                                <option value="Hazard" data-lang-key="incident_type_hazard">Hazard</option>
-                                <option value="Traffic Jam" data-lang-key="incident_type_traffic">Traffic Jam</option>
-                                <option value="Other" data-lang-key="incident_type_other">Other</option>
-                            </select>
-                        </div>
-                        <div class="setting-item-col" style="margin-bottom: 1rem;">
-                            <label for="incident-description" data-lang-key="description">Description (Optional)</label>
-                            <textarea id="incident-description" rows="3" data-lang-key-placeholder="incident_desc_placeholder"></textarea>
-                        </div>
-
-                        <!-- NEW: Image Refinement Section -->
-                        <div class="setting-item-col" style="margin-bottom: 1rem;">
-                            <label for="incident-image-upload">Attach Photo &amp; Refine with AI (Optional)</label>
-                            <input type="file" id="incident-image-upload" accept="image/png, image/jpeg, image/webp">
-                        </div>
-            
-                        <div id="image-refinement-area" class="hidden">
-                            <div class="image-preview-container">
-                                <img id="incident-image-preview" src="#" alt="Incident Preview">
-                                <div id="refinement-loader" class="hidden">
-                                    <div class="spinner"></div>
-                                </div>
-                            </div>
-                            <div class="setting-item-col">
-                                <label for="refinement-prompt">Refinement Prompt</label>
-                                <div class="input-wrapper">
-                                    <span class="material-icons input-icon">auto_awesome</span>
-                                    <input type="text" id="refinement-prompt" placeholder="e.g., 'circle the pothole in red'">
-                                </div>
-                            </div>
-                            <button type="button" id="refine-image-btn" class="secondary-btn" style="width: 100%; margin-top: 0.5rem;">Refine with AI</button>
-                        </div>
-                        <!-- End Image Refinement Section -->
-
-                        <button type="submit" class="primary-btn" style="width: 100%; margin-top: 1.5rem;" data-lang-key="submit_report">Submit Report</button>
-                    </form>
+                <div id="report-location-unavailable" class="hidden">
+                    <p data-lang-key="report_location_unavailable">Your current location is not available. Please enable GPS to report an incident.</p>
                 </div>
+                <form id="report-incident-form" class="hidden">
+                    <div class="setting-item-col" style="margin-bottom: 1rem;">
+                        <label for="incident-location" data-lang-key="location">Location</label>
+                        <div class="input-wrapper">
+                            <span class="material-icons input-icon">my_location</span>
+                            <input type="text" id="incident-location" disabled data-lang-key-placeholder="current_location">
+                        </div>
+                    </div>
+                    <div class="setting-item-col" style="margin-bottom: 1rem;">
+                        <label for="incident-time">Time of Report</label>
+                        <div class="input-wrapper">
+                            <span class="material-icons input-icon">schedule</span>
+                            <input type="text" id="incident-time" disabled>
+                        </div>
+                    </div>
+                    <div class="setting-item-col" style="margin-bottom: 1rem;">
+                        <label for="incident-type" data-lang-key="incident_type">Type of Incident</label>
+                        <select id="incident-type" required>
+                            <option value="Accident" data-lang-key="incident_type_accident">Accident</option>
+                            <option value="Roadblock" data-lang-key="incident_type_roadblock">Roadblock</option>
+                            <option value="Construction" data-lang-key="incident_type_construction">Construction</option>
+                            <option value="Hazard" data-lang-key="incident_type_hazard">Hazard</option>
+                            <option value="Traffic Jam" data-lang-key="incident_type_traffic">Traffic Jam</option>
+                            <option value="Flood">Flood</option>
+                            <option value="Landslide">Landslide</option>
+                            <option value="Broken Road/Bridge">Broken Road/Bridge</option>
+                            <option value="Other" data-lang-key="incident_type_other">Other</option>
+                        </select>
+                    </div>
+                    <div class="setting-item-col" style="margin-bottom: 1rem;">
+                        <label for="incident-description" data-lang-key="description">Description (Optional)</label>
+                        <textarea id="incident-description" rows="3" data-lang-key-placeholder="incident_desc_placeholder"></textarea>
+                    </div>
+                    <div class="setting-item-col">
+                        <label for="incident-photo-upload">Upload Photo (Optional)</label>
+                        <input type="file" id="incident-photo-upload" accept="image/*">
+                        <div id="incident-image-preview-container" class="image-preview-container hidden" style="margin-top: 1rem;">
+                            <img id="incident-image-preview" src="#" alt="Incident image preview">
+                        </div>
+                    </div>
+                    <button type="submit" class="primary-btn" style="width: 100%; margin-top: 1rem;" data-lang-key="submit_report">Submit Report</button>
+                </form>
             </div>
         </div>
 
@@ -730,6 +925,154 @@
             </div>
         </div>
 
+        <!-- UPDATED: Reports Modal -->
+        <div id="reports-modal" class="modal-overlay hidden">
+            <div class="modal-content admin-panel"> <!-- Re-use admin-panel for large modal style -->
+                <div class="panel-header">
+                    <h2>Archived Incident Reports</h2>
+                    <button id="reports-close-btn" class="icon-button"><span class="material-icons">close</span></button>
+                </div>
+                <div class="admin-panel-body">
+                    <!-- NEW: Main Controls Wrapper -->
+                    <div class="report-main-controls">
+                        <!-- Filters -->
+                        <div class="report-filters-container">
+                            <!-- Report Type -->
+                            <div class="report-control-group">
+                                <h4>Report Type</h4>
+                                <div class="report-type-toggles">
+                                    <button class="secondary-btn report-type-btn" data-type="snapshot">Daily Snapshot</button>
+                                    <button class="secondary-btn report-type-btn active" data-type="resumption">Resumption Log</button>
+                                </div>
+                            </div>
+                             <!-- Date Filters -->
+                            <div class="report-control-group">
+                                <h4>Date Range</h4>
+                                <div class="report-date-filters">
+                                    <button class="secondary-btn report-date-btn" data-range="today">Today</button>
+                                    <button class="secondary-btn report-date-btn" data-range="week">This Week</button>
+                                    <button class="secondary-btn report-date-btn active" data-range="month">This Month</button>
+                                    <div class="custom-date-range">
+                                        <input type="date" id="report-date-start">
+                                        <span>to</span>
+                                        <input type="date" id="report-date-end">
+                                    </div>
+                                </div>
+                            </div>
+                             <!-- Highway Filter -->
+                            <div class="report-control-group">
+                                <h4>Filter by Highway</h4>
+                                <div id="highway-filter-container">
+                                    <!-- Checkboxes will be populated here -->
+                                    <p>Loading highways...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Views and Actions -->
+                        <div class="report-views-actions-container">
+                             <!-- View Toggles -->
+                            <div class="report-control-group">
+                                <h4>View As</h4>
+                                <div class="report-view-toggles">
+                                    <button class="icon-button report-view-btn" data-view="card" title="Card View"><span class="material-icons">view_carousel</span></button>
+                                    <button class="icon-button report-view-btn active" data-view="table" title="Table View"><span class="material-icons">table_rows</span></button>
+                                    <button class="icon-button report-view-btn" data-view="chart" title="Chart View"><span class="material-icons">bar_chart</span></button>
+                                </div>
+                            </div>
+                             <!-- Actions -->
+                            <div class="report-control-group">
+                                <h4>Actions</h4>
+                                <div class="report-actions-group">
+                                    <button id="download-pdf-btn" class="secondary-btn">
+                                        <span class="material-icons">picture_as_pdf</span> PDF
+                                    </button>
+                                    <button id="print-report-btn" class="secondary-btn">
+                                        <span class="material-icons">print</span> Print
+                                    </button>
+                                    <button id="download-csv-btn" class="secondary-btn">
+                                        <span class="material-icons">download</span> CSV
+                                    </button>
+                                    <button id="share-report-btn" class="secondary-btn">
+                                        <span class="material-icons">share</span> Copy
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="report-summary">
+                        <h4 id="report-summary-text">Total Resumed Incidents: <span id="report-total-count">0</span></h4>
+                    </div>
+                    <div class="report-content">
+                        <!-- NEW: Card View Container -->
+                        <div id="report-card-container" class="hidden">
+                             <!-- Cards will be injected here -->
+                        </div>
+                        <div id="report-table-container" class="admin-table-container">
+                            <table class="admin-data-table reports-table">
+                                <thead id="reports-table-head">
+                                    <!-- Header will be injected here -->
+                                </thead>
+                                <tbody id="reports-table-body">
+                                    <!-- Data will be injected here -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="report-chart-container" class="hidden">
+                            <canvas id="reports-chart"></canvas>
+                        </div>
+                         <div id="report-no-data" class="hidden">
+                            <p>No data available for the selected period.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW: Superadmin Settings Modal -->
+        <div id="superadmin-settings-modal" class="modal-overlay hidden">
+             <div class="modal-content admin-panel">
+                <div class="panel-header">
+                    <h2>Superadmin Control Panel</h2>
+                    <button id="superadmin-settings-close-btn" class="icon-button"><span class="material-icons">close</span></button>
+                </div>
+                <div class="admin-panel-body">
+                    <div class="admin-tabs">
+                        <button class="admin-tab-btn active" data-tab="report-settings">Report Settings</button>
+                        <button class="admin-tab-btn" data-tab="system-logs">System Logs</button>
+                    </div>
+                    <div class="admin-tab-content active" data-tab-content="report-settings">
+                        <form id="superadmin-settings-form">
+                            <h4>Report Headers</h4>
+                            <div class="setting-item-col"><label>Header Line 1</label><input type="text" id="report-header-1"></div>
+                            <div class="setting-item-col"><label>Header Line 2</label><input type="text" id="report-header-2"></div>
+                            <div class="setting-item-col"><label>Header Line 3</label><input type="text" id="report-header-3"></div>
+                            <div class="setting-item-col"><label>Header Line 4</label><input type="text" id="report-header-4"></div>
+                            <hr>
+                            <h4>Report Footer</h4>
+                            <div class="setting-item-col"><label>Copyright Text</label><input type="text" id="report-copyright"></div>
+                             <hr>
+                            <h4>Permissions</h4>
+                             <div class="setting-item-col">
+                                <label>Who can generate reports?</label>
+                                <select id="report-permission-select">
+                                    <option value="admins_only">Admins & Superadmins Only</option>
+                                    <option value="logged_in_users">All Logged-in Users</option>
+                                </select>
+                            </div>
+                            <div class="form-actions" style="margin-top: 2rem;">
+                                <button type="submit" class="primary-btn">Save Settings</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="admin-tab-content" data-tab-content="system-logs">
+                        <h4>Activity Logs</h4>
+                        <textarea id="system-logs-view" readonly></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Toast Notification -->
         <div id="toast-notification" class="hidden" role="alert">
@@ -745,6 +1088,9 @@
         <!-- NEW: FAB Menu (Replaces Bottom Menu) -->
         <div id="fab-container">
             <div id="fab-menu-items" class="hidden">
+                <button id="fab-reports-btn" class="fab-menu-item" title="Reports">
+                    <span class="material-icons">summarize</span>
+                </button>
                 <button id="fab-find-car-btn" class="fab-menu-item" data-lang-key-title="find_my_car_title">
                     <span class="material-icons">directions_car</span>
                 </button>
@@ -777,6 +1123,20 @@
                 <span id="weather-temp"></span>
                 <span id="weather-desc"></span>
             </div>
+            <!-- NEW: 3-Day Forecast Container -->
+            <div id="detail-card-forecast-container" class="hidden">
+                <!-- Forecast items will be injected here by JS -->
+            </div>
+            <!-- NEW: AI Weather Advisory Section -->
+            <div id="detail-card-ai-advisory" class="hidden">
+                <div class="ai-summary-header">
+                   <span class="material-icons">auto_awesome</span>
+                   <h4>AI Weather Advisory</h4>
+               </div>
+               <div id="ai-advisory-content">
+                   <!-- Loading state and content will be injected here -->
+               </div>
+            </div>
             <div id="detail-card-content">
                 <!-- Content injected by JS -->
             </div>
@@ -784,6 +1144,10 @@
                 <!-- Action buttons injected by JS -->
             </div>
         </div>
+        
+        <!-- NEW: Hidden container for printing/PDF generation -->
+        <div id="printable-report-container" style="display: none;"></div>
+
     </div>
 
     <!-- Firebase SDKs -->

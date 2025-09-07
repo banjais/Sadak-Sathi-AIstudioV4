@@ -1,76 +1,24 @@
-# ========================
-# Node.js
-# ========================
-node_modules/
+# Logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
+yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
-# ========================
-# Firebase Functions build
-# ========================
-functions/node_modules/
-functions/lib/
-
-# ========================
-# Frontend build
-# ========================
-dist/               # ephemeral build output, safe to regenerate
+node_modules
+dist
+dist-ssr
 *.local
-*.log
 
-# ========================
-# TypeScript
-# ========================
-*.tsbuildinfo
-
-# ========================
-# Environment files
-# ========================
-.env                 # secret, do NOT commit
-.env.local
-.env.*.local
-.env.production
-.env.production.local
-.env.development
-.env.development.local
-.env.test
-.env.test.local
-.env.example         # placeholder, safe to commit
-service-account.json # Firebase service account key, keep secret
-
-# ========================
-# OS files
-# ========================
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
 .DS_Store
-Thumbs.db
-
-# ========================
-# IDE / Editor
-# ========================
-.vscode/
-.idea/
-*.sublime-workspace
-*.sublime-project
-
-# ========================
-# Firebase
-# ========================
-firebase-debug.log
-.firebase/           # Firebase cache, safe to ignore
-
-# ========================
-# GitHub Actions secrets
-# ========================
-.github/workflows/*.secret.yml  # CI secrets, keep out of repo
-
-# ========================
-# PWA / Service Worker cache
-# ========================
-/.sw-cache/
-
-# ========================
-# Permanent code folders (SAFE, DO NOT DELETE)
-# ========================
-/functions/          # Firebase backend functions
-/src/utils/          # utility files (fetchRoadStatus.ts, weather.ts, etc.)
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
