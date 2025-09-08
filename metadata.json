@@ -3,6 +3,7 @@
   "description": "An intelligent, map-based road assistant for Nepal, providing real-time road status, routing, and a personalized AI companion.",
   "requestFramePermissions": [
     "camera",
-    "microphone"
+    "microphone",
+    "geolocation"
   ]
 }

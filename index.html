@@ -43,7 +43,7 @@
             <div class="header-left">
                 <div class="app-title">
                     <h1>Sadak Sathi</h1>
-                    <p class="app-subtitle" data-lang-key="app_subtitle">Your Smart Road Companion</p>
+                    <p class="app-subtitle" data-lang-key="app_subtitle">Your Road Companion</p>
                 </div>
                 <div id="gps-status-indicator" title="GPS Status: Searching..."></div>
                 <p id="gps-status-text" data-lang-key="gps_searching" class="hidden">GPS Status: Searching...</p>
@@ -78,41 +78,40 @@
                         <span id="current-lang-label">English</span>
                         <span class="material-icons">arrow_drop_down</span>
                     </button>
+                    <!-- NEW: Rebuilt Language Popup -->
                     <div id="language-popup" class="hidden" role="menu">
-                        <div class="lang-category open">
-                            <button class="lang-category-header" aria-expanded="true">
+                        <div class="lang-tabs">
+                            <button class="lang-tab-btn active" data-tab="national" title="National Languages">
+                                <span class="lang-tab-icon">🇳🇵</span>
                                 <span data-lang-key="lang_cat_national">National</span>
-                                <span class="material-icons expand-icon">expand_more</span>
                             </button>
-                            <div class="lang-options-list">
-                                <button class="lang-option" role="menuitem" data-lang="np">🇳🇵 Nepali</button>
-                                <button class="lang-option" role="menuitem" data-lang="new">🇳🇵 Newar</button>
-                                <button class="lang-option" role="menuitem" data-lang="mth">🇳🇵 Maithili</button>
-                                <button class="lang-option" role="menuitem" data-lang="bjp">🇳🇵 Bhojpuri</button>
-                                <button class="lang-option" role="menuitem" data-lang="th">🇳🇵 Tharu</button>
-                                <button class="lang-option" role="menuitem" data-lang="tm">🇳🇵 Tamang</button>
-                                <button class="lang-option" role="menuitem" data-lang="mg">🇳🇵 Magar</button>
-                                <button class="lang-option" role="menuitem" data-lang="dot">🇳🇵 Doteli</button>
-                            </div>
-                        </div>
-                        <div class="lang-category">
-                            <button class="lang-category-header" aria-expanded="false">
+                            <button class="lang-tab-btn" data-tab="international" title="International Languages">
+                                <span class="lang-tab-icon material-icons">language</span>
                                 <span data-lang-key="lang_cat_international">International</span>
-                                <span class="material-icons expand-icon">chevron_right</span>
                             </button>
-                            <div class="lang-options-list">
-                                <button class="lang-option active" role="menuitem" data-lang="en">🇬🇧 English</button>
-                                <button class="lang-option" role="menuitem" data-lang="es">🇪🇸 Spanish</button>
-                                <button class="lang-option" role="menuitem" data-lang="fr">🇫🇷 French</button>
-                                <button class="lang-option" role="menuitem" data-lang="de">🇩🇪 German</button>
-                                <button class="lang-option" role="menuitem" data-lang="it">🇮🇹 Italian</button>
-                                <button class="lang-option" role="menuitem" data-lang="zh">🇨🇳 Chinese</button>
-                                <button class="lang-option" role="menuitem" data-lang="ja">🇯🇵 Japanese</button>
-                                <button class="lang-option" role="menuitem" data-lang="ko">🇰🇷 Korean</button>
-                                <button class="lang-option" role="menuitem" data-lang="ar">🇸🇦 Arabic</button>
-                                <button class="lang-option" role="menuitem" data-lang="ru">🇷🇺 Russian</button>
-                                <button class="lang-option" role="menuitem" data-lang="hi">🇮🇳 Hindi</button>
-                            </div>
+                        </div>
+                        <div id="lang-panel-national" class="lang-panel active">
+                            <button class="lang-option" role="menuitem" data-lang="np">Nepali</button>
+                            <button class="lang-option" role="menuitem" data-lang="new">Newar</button>
+                            <button class="lang-option" role="menuitem" data-lang="mth">Maithili</button>
+                            <button class="lang-option" role="menuitem" data-lang="bjp">Bhojpuri</button>
+                            <button class="lang-option" role="menuitem" data-lang="th">Tharu</button>
+                            <button class="lang-option" role="menuitem" data-lang="tm">Tamang</button>
+                            <button class="lang-option" role="menuitem" data-lang="mg">Magar</button>
+                            <button class="lang-option" role="menuitem" data-lang="dot">Doteli</button>
+                        </div>
+                        <div id="lang-panel-international" class="lang-panel">
+                            <button class="lang-option active" role="menuitem" data-lang="en">English</button>
+                            <button class="lang-option" role="menuitem" data-lang="es">Spanish</button>
+                            <button class="lang-option" role="menuitem" data-lang="fr">French</button>
+                            <button class="lang-option" role="menuitem" data-lang="de">German</button>
+                            <button class="lang-option" role="menuitem" data-lang="it">Italian</button>
+                            <button class="lang-option" role="menuitem" data-lang="zh">Chinese</button>
+                            <button class="lang-option" role="menuitem" data-lang="ja">Japanese</button>
+                            <button class="lang-option" role="menuitem" data-lang="ko">Korean</button>
+                            <button class="lang-option" role="menuitem" data-lang="ar">Arabic</button>
+                            <button class="lang-option" role="menuitem" data-lang="ru">Russian</button>
+                            <button class="lang-option" role="menuitem" data-lang="hi">Hindi</button>
                         </div>
                     </div>
                 </div>
@@ -137,6 +136,8 @@
                 <button id="zoom-in-btn" class="map-control-button" title="Zoom In"><span class="material-icons">add</span></button>
                 <button id="zoom-out-btn" class="map-control-button" title="Zoom Out"><span class="material-icons">remove</span></button>
                 <button id="center-location-btn" class="map-control-button" data-lang-key-title="center_location"><span class="material-icons">my_location</span></button>
+                <button id="toggle-heading-up-btn" class="map-control-button" title="Toggle Heading Up View"><span class="material-icons">explore</span></button>
+                <button id="measure-distance-btn" class="map-control-button" title="Measure Distance"><span class="material-icons">straighten</span></button>
                 <button id="travel-time-btn" class="map-control-button" title="Travel Time Map"><span class="material-icons">timer</span></button>
                 <div id="map-options-selector">
                     <button id="map-options-btn" class="map-control-button" title="Map Options"><span class="material-icons">layers</span></button>
@@ -146,6 +147,21 @@
                             <div class="layer-toggle">
                                 <label for="toggle-roads" data-lang-key="roads">Roads</label>
                                 <input type="checkbox" id="toggle-roads" class="toggle-switch" checked>
+                            </div>
+                            <!-- NEW: Road Hierarchy Filters -->
+                            <div id="road-filters-container">
+                                <div class="road-filter-toggle">
+                                    <label for="filter-road-highways">National Highways</label>
+                                    <input type="checkbox" id="filter-road-highways" class="toggle-switch" data-road-category="national_highway" checked>
+                                </div>
+                                <div class="road-filter-toggle">
+                                    <label for="filter-road-major">Major Roads</label>
+                                    <input type="checkbox" id="filter-road-major" class="toggle-switch" data-road-category="major_road" checked>
+                                </div>
+                                <div class="road-filter-toggle">
+                                    <label for="filter-road-local">Local Roads</label>
+                                    <input type="checkbox" id="filter-road-local" class="toggle-switch" data-road-category="local_road" checked>
+                                </div>
                             </div>
                             <div class="layer-toggle">
                                 <label for="toggle-pois" data-lang-key="pois">Points of Interest</label>
@@ -168,11 +184,23 @@
                                 <label for="filter-poi-heritage">Heritage</label>
                                 <input type="checkbox" id="filter-poi-heritage" class="toggle-switch" data-poi-type="heritage" checked>
                             </div>
-                             <div class="poi-filter-toggle">
+                            <div class="poi-filter-toggle">
+                                <label for="filter-poi-historical">Historical</label>
+                                <input type="checkbox" id="filter-poi-historical" class="toggle-switch" data-poi-type="historical_site" checked>
+                            </div>
+                            <div class="poi-filter-toggle">
+                                <label for="filter-poi-religious">Religious</label>
+                                <input type="checkbox" id="filter-poi-religious" class="toggle-switch" data-poi-type="religious_site" checked>
+                            </div>
+                            <div class="poi-filter-toggle">
+                                <label for="filter-poi-natural">Nature</label>
+                                <input type="checkbox" id="filter-poi-natural" class="toggle-switch" data-poi-type="natural_attraction" checked>
+                            </div>
+                            <div class="poi-filter-toggle">
                                 <label for="filter-poi-park">Parks</label>
                                 <input type="checkbox" id="filter-poi-park" class="toggle-switch" data-poi-type="park" checked>
                             </div>
-                             <div class="poi-filter-toggle">
+                            <div class="poi-filter-toggle">
                                 <label for="filter-poi-food">Food</label>
                                 <input type="checkbox" id="filter-poi-food" class="toggle-switch" data-poi-type="food" checked>
                             </div>
@@ -251,11 +279,19 @@
                         <label for="route-pref-scenic" data-lang-key="prefer_scenic_route">Prefer Scenic</label>
                         <input type="checkbox" id="route-pref-scenic" class="toggle-switch">
                     </div>
+                    <button id="open-route-prefs-btn" class="secondary-btn small-btn">Customize</button>
                 </div>
                  <div class="route-actions">
                     <button id="find-route-btn" class="primary-btn"><span class="material-icons">directions</span></button>
                     <button id="clear-route-btn" class="secondary-btn"><span class="material-icons">close</span></button>
                 </div>
+            </div>
+            <!-- NEW: Distance Measurement Display -->
+            <div id="distance-measurement-display" class="hidden">
+                <span>Total Distance: <strong id="distance-value">0.00 km</strong></span>
+                <button id="distance-clear-btn" class="icon-button" title="Clear Measurement">
+                    <span class="material-icons">close</span>
+                </button>
             </div>
         </div>
         
@@ -316,6 +352,18 @@
                 <li><span class="legend-color" style="background-color: rgba(230, 126, 34, 0.5);"></span>45 min</li>
                 <li><span class="legend-color" style="background-color: rgba(231, 76, 60, 0.5);"></span>60 min</li>
             </ul>
+        </div>
+
+        <!-- NEW: Driver HUD -->
+        <div id="driver-hud">
+            <div id="speedometer" class="hud-widget">
+                <span id="speed-value">--</span>
+                <span class="hud-label">km/h</span>
+            </div>
+            <div id="compass" class="hud-widget">
+                <div id="compass-needle"></div>
+                <span class="hud-label">N</span>
+            </div>
         </div>
 
 
@@ -419,6 +467,46 @@
                 </button>
             </div>
         </div>
+
+        <!-- Detail Card (for POIs, incidents, etc.) -->
+        <aside id="detail-card">
+            <div class="panel-header">
+                <h2 id="detail-card-title"></h2>
+                <button id="detail-card-close" class="icon-button" data-lang-key-aria-label="close">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="detail-card-content-wrapper">
+                <div id="detail-card-content">
+                    <!-- Main content injected by JS -->
+                </div>
+        
+                <!-- Weather Sections -->
+                <div id="detail-card-weather" class="hidden">
+                    <span id="weather-icon" class="material-icons">cloud</span>
+                    <div class="weather-info">
+                        <span id="weather-temp">--°C</span>
+                        <span id="weather-desc">--</span>
+                    </div>
+                </div>
+                <div id="detail-card-forecast-container" class="hidden">
+                    <!-- 3-day forecast injected by JS -->
+                </div>
+                <div id="detail-card-ai-advisory" class="hidden">
+                    <div class="ai-summary-header">
+                       <span class="material-icons">auto_awesome</span>
+                       <h4>AI Weather Advisory</h4>
+                   </div>
+                   <div id="ai-advisory-content">
+                       <!-- AI insight injected here -->
+                   </div>
+                </div>
+            </div>
+            <div id="detail-card-actions">
+                <button class="primary-btn" id="directions-to-here-btn" data-lang-key="directions_to_here"><span class="material-icons">directions</span>Directions to here</button>
+                <button class="secondary-btn" id="tell-me-more-btn" data-lang-key="tell_me_about_this_place"><span class="material-icons">chat</span>Tell me more</button>
+            </div>
+        </aside>
         
         <!-- Settings Panel (Off-canvas) -->
         <aside id="settings-panel">
@@ -533,12 +621,10 @@
                             <span data-lang-key="kathmandu_valley_desc">Capital city, heritage sites, and surrounding hills.</span>
                         </div>
                         <div class="region-actions">
-                            <span class="region-size">~52 MB</span>
-                            <button class="secondary-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
-                            <div class="download-progress-container hidden">
-                                <progress value="0" max="100"></progress>
-                                <span>0%</span>
-                            </div>
+                            <span class="region-size"></span>
+                            <span class="status-text"></span>
+                            <button class="secondary-btn small-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
+                            <button class="icon-button danger-btn delete-btn hidden" title="Delete map"><span class="material-icons">delete</span></button>
                         </div>
                     </li>
                     <li data-region="pokhara">
@@ -547,12 +633,10 @@
                             <span data-lang-key="pokhara_desc">Annapurna gateway, lakes, and city.</span>
                         </div>
                         <div class="region-actions">
-                            <span class="region-size">~45 MB</span>
-                            <button class="secondary-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
-                            <div class="download-progress-container hidden">
-                                <progress value="0" max="100"></progress>
-                                <span>0%</span>
-                            </div>
+                            <span class="region-size"></span>
+                             <span class="status-text"></span>
+                            <button class="secondary-btn small-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
+                            <button class="icon-button danger-btn delete-btn hidden" title="Delete map"><span class="material-icons">delete</span></button>
                         </div>
                     </li>
                     <li data-region="chitwan">
@@ -561,12 +645,10 @@
                             <span data-lang-key="chitwan_desc">Wildlife, jungles, and the Terai plains.</span>
                         </div>
                         <div class="region-actions">
-                            <span class="region-size">~38 MB</span>
-                            <button class="secondary-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
-                             <div class="download-progress-container hidden">
-                                <progress value="0" max="100"></progress>
-                                <span>0%</span>
-                            </div>
+                            <span class="region-size"></span>
+                             <span class="status-text"></span>
+                            <button class="secondary-btn small-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
+                            <button class="icon-button danger-btn delete-btn hidden" title="Delete map"><span class="material-icons">delete</span></button>
                         </div>
                     </li>
                     <li data-region="lumbini">
@@ -575,12 +657,10 @@
                             <span data-lang-key="lumbini_desc">Birthplace of Lord Buddha and monasteries.</span>
                         </div>
                         <div class="region-actions">
-                            <span class="region-size">~25 MB</span>
-                            <button class="secondary-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
-                             <div class="download-progress-container hidden">
-                                <progress value="0" max="100"></progress>
-                                <span>0%</span>
-                            </div>
+                            <span class="region-size"></span>
+                             <span class="status-text"></span>
+                            <button class="secondary-btn small-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
+                            <button class="icon-button danger-btn delete-btn hidden" title="Delete map"><span class="material-icons">delete</span></button>
                         </div>
                     </li>
                      <li data-region="everest">
@@ -589,12 +669,10 @@
                             <span data-lang-key="everest_region_desc">Sagarmatha National Park and high Himalayas.</span>
                         </div>
                         <div class="region-actions">
-                            <span class="region-size">~60 MB</span>
-                            <button class="secondary-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
-                             <div class="download-progress-container hidden">
-                                <progress value="0" max="100"></progress>
-                                <span>0%</span>
-                            </div>
+                            <span class="region-size"></span>
+                            <span class="status-text"></span>
+                            <button class="secondary-btn small-btn download-btn"><span class="material-icons">download</span> <span data-lang-key="download">Download</span></button>
+                            <button class="icon-button danger-btn delete-btn hidden" title="Delete map"><span class="material-icons">delete</span></button>
                         </div>
                     </li>
                 </ul>
@@ -664,6 +742,57 @@
                         <span data-lang-key="mode_connect">Connect</span>
                     </button>
                  </div>
+            </div>
+        </div>
+
+        <!-- NEW: Route Preferences Modal -->
+        <div id="route-preferences-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <div class="panel-header" style="padding: 0 0 1.5rem 0;">
+                    <h3>Route Preferences</h3>
+                    <button id="route-prefs-close-btn" class="modal-close-btn icon-button"><span class="material-icons">close</span></button>
+                </div>
+                <div class="route-prefs-list">
+                    <div class="route-prefs-item">
+                        <div class="route-prefs-info">
+                            <label for="modal-pref-highways">Prefer Highways</label>
+                            <p class="setting-description">Prioritizes major roads and highways for faster travel times.</p>
+                        </div>
+                        <input type="checkbox" id="modal-pref-highways" class="toggle-switch">
+                    </div>
+                    <div class="route-prefs-item">
+                        <div class="route-prefs-info">
+                            <label for="modal-pref-no-tolls">Avoid Tolls</label>
+                            <p class="setting-description">Finds routes that do not require toll payments.</p>
+                        </div>
+                        <input type="checkbox" id="modal-pref-no-tolls" class="toggle-switch">
+                    </div>
+                    <div class="route-prefs-item">
+                        <div class="route-prefs-info">
+                            <label for="modal-pref-scenic">Prefer Scenic Route</label>
+                            <p class="setting-description">Highlights routes with better scenery, which may take longer.</p>
+                        </div>
+                        <input type="checkbox" id="modal-pref-scenic" class="toggle-switch">
+                    </div>
+                    <div class="route-prefs-item">
+                        <div class="route-prefs-info">
+                            <label for="modal-pref-less-crowded">Find Less Crowded Roads</label>
+                            <p class="setting-description">Attempts to find routes that avoid heavy traffic and congestion.</p>
+                        </div>
+                        <input type="checkbox" id="modal-pref-less-crowded" class="toggle-switch">
+                    </div>
+                    <div class="route-prefs-item">
+                        <div class="route-prefs-info">
+                            <label for="modal-pref-avoid-unpaved">Avoid Unpaved Roads</label>
+                            <p class="setting-description">Generates routes that stick to paved roads where possible.</p>
+                        </div>
+                        <input type="checkbox" id="modal-pref-avoid-unpaved" class="toggle-switch">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button id="route-prefs-cancel-btn" class="secondary-btn">Cancel</button>
+                    <button id="route-prefs-save-btn" class="primary-btn">Save & Reroute</button>
+                </div>
             </div>
         </div>
 
@@ -889,12 +1018,24 @@
             </div>
         </div>
 
-        <!-- NEW: Permission Help Modal -->
+        <!-- NEW: Pre-Permission Modal -->
+        <div id="pre-permission-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                 <h3 id="pre-permission-title">Feature Requires Permission</h3>
+                 <p id="pre-permission-text">To use this feature, Sadak Sathi needs your permission. The browser will ask you to confirm next.</p>
+                 <div class="form-actions">
+                    <button id="pre-permission-deny-btn" class="secondary-btn">Not Now</button>
+                    <button id="pre-permission-grant-btn" class="primary-btn">Continue</button>
+                 </div>
+            </div>
+        </div>
+
+        <!-- UPDATED: Permission Help Modal -->
         <div id="permission-help-modal" class="modal-overlay hidden">
             <div class="modal-content">
                 <button id="permission-modal-close-btn" class="modal-close-btn icon-button" data-lang-key-aria-label="close"><span class="material-icons">close</span></button>
-                <h3>Microphone Access Denied</h3>
-                <p>To use voice commands, you need to allow microphone access in your browser's address bar.</p>
+                <h3 id="permission-help-title">Permission Blocked</h3>
+                <p id="permission-help-text">To use this feature, you need to allow access in your browser's address bar settings.</p>
                 <div class="permission-animation">
                     <svg viewBox="0 0 300 80" class="permission-svg">
                         <!-- Address Bar -->
@@ -1005,22 +1146,39 @@
                         <h4 id="report-summary-text">Total Resumed Incidents: <span id="report-total-count">0</span></h4>
                     </div>
                     <div class="report-content">
-                        <!-- NEW: Card View Container -->
-                        <div id="report-card-container" class="hidden">
-                             <!-- Cards will be injected here -->
+                        <div id="report-chart-view" class="hidden">
+                            <canvas id="reports-chart"></canvas>
                         </div>
-                        <div id="report-table-container" class="admin-table-container">
+                        <div id="report-table-view">
                             <table class="admin-data-table reports-table">
-                                <thead id="reports-table-head">
-                                    <!-- Header will be injected here -->
+                                <thead>
+                                    <tr>
+                                        <th>Highway</th>
+                                        <th>Incident Type</th>
+                                        <th>Start Date</th>
+                                        <th>End Date</th>
+                                        <th>Jurisdiction</th>
+                                    </tr>
                                 </thead>
-                                <tbody id="reports-table-body">
+                                <tbody>
                                     <!-- Data will be injected here -->
                                 </tbody>
                             </table>
                         </div>
-                        <div id="report-chart-container" class="hidden">
-                            <canvas id="reports-chart"></canvas>
+                        <!-- NEW: Added Card View structure -->
+                        <div id="report-card-view" class="hidden">
+                            <div id="report-card-container">
+                                 <!-- Card will be injected here -->
+                            </div>
+                            <div id="report-card-navigation">
+                                <button id="report-card-prev" class="icon-button" title="Previous Incident">
+                                    <span class="material-icons">arrow_back_ios</span>
+                                </button>
+                                <span id="report-card-counter">0 / 0</span>
+                                <button id="report-card-next" class="icon-button" title="Next Incident">
+                                    <span class="material-icons">arrow_forward_ios</span>
+                                </button>
+                            </div>
                         </div>
                          <div id="report-no-data" class="hidden">
                             <p>No data available for the selected period.</p>
@@ -1042,150 +1200,91 @@
                         <button class="admin-tab-btn active" data-tab="report-settings">Report Settings</button>
                         <button class="admin-tab-btn" data-tab="system-logs">System Logs</button>
                     </div>
-                    <div class="admin-tab-content active" data-tab-content="report-settings">
+                    <div id="report-settings-content" class="admin-tab-content active">
                         <form id="superadmin-settings-form">
-                            <h4>Report Headers</h4>
-                            <div class="setting-item-col"><label>Header Line 1</label><input type="text" id="report-header-1"></div>
-                            <div class="setting-item-col"><label>Header Line 2</label><input type="text" id="report-header-2"></div>
-                            <div class="setting-item-col"><label>Header Line 3</label><input type="text" id="report-header-3"></div>
-                            <div class="setting-item-col"><label>Header Line 4</label><input type="text" id="report-header-4"></div>
-                            <hr>
-                            <h4>Report Footer</h4>
-                            <div class="setting-item-col"><label>Copyright Text</label><input type="text" id="report-copyright"></div>
-                             <hr>
-                            <h4>Permissions</h4>
+                            <div class="setting-item-col">
+                                <label for="report-header-1">Report Header Line 1</label>
+                                <input type="text" id="report-header-1" name="reportHeader1">
+                            </div>
                              <div class="setting-item-col">
-                                <label>Who can generate reports?</label>
-                                <select id="report-permission-select">
-                                    <option value="admins_only">Admins & Superadmins Only</option>
+                                <label for="report-header-2">Report Header Line 2</label>
+                                <input type="text" id="report-header-2" name="reportHeader2">
+                            </div>
+                             <div class="setting-item-col">
+                                <label for="report-header-3">Report Header Line 3</label>
+                                <input type="text" id="report-header-3" name="reportHeader3">
+                            </div>
+                             <div class="setting-item-col">
+                                <label for="report-header-4">Report Header Line 4</label>
+                                <input type="text" id="report-header-4" name="reportHeader4">
+                            </div>
+                            <div class="setting-item-col">
+                                <label for="report-copyright">Copyright Text</label>
+                                <input type="text" id="report-copyright" name="copyrightText">
+                            </div>
+                             <div class="setting-item-col">
+                                <label for="report-permission">Report Generation Permission</label>
+                                <select id="report-permission" name="reportPermission">
+                                    <option value="admins_only">Admins Only</option>
                                     <option value="logged_in_users">All Logged-in Users</option>
                                 </select>
                             </div>
-                            <div class="form-actions" style="margin-top: 2rem;">
+                            <div class="form-actions">
                                 <button type="submit" class="primary-btn">Save Settings</button>
                             </div>
                         </form>
                     </div>
-                    <div class="admin-tab-content" data-tab-content="system-logs">
-                        <h4>Activity Logs</h4>
-                        <textarea id="system-logs-view" readonly></textarea>
+                    <div id="system-logs-content" class="admin-tab-content">
+                        <div id="system-logs-container">
+                            <pre id="system-logs-pre"></pre>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Toast Notification -->
-        <div id="toast-notification" class="hidden" role="alert">
-            <span id="toast-icon" class="material-icons">info</span>
-            <p id="toast-message"></p>
+        <!-- Toast Notification Container -->
+        <div id="toast-container"></div>
+        
+        <!-- Offline/Online Status Indicator -->
+        <div id="offline-indicator" class="hidden">
+            <span class="material-icons">wifi_off</span>
+            <span data-lang-key="you_are_offline">You are offline. Using downloaded maps.</span>
         </div>
         
-        <!-- Report Incident FAB -->
-        <button id="report-incident-fab" class="icon-button" data-lang-key-title="report_incident_title">
-            <span class="material-icons">add_alert</span>
-        </button>
-
-        <!-- NEW: FAB Menu (Replaces Bottom Menu) -->
-        <div id="fab-container">
-            <div id="fab-menu-items" class="hidden">
-                <button id="fab-reports-btn" class="fab-menu-item" title="Reports">
-                    <span class="material-icons">summarize</span>
-                </button>
-                <button id="fab-find-car-btn" class="fab-menu-item" data-lang-key-title="find_my_car_title">
-                    <span class="material-icons">directions_car</span>
-                </button>
-                <button id="fab-ai-btn" class="fab-menu-item" data-lang-key-title="ai_chat_title">
-                    <span class="material-icons">auto_awesome</span>
-                </button>
-                <button id="fab-settings-btn" class="fab-menu-item" data-lang-key-title="app_settings">
-                    <span class="material-icons">settings</span>
-                </button>
-                <button id="fab-profile-btn" class="fab-menu-item" data-lang-key-title="profile">
-                    <span class="material-icons">person</span>
-                </button>
-            </div>
-            <button id="fab-main-btn" class="fab-main" data-lang-key-aria-label="main_menu">
-                <span class="material-icons">menu</span>
-            </button>
-        </div>
-
-        <!-- NEW: Smart Detail Card -->
-        <div id="detail-card">
-            <div class="detail-card-header">
-                <h3 id="detail-card-title"></h3>
-                <button id="detail-card-close" class="icon-button">
-                    <span class="material-icons">close</span>
-                </button>
-            </div>
-            <!-- NEW: Weather Section (Moved) -->
-            <div id="detail-card-weather" class="hidden">
-                <span id="weather-icon" class="material-icons">wb_sunny</span>
-                <span id="weather-temp"></span>
-                <span id="weather-desc"></span>
-            </div>
-            <!-- NEW: 3-Day Forecast Container -->
-            <div id="detail-card-forecast-container" class="hidden">
-                <!-- Forecast items will be injected here by JS -->
-            </div>
-            <!-- NEW: AI Weather Advisory Section -->
-            <div id="detail-card-ai-advisory" class="hidden">
-                <div class="ai-summary-header">
-                   <span class="material-icons">auto_awesome</span>
-                   <h4>AI Weather Advisory</h4>
-               </div>
-               <div id="ai-advisory-content">
-                   <!-- Loading state and content will be injected here -->
-               </div>
-            </div>
-            <div id="detail-card-content">
-                <!-- Content injected by JS -->
-            </div>
-            <div id="detail-card-actions">
-                <!-- Action buttons injected by JS -->
+        <!-- Firebase API Key Missing Error -->
+        <div id="config-error" style="display: none;">
+            <div class="config-error-content">
+                <span class="material-icons error-icon">error</span>
+                <h2>Configuration Error</h2>
+                <p>The application is missing a necessary configuration. Please ensure the Firebase API keys are set up correctly in <code>index.html</code>.</p>
+                <p>This is a safety measure to prevent accidental exposure of sensitive keys in a real-world scenario.</p>
             </div>
         </div>
-        
-        <!-- NEW: Hidden container for printing/PDF generation -->
-        <div id="printable-report-container" style="display: none;"></div>
 
     </div>
+    
+    <!-- This is a development-only configuration. In production, this would be handled by a secure backend. -->
+    <script>
+      // IMPORTANT: In a real production app, this Firebase config would NOT be here.
+      // It would be handled by a secure backend and environment variables.
+      // For this interactive demo, it is included here for functionality.
+      const firebaseConfig = {
+        apiKey: "YOUR_API_KEY_HERE", // Replace with your actual Firebase API key
+        authDomain: "your-project-id.firebaseapp.com",
+        projectId: "your-project-id",
+        storageBucket: "your-project-id.appspot.com",
+        messagingSenderId: "your-sender-id",
+        appId: "your-app-id"
+      };
+    </script>
 
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script>
-      // =================================================================================
-      // ** Firebase Configuration Notice **
-      // =================================================================================
-      // The application is currently running in OFFLINE DEMO MODE because the Firebase
-      // credentials below are placeholders. This allows you to explore the UI and core
-      // features without any setup.
-      //
-      // To enable real-time data, user accounts, and incident reporting:
-      // 1. Create a free Firebase project at https://firebase.google.com/
-      // 2. In your Firebase project, go to Project Settings > General.
-      // 3. Under "Your apps", register a new web app.
-      // 4. Copy the generated `firebaseConfig` object.
-      // 5. Replace the placeholder object below with your actual config.
-      // =================================================================================
-      const firebaseConfig = {
-        apiKey: "YOUR_FIREBASE_API_KEY",
-        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_PROJECT_ID.appspot.com",
-        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-        appId: "YOUR_APP_ID"
-      };
-
-      // Initialize Firebase ONLY if real credentials are provided.
-      // The main application script will handle the fallback to demo mode.
-      if (firebaseConfig.apiKey !== "YOUR_FIREBASE_API_KEY") {
-        firebase.initializeApp(firebaseConfig);
-      } else {
-        console.warn("Firebase SDK initialization skipped: Using placeholder credentials. App will run in Demo Mode.");
-      }
-    </script>
-    <script type="module" src="index.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
+    <script type="module" src="index.tsx"></script>
 </body>
 </html>

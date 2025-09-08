@@ -151,6 +151,8 @@ const en_translations = {
     "prefer_highways": "Prefer Highways",
     "avoid_tolls": "Avoid Tolls",
     "prefer_scenic_route": "Prefer Scenic Route",
+    "prefer_less_crowded": "Less Crowded",
+    "avoid_unpaved": "Avoid Unpaved",
     "ai_avatar_updated": "AI avatar updated successfully!",
 
     // AI Chat
@@ -246,6 +248,9 @@ class SadakSathiApp {
     private activeBaseLayer: string = 'streets';
     private allRoadData: any[] = [];
     private roadLayer: any;
+    private nationalHighwayLayer: any;
+    private majorRoadLayer: any;
+    private localRoadLayer: any;
     private poiLayer: any;
     private incidentLayer: any;
     private trafficLayer: any;
@@ -263,15 +268,57 @@ class SadakSathiApp {
     private ipCamUrl: string = '';
     private activeVoiceContext: string = 'none'; // 'chat', 'unified-search', etc.
 
+    // NEW: Driver utility state
+    private isMeasuringDistance: boolean = false;
+    private distancePoints: any[] = [];
+    private distanceLayer: any;
+    private headingUpMode: boolean = false;
+    private geolocationWatcherId: number | null = null;
+
     private mockPois = [
         { id: 'poi-1', name: 'Kathmandu Durbar Square', type: 'heritage', lat: 27.7049, lon: 85.3075 },
         { id: 'poi-2', name: 'Garden of Dreams', type: 'park', lat: 27.7132, lon: 85.3144 },
-        { id: 'poi-3', name: 'Swayambhunath Stupa', type: 'heritage', lat: 27.7148, lon: 85.2905 },
-        { id: 'poi-4', name: 'Boudhanath Stupa', type: 'heritage', lat: 27.7215, lon: 85.3615 },
-        { id: 'poi-5', name: 'Pashupatinath Temple', type: 'heritage', lat: 27.7107, lon: 85.3486 },
-        { id: 'poi-6', name: 'Fire and Ice Pizzeria', type: 'food', lat: 27.7140, lon: 85.3145 }
+        { id: 'poi-3', name: 'Swayambhunath Stupa', type: 'religious_site', lat: 27.7148, lon: 85.2905 },
+        { id: 'poi-4', name: 'Boudhanath Stupa', type: 'religious_site', lat: 27.7215, lon: 85.3615 },
+        { id: 'poi-5', name: 'Pashupatinath Temple', type: 'religious_site', lat: 27.7107, lon: 85.3486 },
+        { id: 'poi-6', name: 'Fire and Ice Pizzeria', type: 'food', lat: 27.7140, lon: 85.3145 },
+        { id: 'poi-7', name: 'Patan Durbar Square', type: 'historical_site', lat: 27.673, lon: 85.325 },
+        { id: 'poi-8', name: 'Phewa Lake', type: 'natural_attraction', lat: 28.216, lon: 83.95 },
+        { id: 'poi-9', name: 'Chitwan National Park', type: 'natural_attraction', lat: 27.524, lon: 84.455 }
     ];
-    private activePoiFilters: Set<string> = new Set(['heritage', 'park', 'food']);
+    private activePoiFilters: Set<string> = new Set(['heritage', 'park', 'food', 'historical_site', 'religious_site', 'natural_attraction']);
+    private activeRoadFilters: Set<string> = new Set(['national_highway', 'major_road', 'local_road']);
+
+    private mockRoads = {
+        type: "FeatureCollection",
+        features: [
+            {
+                type: "Feature",
+                properties: { name: "Prithvi Highway", category: "national_highway" },
+                geometry: { type: "LineString", coordinates: [[84.42, 27.85], [84.88, 27.81], [85.1, 27.75]] }
+            },
+            {
+                type: "Feature",
+                properties: { name: "Araniko Highway", category: "national_highway" },
+                geometry: { type: "LineString", coordinates: [[85.34, 27.70], [85.55, 27.62], [85.8, 27.55]] }
+            },
+            {
+                type: "Feature",
+                properties: { name: "Ring Road", category: "major_road" },
+                geometry: { type: "LineString", coordinates: [[85.28, 27.69], [85.34, 27.67], [85.35, 27.71], [85.30, 27.73], [85.28, 27.69]] }
+            },
+            {
+                type: "Feature",
+                properties: { name: "Thamel Marg", category: "local_road" },
+                geometry: { type: "LineString", coordinates: [[85.314, 27.713], [85.312, 27.715], [85.315, 27.716]] }
+            },
+             {
+                type: "Feature",
+                properties: { name: "New Road", category: "major_road" },
+                geometry: { type: "LineString", coordinates: [[85.310, 27.704], [85.307, 27.702]] }
+            },
+        ]
+    };
 
 
     // --- NEW: Backend API Simulation ---
@@ -401,6 +448,16 @@ class SadakSathiApp {
                 this.backend.logs.shift();
             }
         },
+        getIncidents: async () => {
+            console.log("SIMULATING BACKEND CALL: /api/getIncidents");
+            await new Promise(res => setTimeout(res, 600));
+            return [
+                { id: 'live-1', roadName: 'Prithvi Highway', incidentType: 'accident', description: 'Two-vehicle collision near Malekhu. Expect delays.', lat: 27.81, lon: 84.88, status: 'active' },
+                { id: 'live-2', roadName: 'Ring Road', incidentType: 'construction', description: 'Road expansion work near Kalanki. One lane closed.', lat: 27.69, lon: 85.28, status: 'active' },
+                { id: 'live-3', roadName: 'Araniko Highway', incidentType: 'hazard', description: 'Fallen tree blocking the road near Dhulikhel.', lat: 27.62, lon: 85.55, status: 'active' },
+                { id: 'live-4', roadName: 'Mahendra Highway', incidentType: 'traffic_jam', description: 'Heavy congestion due to a local event in Butwal.', lat: 27.69, lon: 83.45, status: 'active' },
+            ];
+        },
         submitUserReport: async (reportData: any) => {
             console.log("SIMULATING BACKEND CALL: /api/submitReport", reportData);
             await new Promise(res => setTimeout(res, 700)); // Simulate network delay
@@ -520,7 +577,7 @@ class SadakSathiApp {
                  ]
              };
         },
-        getAlternativeRoutes: async (prefs: { preferHighways: boolean, avoidTolls: boolean, preferScenic: boolean }) => {
+        getAlternativeRoutes: async (prefs: { preferHighways: boolean, avoidTolls: boolean, preferScenic: boolean, preferLessCrowded: boolean, avoidUnpaved: boolean }) => {
             console.log("SIMULATING BACKEND CALL: /api/getAlternativeRoutes with prefs:", prefs);
             await new Promise(res => setTimeout(res, 2000)); // Simulate AI thinking time
             
@@ -537,6 +594,7 @@ class SadakSathiApp {
                     distance: 5.2,
                     time: 18,
                     summary: en_translations.route_summary_traffic_light,
+                    geometry: { type: 'LineString', coordinates: route1_coords },
                     directions: [
                         { instruction: 'Head south on King\'s Way', icon: 'straight', condition: { type: 'clear' } },
                         { instruction: 'Turn right at Jamal. Expect delays.', icon: 'turn_right', condition: { type: 'construction', details: 'Lane closure due to metro work.', source: 'DoTM', sourceType: 'official', lastUpdated: new Date(Date.now() - 2 * 3600 * 1000).toISOString()} },
@@ -558,6 +616,14 @@ class SadakSathiApp {
                     ]
                 },
             ];
+
+            if (prefs.preferHighways) {
+                const fastestRoute = routes.find(r => r.type === 'fastest');
+                if (fastestRoute) {
+                    fastestRoute.time = Math.round(fastestRoute.time * 0.9); // Make it 10% faster
+                    fastestRoute.summary = `The fastest route, primarily using national highways.`;
+                }
+            }
     
             // Conditionally add a scenic route if requested
             if (prefs.preferScenic) {
@@ -576,10 +642,29 @@ class SadakSathiApp {
                     ]
                 });
             }
+
+            // NEW LOGIC for less crowded & avoid unpaved
+            if (prefs.preferLessCrowded) {
+                // Simulate by making the alternative route faster and less crowded.
+                const alternativeRoute = routes.find(r => r.type === 'alternative');
+                if (alternativeRoute) {
+                    alternativeRoute.time = 20;
+                    alternativeRoute.summary = "A less crowded route avoiding heavy traffic.";
+                }
+            }
+
+            if (prefs.avoidUnpaved) {
+                // In our mock, let's assume the scenic route has unpaved sections.
+                // We'll remove it if it exists.
+                const scenicRouteIndex = routes.findIndex(r => r.type === 'scenic');
+                if (scenicRouteIndex !== -1) {
+                    routes.splice(scenicRouteIndex, 1);
+                }
+            }
             
             return routes;
         },
-        getRouteSummaries: async (routes: any[], prefs: { preferHighways: boolean, avoidTolls: boolean, preferScenic: boolean }) => {
+        getRouteSummaries: async (routes: any[], prefs: { preferHighways: boolean, avoidTolls: boolean, preferScenic: boolean, preferLessCrowded: boolean, avoidUnpaved: boolean }) => {
             console.log("SIMULATING BACKEND CALL: /api/getRouteSummaries");
             await new Promise(res => setTimeout(res, 800)); // Simulate network latency for AI summaries
         
@@ -589,7 +674,7 @@ class SadakSathiApp {
                 - Type: ${route.type}
                 - Distance: ${route.distance} km
                 - Time: ${route.time} min
-                - User Prefs: Scenic=${prefs.preferScenic}, Avoid Tolls=${prefs.avoidTolls}
+                - User Prefs: Scenic=${prefs.preferScenic}, Avoid Tolls=${prefs.avoidTolls}, Less Crowded=${prefs.preferLessCrowded}, Avoid Unpaved=${prefs.avoidUnpaved}
                 The summary should be friendly and helpful.`;
         
                 console.log("Simulated AI Prompt for route", route.id, ":", prompt);
@@ -606,6 +691,10 @@ class SadakSathiApp {
                 
                 if (prefs.avoidTolls && !summary.toLowerCase().includes('toll')) {
                     summary += " It also avoids all tolls.";
+                }
+
+                if (prefs.preferLessCrowded && route.type === 'alternative') {
+                    summary = `This less crowded route should get you there in about ${route.time} minutes, bypassing the worst traffic.`
                 }
         
                 return { ...route, summary: summary };
@@ -714,18 +803,23 @@ class SadakSathiApp {
 
     // Geolocation State
     private isGeolocationActive: boolean = false;
-    private hasRequestedGeolocation: boolean = false;
-    private hasRequestedMicrophone: boolean = false;
 
     // Context State
     private selectedEntityContext: any = null;
     
     private activeRouteData: any | null = null;
     private availableRoutes: any[] = [];
-    private activeRoutePrefs: { preferHighways: boolean, avoidTolls: boolean, preferScenic: boolean } | null = null;
+    private activeRoutePrefs: { preferHighways: boolean, avoidTolls: boolean, preferScenic: boolean, preferLessCrowded: boolean, avoidUnpaved: boolean } | null = null;
 
     // Offline Maps State
     private downloadedRegions: {id: string, name: string, size: string}[] = [];
+    private offlineRegionMetadata: { [key: string]: { nameKey: string, bounds: [[number, number], [number, number]], density: number } } = {
+        kathmandu: { nameKey: 'kathmandu_valley', bounds: [[27.6, 85.2], [27.8, 85.5]], density: 250 }, // Higher density for urban area
+        pokhara: { nameKey: 'pokhara', bounds: [[28.15, 83.9], [28.3, 84.1]], density: 200 },
+        chitwan: { nameKey: 'chitwan', bounds: [[27.4, 83.8], [27.7, 84.7]], density: 50 },
+        lumbini: { nameKey: 'lumbini', bounds: [[27.4, 83.2], [27.6, 83.4]], density: 80 },
+        everest: { nameKey: 'everest_region', bounds: [[27.7, 86.5], [28.1, 87.0]], density: 35 } // Lower density for mountainous terrain
+    };
 
     // Proactive Alert State
     private proactiveAlertInterval: number | null = null;
@@ -763,6 +857,7 @@ class SadakSathiApp {
         { text: 'Are there any traffic jams in Kathmandu?', type: 'ai_query', icon: 'help_outline' },
         { text: 'Find a good place to eat in Thamel', type: 'ai_query', icon: 'help_outline' },
     ];
+    private liveIncidents: any[] = [];
 
 
     constructor() {
@@ -776,8 +871,10 @@ class SadakSathiApp {
         this._logActivity('App initialization started.');
 
         this.loadingMessage.textContent = this.translations.loading_map;
-        this._initializeMap(); // This will handle hiding the loader when map is ready
+        this._initializeMap(); // This will trigger the rest of the initialization
+    }
 
+    private _finishInitialization() {
         this.loadingMessage.textContent = this.translations.loading_voices;
         this._initSpeechSynthesis();
         this._initSpeechRecognition();
@@ -790,11 +887,23 @@ class SadakSathiApp {
         this._initOfflineMaps();
         
         this.loadingMessage.textContent = this.translations.loading_data;
-        this._initProactiveAlerts(); // This is just a stub, safe to call
+        this._initLiveIncidents();
+        this._initProactiveAlerts();
         this._initRouteFromUrlParams();
+        this._initCompass();
+        this._initGeolocationWatcher();
         
-        this._updateUiForUserRole(); // Initial UI setup for guest
+        this._updateUiForUserRole();
         this._initTheme();
+
+        // Now hide the loading screen
+        this.loadingMessage.textContent = this.translations.loading_complete;
+        setTimeout(() => {
+            if (this.loadingOverlay) {
+                this.loadingOverlay.style.opacity = '0';
+                setTimeout(() => this.loadingOverlay.classList.add('hidden'), 500);
+            }
+        }, 500);
     }
 
     private _setupUiEventListeners() {
@@ -802,9 +911,13 @@ class SadakSathiApp {
         document.getElementById('theme-toggle')?.addEventListener('click', this._toggleTheme.bind(this));
         document.getElementById('fab-profile-btn')?.addEventListener('click', this._handleProfileClick.bind(this));
         document.getElementById('logout-btn')?.addEventListener('click', this._handleLogout.bind(this));
-        document.getElementById('permission-modal-close-btn')?.addEventListener('click', () => {
-            document.getElementById('permission-help-modal')?.classList.add('hidden');
-        });
+        
+        // --- NEW: Language Selector Listeners ---
+        document.getElementById('language-selector-btn')?.addEventListener('click', this._toggleLanguagePopup.bind(this));
+        document.querySelectorAll('.lang-tab-btn').forEach(btn => btn.addEventListener('click', this._handleLangTabClick.bind(this)));
+        document.querySelectorAll('.lang-option').forEach(btn => btn.addEventListener('click', this._handleLangOptionClick.bind(this)));
+        document.addEventListener('click', this._handleGlobalClickForLanguage.bind(this));
+        document.addEventListener('click', this._handleGlobalClickForMapOptions.bind(this));
 
         // Search & Routing
         document.getElementById('unified-search-input')?.addEventListener('input', this._handleSearchInput.bind(this));
@@ -820,14 +933,45 @@ class SadakSathiApp {
             checkbox.addEventListener('change', this._handlePreferenceChange.bind(this));
         });
         
+        // NEW: Route Preferences Modal
+        document.getElementById('open-route-prefs-btn')?.addEventListener('click', this._openRoutePreferencesModal.bind(this));
+        document.getElementById('route-prefs-close-btn')?.addEventListener('click', this._closeRoutePreferencesModal.bind(this));
+        document.getElementById('route-prefs-cancel-btn')?.addEventListener('click', this._closeRoutePreferencesModal.bind(this));
+        document.getElementById('route-prefs-save-btn')?.addEventListener('click', this._handleSaveRoutePreferences.bind(this));
+
         // Map Controls
-        document.getElementById('center-location-btn')?.addEventListener('click', this._requestUserLocation.bind(this));
+        document.getElementById('zoom-in-btn')?.addEventListener('click', () => this.map.zoomIn());
+        document.getElementById('zoom-out-btn')?.addEventListener('click', () => this.map.zoomOut());
+        document.getElementById('center-location-btn')?.addEventListener('click', this._centerOnUserLocation.bind(this));
+        document.getElementById('toggle-heading-up-btn')?.addEventListener('click', this._toggleHeadingUpMode.bind(this));
+        document.getElementById('measure-distance-btn')?.addEventListener('click', this._toggleDistanceTool.bind(this));
+        document.getElementById('distance-clear-btn')?.addEventListener('click', this._clearDistanceMeasurement.bind(this));
+        document.getElementById('map-options-btn')?.addEventListener('click', this._toggleMapOptionsPopup.bind(this));
+        document.getElementById('toggle-roads')?.addEventListener('change', (e) => {
+            const isChecked = (e.target as HTMLInputElement).checked;
+            if (isChecked) {
+                this.map.addLayer(this.roadLayer);
+            } else {
+                this.map.removeLayer(this.roadLayer);
+            }
+        });
+        document.querySelectorAll('.road-filter-toggle input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', this._handleRoadFilterChange.bind(this));
+        });
         document.getElementById('toggle-pois')?.addEventListener('change', (e) => {
             const isChecked = (e.target as HTMLInputElement).checked;
             if (isChecked) {
                 this.map.addLayer(this.poiLayer);
             } else {
                 this.map.removeLayer(this.poiLayer);
+            }
+        });
+        document.getElementById('toggle-incidents')?.addEventListener('change', (e) => {
+            const isChecked = (e.target as HTMLInputElement).checked;
+            if (isChecked) {
+                this.map.addLayer(this.incidentLayer);
+            } else {
+                this.map.removeLayer(this.incidentLayer);
             }
         });
         document.getElementById('toggle-traffic')?.addEventListener('change', (e) => {
@@ -863,7 +1007,6 @@ class SadakSathiApp {
         });
         
         // AI Chat
-        document.getElementById('fab-ai-btn')?.addEventListener('click', this._openChat.bind(this));
         document.getElementById('unified-search-ai-btn')?.addEventListener('click', this._openChat.bind(this));
         document.getElementById('close-chat-btn')?.addEventListener('click', this._closeChat.bind(this));
         document.getElementById('chat-form')?.addEventListener('submit', this._handleChatSubmit.bind(this));
@@ -891,9 +1034,7 @@ class SadakSathiApp {
         document.getElementById('copy-share-link-btn')?.addEventListener('click', this._handleCopyLink.bind(this));
 
         // Offline Maps
-        document.getElementById('add-offline-region-btn')?.addEventListener('click', () => {
-            document.getElementById('offline-maps-modal')?.classList.remove('hidden');
-        });
+        document.getElementById('add-offline-region-btn')?.addEventListener('click', this._showOfflineMapsModal.bind(this));
         document.getElementById('offline-maps-close-btn')?.addEventListener('click', () => {
             document.getElementById('offline-maps-modal')?.classList.add('hidden');
         });
@@ -907,6 +1048,19 @@ class SadakSathiApp {
                     const regionSize = listItem.querySelector('.region-size')?.textContent;
                     if (regionId && regionName && regionSize) {
                         this._handleDownloadRegion(listItem, regionId, regionName, regionSize);
+                    }
+                }
+            });
+        });
+        document.querySelectorAll('#download-region-options .delete-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.currentTarget as HTMLElement;
+                const listItem = target.closest('li');
+                if (listItem) {
+                    const regionId = listItem.dataset.region;
+                    const regionName = listItem.querySelector('.region-info strong')?.textContent;
+                     if (regionId && regionName) {
+                        this._handleDeleteRegion(listItem, regionId, regionName);
                     }
                 }
             });
@@ -933,6 +1087,7 @@ class SadakSathiApp {
 
         // Settings & Admin
         document.getElementById('persona-avatar-upload')?.addEventListener('change', this._handleAvatarUpload.bind(this));
+        document.getElementById('persona-personality-select')?.addEventListener('change', this._handlePersonalityChange.bind(this));
         document.getElementById('superadmin-settings-btn')?.addEventListener('click', this._openSuperadminSettingsModal.bind(this));
         document.getElementById('superadmin-settings-close-btn')?.addEventListener('click', this._closeSuperadminSettingsModal.bind(this));
         document.getElementById('superadmin-settings-form')?.addEventListener('submit', this._handleSuperadminSettingsSave.bind(this));
@@ -953,6 +1108,14 @@ class SadakSathiApp {
         document.getElementById('admin-relay-confirm-btn')?.addEventListener('click', this._handleRelayConfirm.bind(this));
         document.getElementById('notifications-btn')?.addEventListener('click', this._toggleNotificationsPanel.bind(this));
         document.getElementById('admin-form-mic-btn')?.addEventListener('click', this._toggleAdminFormAI.bind(this));
+
+        // Permission Modals
+        document.getElementById('permission-modal-close-btn')?.addEventListener('click', () => document.getElementById('permission-help-modal')?.classList.add('hidden'));
+        document.getElementById('pre-permission-deny-btn')?.addEventListener('click', () => document.getElementById('pre-permission-modal')?.classList.add('hidden'));
+
+        // Online/Offline Listeners
+        window.addEventListener('online', this._handleOnlineStatus.bind(this));
+        window.addEventListener('offline', this._handleOfflineStatus.bind(this));
     }
 
     private _initializeMap() {
@@ -973,55 +1136,90 @@ class SadakSathiApp {
             this.tileLayers['streets'].addTo(this.map);
             this.activeBaseLayer = 'streets';
 
-            // This is the key fix: wait for the map to be fully ready before hiding the loader
+            // Wait for the map to be fully ready before proceeding
             this.map.whenReady(() => {
                  this.routeLayer = L.geoJSON(null, {
-                    style: (feature) => ({
+                    style: (feature: any) => ({
                         color: '#3498db',
                         weight: 6,
                         opacity: 0.8
                     })
                 }).addTo(this.map);
 
+                this.nationalHighwayLayer = L.layerGroup().addTo(this.map);
+                this.majorRoadLayer = L.layerGroup().addTo(this.map);
+                this.localRoadLayer = L.layerGroup().addTo(this.map);
+                this.roadLayer = L.layerGroup([this.nationalHighwayLayer, this.majorRoadLayer, this.localRoadLayer]).addTo(this.map);
+
                 this.poiLayer = L.layerGroup().addTo(this.map);
+                this.incidentLayer = L.layerGroup().addTo(this.map);
+                this.distanceLayer = L.featureGroup().addTo(this.map);
+                
+                this._renderRoads();
                 this._renderPois();
 
                 this.trafficLayer = L.geoJSON(null, {
-                    style: (feature: any) => {
-                        const trafficLevel = feature.properties.traffic;
-                        let color = '#7f8c8d'; // Default color for unknown traffic
-                        let weight = 5;
-                        let opacity = 0.8;
+                    // Hide the original LineString paths
+                    style: () => ({ opacity: 0, weight: 0 }),
+                    onEachFeature: (feature: any, layer: any) => {
+                        // For each LineString, add a marker icon at its center
+                        if (layer.getCenter) {
+                            const trafficLevel = feature.properties.traffic;
+                            const center = layer.getCenter();
 
-                        switch (trafficLevel) {
-                            case 'heavy':
-                                color = '#e74c3c'; // Danger Red
-                                weight = 6;
-                                break;
-                            case 'moderate':
-                                color = '#f39c12'; // Warning Orange
-                                weight = 5;
-                                break;
-                            case 'light':
-                                color = '#2ecc71'; // Success Green
-                                break;
+                            let iconHtml: string;
+                            let className = 'traffic-icon-marker'; // Base class for the L.divIcon wrapper
+
+                            switch (trafficLevel) {
+                                case 'heavy':
+                                    className += ' traffic-heavy';
+                                    iconHtml = `
+                                        <div class="traffic-icon-container">
+                                            <span class="material-icons car-icon">directions_car</span>
+                                            <span class="material-icons alert-icon">priority_high</span>
+                                        </div>`;
+                                    break;
+                                case 'moderate':
+                                    className += ' traffic-moderate';
+                                    iconHtml = `
+                                        <div class="traffic-icon-container">
+                                            <span class="material-icons car-icon">directions_car</span>
+                                        </div>`;
+                                    break;
+                                case 'light':
+                                    className += ' traffic-light';
+                                    iconHtml = `
+                                        <div class="traffic-icon-container">
+                                            <span class="material-icons car-icon">directions_car</span>
+                                        </div>`;
+                                    break;
+                                default:
+                                    className += ' traffic-unknown';
+                                    iconHtml = `
+                                        <div class="traffic-icon-container">
+                                            <span class="material-icons car-icon">directions_car</span>
+                                        </div>`;
+                                    break;
+                            }
+
+                            const customIcon = L.divIcon({
+                                html: iconHtml,
+                                className: className,
+                                iconSize: [36, 36],
+                                iconAnchor: [18, 18]
+                            });
+
+                            L.marker(center, { icon: customIcon }).addTo(this.trafficLayer);
                         }
-                        return { color, weight, opacity };
                     }
                 });
 
                 this.map.on('click', this._handleMapClick.bind(this));
                 
-                console.log("Map initialized and ready.");
+                console.log("Map initialized and ready. Finishing app setup...");
                 
-                // Now hide the loading screen
-                this.loadingMessage.textContent = this.translations.loading_complete;
-                setTimeout(() => {
-                    if (this.loadingOverlay) {
-                        this.loadingOverlay.style.opacity = '0';
-                        setTimeout(() => this.loadingOverlay.classList.add('hidden'), 500);
-                    }
-                }, 500);
+                // Trigger the rest of the app's setup now that the map is ready.
+                this._finishInitialization();
             });
 
         } catch (error) {
@@ -1032,13 +1230,46 @@ class SadakSathiApp {
         }
     }
     
+    private _renderRoads() {
+        this.nationalHighwayLayer.clearLayers();
+        this.majorRoadLayer.clearLayers();
+        this.localRoadLayer.clearLayers();
+
+        const roadStyles = {
+            national_highway: { color: '#e74c3c', weight: 5, opacity: 0.8 },
+            major_road: { color: '#f39c12', weight: 4, opacity: 0.9 },
+            local_road: { color: '#7f8c8d', weight: 3, opacity: 0.7, dashArray: '5, 5' },
+        };
+
+        this.mockRoads.features.forEach((road: any) => {
+            const category = road.properties.category as keyof typeof roadStyles;
+            if (this.activeRoadFilters.has(category)) {
+                // Leaflet expects [lat, lon], GeoJSON is [lon, lat], so we need to swap
+                const swappedCoords = road.geometry.coordinates.map((coord: number[]) => [coord[1], coord[0]]);
+                const roadLine = L.polyline(swappedCoords, roadStyles[category]);
+                
+                roadLine.bindTooltip(road.properties.name, { sticky: true });
+
+                if (category === 'national_highway') {
+                    this.nationalHighwayLayer.addLayer(roadLine);
+                } else if (category === 'major_road') {
+                    this.majorRoadLayer.addLayer(roadLine);
+                } else {
+                    this.localRoadLayer.addLayer(roadLine);
+                }
+            }
+        });
+    }
 
     private _renderPois() {
         this.poiLayer.clearLayers();
         const iconMap: { [key: string]: string } = {
-            'heritage': 'account_balance', // Icon for museums, historical buildings
-            'park': 'park',              // Specific icon for parks/green spaces
-            'food': 'local_dining'       // Icon for restaurants/eateries
+            'heritage': 'account_balance',
+            'park': 'park',
+            'food': 'local_dining',
+            'historical_site': 'history_edu',
+            'religious_site': 'temple_hindu',
+            'natural_attraction': 'terrain'
         };
 
         this.mockPois.forEach(poi => {
@@ -1053,9 +1284,25 @@ class SadakSathiApp {
 
                 const marker = L.marker([poi.lat, poi.lon], { icon: customIcon })
                     .addTo(this.poiLayer)
-                    .on('click', () => this._handlePoiClick(poi));
+                    .on('click', (e: any) => {
+                        L.DomEvent.stopPropagation(e);
+                        this._handlePoiClick(poi)
+                    });
             }
         });
+    }
+
+    private _handleRoadFilterChange(e: Event) {
+        const input = e.target as HTMLInputElement;
+        const roadCategory = input.dataset.roadCategory;
+        if (!roadCategory) return;
+
+        if (input.checked) {
+            this.activeRoadFilters.add(roadCategory);
+        } else {
+            this.activeRoadFilters.delete(roadCategory);
+        }
+        this._renderRoads();
     }
 
     private _handlePoiFilterChange(e: Event) {
@@ -1071,88 +1318,787 @@ class SadakSathiApp {
         this._renderPois();
     }
     
-    // --- Theme Management ---
-    private _initTheme() {
-        const savedTheme = localStorage.getItem('sadak_sathi_theme') as 'light' | 'dark' | null;
-        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
-        this._applyTheme(initialTheme);
+    private _toggleMapOptionsPopup(e: Event) {
+        e.stopPropagation();
+        document.getElementById('map-options-popup')?.classList.toggle('hidden');
     }
 
-    private _applyTheme(theme: 'light' | 'dark') {
-        const appContainer = document.getElementById('app-container')!;
-        const themeToggleIcon = document.querySelector('#theme-toggle .material-icons') as HTMLElement;
+    private _handleGlobalClickForMapOptions(e: Event) {
+        const popup = document.getElementById('map-options-popup');
+        if (popup && !popup.classList.contains('hidden') && !popup.contains(e.target as Node)) {
+            popup.classList.add('hidden');
+        }
+    }
+
+    private async _showDetailCard(context: { type: 'poi' | 'incident' | 'location', data: any }) {
+        this.selectedEntityContext = context;
+        const card = document.getElementById('detail-card')!;
+        const titleEl = document.getElementById('detail-card-title')!;
+        const contentEl = document.getElementById('detail-card-content')!;
+    
+        // Reset and hide weather sections on every new card display
+        document.getElementById('detail-card-weather')?.classList.add('hidden');
+        document.getElementById('detail-card-forecast-container')?.classList.add('hidden');
+        document.getElementById('detail-card-ai-advisory')?.classList.add('hidden');
         
-        appContainer.dataset.theme = theme;
-        localStorage.setItem('sadak_sathi_theme', theme);
+        card.classList.add('visible');
         
-        if (theme === 'dark') {
-            themeToggleIcon.textContent = 'light_mode';
-            // If the current map style is streets, switch it to dark
-            if (this.activeBaseLayer === 'streets') {
-                this._setMapStyle('dark');
+        // Show loading spinner inside the content area while fetching data
+        contentEl.innerHTML = `<div class="spinner-container"><div class="spinner"></div></div>`;
+
+        // Fetch and display weather for any context that has coordinates.
+        // This runs in parallel with fetching the main content.
+        if (context.data.lat && context.data.lon) {
+            this._fetchAndDisplayWeather(context.data.lat, context.data.lon);
+        }
+
+        if (context.type === 'poi') {
+            titleEl.textContent = context.data.name;
+            try {
+                const details = await this.backend.getPoiDetails(context.data.id, context.data.name);
+                contentEl.innerHTML = `
+                    <div class="detail-item">
+                        <span class="material-icons">info_outline</span>
+                        <div><h4>Description</h4><p>${details.description}</p></div>
+                    </div>
+                    <div class="detail-item">
+                        <span class="material-icons">history</span>
+                        <div><h4>History</h4><p>${details.history}</p></div>
+                    </div>
+                    <div class="detail-item">
+                        <span class="material-icons">schedule</span>
+                        <div><h4>Operating Hours</h4><p>${details.operatingHours}</p></div>
+                    </div>
+                    <div class="detail-item">
+                        <span class="material-icons">local_offer</span>
+                        <div><h4>Entry Fee</h4><p>${details.entryFee}</p></div>
+                    </div>
+                    <div class="detail-item">
+                        <span class="material-icons">lightbulb_outline</span>
+                        <div><h4>Local Tips</h4>
+                            <ul>
+                                ${details.localTips.map((tip: string) => `<li>${tip}</li>`).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            } catch (err) {
+                contentEl.innerHTML = `<p class="error">${this.translations.ai_error_message}</p>`;
             }
-        } else { // light theme
-            themeToggleIcon.textContent = 'dark_mode';
-            // If the current map style is dark, switch it to streets
-            if (this.activeBaseLayer === 'dark') {
-                this._setMapStyle('streets');
+        } else if (context.type === 'incident') {
+            titleEl.textContent = `Incident: ${context.data.incidentType.replace(/_/g, ' ')}`;
+            contentEl.innerHTML = `
+                <div class="detail-item">
+                    <span class="material-icons">signpost</span>
+                    <div><h4>Road</h4><p>${context.data.roadName}</p></div>
+                </div>
+                 <div class="detail-item">
+                    <span class="material-icons">report</span>
+                    <div><h4>Details</h4><p>${context.data.description}</p></div>
+                </div>
+                 <div class="detail-item">
+                    <span class="material-icons">task_alt</span>
+                    <div><h4>Status</h4><p class="incident-status">${context.data.status}</p></div>
+                </div>
+            `;
+        } else if (context.type === 'location') {
+            titleEl.textContent = context.data.name;
+            contentEl.innerHTML = `
+                 <div class="detail-item">
+                    <span class="material-icons">pin_drop</span>
+                    <div>
+                        <h4>Coordinates</h4>
+                        <p>Lat: ${context.data.lat.toFixed(5)}, Lon: ${context.data.lon.toFixed(5)}</p>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    private _hideDetailCard() {
+        const detailCard = document.getElementById('detail-card');
+        if (detailCard) {
+            detailCard.classList.remove('visible');
+        }
+        this.selectedEntityContext = null;
+    }
+
+    private async _fetchAndDisplayWeather(lat: number, lon: number) {
+        const weatherContainer = document.getElementById('detail-card-weather')!;
+        const forecastContainer = document.getElementById('detail-card-forecast-container')!;
+        const advisoryContainer = document.getElementById('detail-card-ai-advisory')!;
+        const advisoryContent = document.getElementById('ai-advisory-content')!;
+    
+        // Show containers and set initial loading states
+        weatherContainer.classList.remove('hidden');
+        forecastContainer.classList.remove('hidden');
+        advisoryContainer.classList.remove('hidden');
+    
+        // Reset content to loading state
+        forecastContainer.innerHTML = ''; // Clear previous forecast
+        advisoryContent.innerHTML = `<div class="spinner-inline"></div> <span>Getting AI insights...</span>`;
+        (document.getElementById('weather-icon') as HTMLElement).textContent = 'cloud_queue';
+        (document.getElementById('weather-temp') as HTMLElement).textContent = '--°C';
+        (document.getElementById('weather-desc') as HTMLElement).textContent = 'Loading...';
+    
+        try {
+            // Fetch weather data from the backend
+            const weatherData = await this.backend.getWeather(lat, lon);
+    
+            // Update current weather UI
+            (document.getElementById('weather-icon') as HTMLElement).textContent = weatherData.current.icon;
+            (document.getElementById('weather-temp') as HTMLElement).textContent = `${weatherData.current.temp}°C`;
+            (document.getElementById('weather-desc') as HTMLElement).textContent = weatherData.current.desc;
+    
+            // Update 3-day forecast UI
+            weatherData.forecast.forEach((day: any) => {
+                const forecastItem = document.createElement('div');
+                forecastItem.className = 'forecast-item';
+                forecastItem.innerHTML = `
+                    <span class="forecast-day">${day.day}</span>
+                    <span class="material-icons forecast-icon">${day.icon}</span>
+                    <span class="forecast-temps">
+                        <span class="high">${day.temp_high}°</span> / <span class="low">${day.temp_low}°</span>
+                    </span>
+                `;
+                forecastContainer.appendChild(forecastItem);
+            });
+    
+            // Fetch AI-generated weather insights
+            const insightData = await this.backend.getWeatherInsights(weatherData);
+            advisoryContent.innerHTML = `<p>${insightData.insight}</p>`;
+    
+        } catch (error) {
+            console.error("Failed to fetch weather data:", error);
+            // Hide weather sections on failure and show an error in the advisory section
+            weatherContainer.classList.add('hidden');
+            forecastContainer.classList.add('hidden');
+            advisoryContent.innerHTML = `<p class="error">Could not load weather insights.</p>`;
+        }
+    }
+
+    private _handleMapClick(e: any) {
+        if (this.isMeasuringDistance) {
+            this._handleDistanceClick(e);
+            return;
+        }
+
+        // Don't open detail card if a route is active to avoid clutter
+        if (this.activeRouteData) {
+            return;
+        }
+
+        const locationData = {
+            name: 'Selected Location',
+            lat: e.latlng.lat,
+            lon: e.latlng.lng,
+        };
+        this._showDetailCard({ type: 'location', data: locationData });
+    }
+
+    private _handlePoiClick(poi: any) {
+        this._showDetailCard({ type: 'poi', data: poi });
+    }
+    
+    // --- START OF ADDED METHODS TO FIX ERRORS ---
+
+    // --- FIX: Add missing methods ---
+    private _initLiveIncidents() {
+        this.backend.getIncidents().then(incidents => {
+            this.liveIncidents = incidents;
+            this.incidentLayer.clearLayers();
+            incidents.forEach((incident: any) => {
+                const iconHtml = `<div class="incident-marker-icon type-${incident.incidentType}"><span class="material-icons">${this._getConditionInfo(incident.incidentType).icon || 'warning'}</span></div>`;
+                const customIcon = L.divIcon({
+                    html: iconHtml,
+                    className: '',
+                    iconSize: [32, 44],
+                    iconAnchor: [16, 44]
+                });
+                L.marker([incident.lat, incident.lon], { icon: customIcon })
+                    .addTo(this.incidentLayer)
+                    .on('click', (e: any) => {
+                        L.DomEvent.stopPropagation(e);
+                        this._showDetailCard({ type: 'incident', data: incident });
+                    });
+            });
+        }).catch(err => {
+            console.error("Failed to load live incidents:", err);
+            this._showToast("Could not load live alerts.", 'error');
+        });
+    }
+
+    private _initRouteFromUrlParams() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const from = urlParams.get('from');
+        const to = urlParams.get('to');
+
+        if (from && to) {
+            (document.getElementById('from-input') as HTMLInputElement).value = from;
+            (document.getElementById('to-input') as HTMLInputElement).value = to;
+            this._updateRoutingUI();
+            this._handleFindRoute();
+        }
+    }
+
+    private _toggleLanguagePopup() {
+        document.getElementById('language-popup')?.classList.toggle('hidden');
+    }
+
+    private _handleLangTabClick(e: Event) {
+        const target = e.currentTarget as HTMLElement;
+        const tabId = target.dataset.tab;
+        if (!tabId) return;
+
+        document.querySelectorAll('.lang-tab-btn').forEach(btn => btn.classList.remove('active'));
+        target.classList.add('active');
+
+        document.querySelectorAll('.lang-panel').forEach(content => {
+            (content as HTMLElement).classList.toggle('hidden', content.id !== `lang-panel-${tabId}`);
+        });
+    }
+
+    private _handleLangOptionClick(e: Event) {
+        const langCode = (e.currentTarget as HTMLElement).dataset.lang;
+        console.log(`Language selected: ${langCode}. (Localization not fully implemented)`);
+        this._showToast(`Language set to ${langCode}`, 'info');
+        this._toggleLanguagePopup();
+    }
+
+    private _handleGlobalClickForLanguage(e: Event) {
+        const langSelector = document.getElementById('language-selector-container');
+        if (langSelector && !langSelector.contains(e.target as Node)) {
+            document.getElementById('language-popup')?.classList.add('hidden');
+        }
+    }
+
+    private _openShareModal() {
+        if (!this.activeRouteData) {
+            this._showToast(this.translations.no_route_to_share, 'warning');
+            return;
+        }
+
+        const from = (document.getElementById('from-input') as HTMLInputElement).value;
+        const to = (document.getElementById('to-input') as HTMLInputElement).value;
+
+        const url = new URL(window.location.href);
+        url.search = ''; // Clear existing params
+        url.searchParams.set('from', from);
+        url.searchParams.set('to', to);
+
+        (document.getElementById('share-route-link') as HTMLInputElement).value = url.toString();
+        document.getElementById('share-route-modal')?.classList.remove('hidden');
+    }
+    
+    private _handleCopyLink() {
+        const linkInput = document.getElementById('share-route-link') as HTMLInputElement;
+        const copyBtn = document.getElementById('copy-share-link-btn')!;
+        const originalText = copyBtn.innerHTML;
+
+        navigator.clipboard.writeText(linkInput.value).then(() => {
+            copyBtn.innerHTML = `<span class="material-icons">check</span> ${this.translations.copied}`;
+            setTimeout(() => {
+                copyBtn.innerHTML = originalText;
+            }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy link: ', err);
+            this._showToast('Failed to copy link.', 'error');
+        });
+    }
+
+    private async _openReportsModal() {
+        document.getElementById('reports-modal')?.classList.remove('hidden');
+        this.historicalIncidents = await this.backend.getHistoricalIncidents();
+        this._renderReports(this.historicalIncidents);
+    }
+
+    private _closeReportsModal() {
+        document.getElementById('reports-modal')?.classList.add('hidden');
+    }
+
+    private _handleReportDateFilterChange(e: Event) {
+        // Implementation for date filtering...
+        console.log("Date filter changed");
+    }
+
+    private _handleReportViewChange(e: Event) {
+        const target = e.currentTarget as HTMLElement;
+        const view = target.dataset.view;
+        if (!view) return;
+
+        document.querySelectorAll('.report-view-btn').forEach(btn => btn.classList.remove('active'));
+        target.classList.add('active');
+
+        document.getElementById('report-chart-view')?.classList.toggle('hidden', view !== 'chart');
+        document.getElementById('report-table-view')?.classList.toggle('hidden', view !== 'table');
+        document.getElementById('report-card-view')?.classList.toggle('hidden', view !== 'card');
+    }
+
+    private _handleReportCustomDateChange() {
+        // Implementation for custom date filtering...
+        console.log("Custom date changed");
+    }
+
+    private _handleReportTypeChange(e: Event) {
+         // Implementation for report type filtering...
+        console.log("Report type changed");
+    }
+    
+    private _renderReports(incidents: any[]) {
+        // A placeholder for rendering reports, called from _openReportsModal
+        console.log("Rendering reports:", incidents.length);
+    }
+    
+    private _requestPermission(type: 'geolocation' | 'microphone') {
+        const permissionMap = {
+            geolocation: {
+                proceed: this._proceedWithGeolocation.bind(this),
+                prePromptTitle: 'Enable Location Access?',
+                prePromptText: 'Sadak Sathi needs your location to show your position on the map, provide navigation, and find nearby points of interest.'
+            },
+            microphone: {
+                proceed: this._proceedWithMicrophone.bind(this),
+                prePromptTitle: 'Enable Microphone?',
+                prePromptText: 'Sadak Sathi needs microphone access to enable voice commands for hands-free searching and AI chat.'
             }
+        };
+
+        const config = permissionMap[type];
+        if (!config) return;
+
+        const prePermissionModal = document.getElementById('pre-permission-modal')!;
+        (document.getElementById('pre-permission-title') as HTMLElement).textContent = config.prePromptTitle;
+        (document.getElementById('pre-permission-text') as HTMLElement).textContent = config.prePromptText;
+        
+        const allowBtn = document.getElementById('pre-permission-grant-btn')!;
+        
+        const allowOnce = () => {
+            prePermissionModal.classList.add('hidden');
+            config.proceed();
+            allowBtn.removeEventListener('click', allowOnce);
+        };
+
+        // Use a clone to remove old listeners before adding a new one
+        const newAllowBtn = allowBtn.cloneNode(true);
+        allowBtn.parentNode?.replaceChild(newAllowBtn, allowBtn);
+        newAllowBtn.addEventListener('click', allowOnce);
+
+        prePermissionModal.classList.remove('hidden');
+    }
+
+    private _showPermissionHelp(type: 'geolocation' | 'microphone') {
+        const modal = document.getElementById('permission-help-modal')!;
+        const titleEl = document.getElementById('permission-help-title')!;
+        const contentEl = document.getElementById('permission-help-text')!;
+
+        if (type === 'geolocation') {
+            titleEl.textContent = "How to Enable Location Access";
+            contentEl.innerHTML = `
+                <p>You have previously denied location access. To use location features, you need to enable it in your browser settings.</p>
+                <ol>
+                    <li>Go to your browser's settings.</li>
+                    <li>Find 'Site Settings' or 'Privacy and Security'.</li>
+                    <li>Look for this site (${window.location.hostname}) and change the Location permission to 'Allow'.</li>
+                    <li>Reload the page.</li>
+                </ol>
+            `;
+        } else if (type === 'microphone') {
+            titleEl.textContent = "How to Enable Microphone Access";
+            contentEl.innerHTML = `
+                <p>You have previously denied microphone access. To use voice commands, you need to enable it in your browser settings.</p>
+                <ol>
+                    <li>Go to your browser's settings.</li>
+                    <li>Find 'Site Settings' or 'Privacy and Security'.</li>
+                    <li>Look for this site (${window.location.hostname}) and change the Microphone permission to 'Allow'.</li>
+                    <li>Reload the page.</li>
+                </ol>
+            `;
+        }
+        modal.classList.remove('hidden');
+    }
+    
+    // --- Logging ---
+    private _logActivity(message: string) {
+        this.backend.logActivity(message);
+    }
+    
+    // --- Initialization ---
+    private _initSpeechSynthesis() {
+        // A-sync, so we listen for the event
+        window.speechSynthesis.onvoiceschanged = () => {
+            this.availableVoices = window.speechSynthesis.getVoices();
+            console.log("AI voices loaded:", this.availableVoices.length);
+        };
+        // Trigger loading voices (especially on Chrome)
+        this.availableVoices = window.speechSynthesis.getVoices();
+    }
+    
+    private _initSpeechRecognition() {
+        if (SpeechRecognition) {
+            this.recognition = new SpeechRecognition();
+            this.recognition.continuous = false;
+            this.recognition.lang = 'en-US'; // Default
+            this.recognition.interimResults = false;
+            this.recognition.maxAlternatives = 1;
+    
+            this.recognition.onstart = () => {
+                this.isRecognizing = true;
+                const voiceBtn = document.getElementById('voice-command-btn');
+                if (voiceBtn) voiceBtn.classList.add('active');
+                const adminMicBtn = document.getElementById('admin-form-mic-btn');
+                if (adminMicBtn) adminMicBtn.classList.add('active');
+                console.log("Voice recognition started.");
+            };
+    
+            this.recognition.onend = () => {
+                this.isRecognizing = false;
+                const voiceBtn = document.getElementById('voice-command-btn');
+                if (voiceBtn) voiceBtn.classList.remove('active');
+                 const adminMicBtn = document.getElementById('admin-form-mic-btn');
+                if (adminMicBtn) adminMicBtn.classList.remove('active');
+                console.log("Voice recognition ended.");
+            };
+    
+            this.recognition.onresult = (event: any) => {
+                const transcript = event.results[0][0].transcript;
+                console.log("Voice transcript:", transcript);
+                if (this.activeVoiceContext === 'chat') {
+                    (document.getElementById('chat-input') as HTMLInputElement).value = transcript;
+                    this._handleChatSubmit(new Event('submit'));
+                } else if (this.activeVoiceContext === 'admin-form') {
+                    const descInput = document.getElementById('admin-form-description') as HTMLTextAreaElement;
+                    if (descInput) descInput.value += transcript;
+                }
+            };
+    
+            this.recognition.onerror = (event: any) => {
+                console.error('Speech recognition error:', event.error);
+                this._showToast(this.translations.speech_recognition_error, 'error');
+                this.isRecognizing = false;
+                 const voiceBtn = document.getElementById('voice-command-btn');
+                if (voiceBtn) voiceBtn.classList.remove('active');
+                const adminMicBtn = document.getElementById('admin-form-mic-btn');
+                if (adminMicBtn) adminMicBtn.classList.remove('active');
+            };
+        } else {
+            console.warn("Speech Recognition API not supported in this browser.");
+            document.querySelectorAll('.voice-input-btn').forEach(btn => btn.classList.add('hidden'));
         }
     }
     
-    private _toggleTheme() {
-        const currentTheme = document.getElementById('app-container')?.dataset.theme as 'light' | 'dark';
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        this._applyTheme(newTheme);
+    private _applyInitialSettings() {
+        const savedAvatar = localStorage.getItem('sadak_sathi_avatar');
+        if (savedAvatar) {
+            this.aiAvatarUrl = savedAvatar;
+            this._updateAllAiAvatars(savedAvatar);
+        }
+        const savedPersonality = localStorage.getItem('sadak_sathi_personality');
+        if (savedPersonality) {
+            this.aiPersonality = savedPersonality;
+            (document.getElementById('persona-personality-select') as HTMLSelectElement).value = savedPersonality;
+        }
+        this._updatePersonalityDescription();
     }
 
-    private _setMapStyle(style: string) {
-        if (!this.tileLayers[style] || style === this.activeBaseLayer) return;
+    private _handlePersonalityChange() {
+        const select = document.getElementById('persona-personality-select') as HTMLSelectElement;
+        this.aiPersonality = select.value;
+        localStorage.setItem('sadak_sathi_personality', this.aiPersonality);
+        this._updatePersonalityDescription();
+    }
+    
+    private _updatePersonalityDescription() {
+        const personality = (document.getElementById('persona-personality-select') as HTMLSelectElement).value;
+        const descriptionEl = document.getElementById('persona-personality-description');
+        if (descriptionEl) {
+            const descriptionKey = `personality_desc_${personality}`;
+            descriptionEl.textContent = this.translations[descriptionKey] || '';
+        }
+    }
+    
+    private _initProactiveAlerts() {
+        if (this.proactiveAlertInterval) {
+            window.clearInterval(this.proactiveAlertInterval);
+        }
+        this.proactiveAlertInterval = window.setInterval(() => {
+            console.log("Checking for proactive alerts...");
+            if (this.userLocation && Math.random() > 0.8) {
+                const alerts = [
+                    this.translations.proactive_alert_accident_ahead,
+                    this.translations.proactive_alert_traffic_jam,
+                    this.translations.proactive_alert_hazard_reported,
+                    this.translations.proactive_alert_construction,
+                ];
+                const randomAlert = alerts[Math.floor(Math.random() * alerts.length)];
+                const distance = (Math.random() * 5 + 1).toFixed(1);
+                this._showProactiveAlert(randomAlert.replace('{distance}', distance + ' km'), 'accident', 'What are the details of the accident ahead?');
+            }
+        }, 30000);
+    }
 
-        // Remove current layer
-        if (this.map.hasLayer(this.tileLayers[this.activeBaseLayer])) {
-            this.map.removeLayer(this.tileLayers[this.activeBaseLayer]);
+    // --- User & UI State ---
+    private _updateUiForUserRole() {
+        const role = this.currentUser?.role || 'guest';
+        document.body.dataset.userRole = role;
+
+        const adminBtn = document.getElementById('admin-dashboard-btn');
+        if (adminBtn) adminBtn.classList.toggle('hidden', !['admin', 'superadmin'].includes(role));
+
+        const reportsBtn = document.getElementById('fab-reports-btn');
+        if (reportsBtn) reportsBtn.classList.toggle('hidden', role === 'guest');
+
+        const superadminBtn = document.getElementById('superadmin-settings-btn');
+        if (superadminBtn) superadminBtn.classList.toggle('hidden', role !== 'superadmin');
+
+        const profileBtn = document.getElementById('fab-profile-btn');
+        const loginPrompt = document.getElementById('login-prompt');
+        if (profileBtn) profileBtn.classList.toggle('hidden', role === 'guest');
+        if (loginPrompt) loginPrompt.classList.toggle('hidden', role !== 'guest');
+    }
+
+    private _handleProfileClick() {
+        this._openSettingsPanel();
+    }
+
+    private _handleLogout() {
+        if (this.auth) {
+            this.auth.signOut().catch((error: any) => console.error('Sign out error', error));
+        } else {
+            this.currentUser = null;
+            this._updateUiForUserRole();
+            this._showToast('You have been logged out.', 'info');
+        }
+    }
+
+    // --- Search ---
+    private _handleSearchInput(e: Event) {
+        const input = e.target as HTMLInputElement;
+        const query = input.value.trim().toLowerCase();
+        const suggestionsPanel = document.getElementById('search-suggestions-panel')!;
+
+        if (this.searchDebounceTimer) {
+            clearTimeout(this.searchDebounceTimer);
+        }
+
+        if (query.length < 2) {
+            suggestionsPanel.classList.add('hidden');
+            return;
+        }
+
+        this.searchDebounceTimer = window.setTimeout(() => {
+            const filtered = this.mockSuggestions.filter(s => s.text.toLowerCase().includes(query));
+            this._renderSearchSuggestions(filtered);
+        }, 300);
+    }
+
+    private _renderSearchSuggestions(suggestions: any[]) {
+        const panel = document.getElementById('search-suggestions-panel')!;
+        const list = panel.querySelector('ul')!;
+        list.innerHTML = '';
+    
+        if (suggestions.length === 0) {
+            list.innerHTML = `<li class="no-results">No suggestions found.</li>`;
+        } else {
+            suggestions.forEach(s => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span class="material-icons">${s.icon}</span>
+                    <span>${s.text}</span>
+                    <span class="suggestion-type">${s.type.replace('_', ' ')}</span>
+                `;
+                list.appendChild(li);
+            });
+        }
+    
+        panel.classList.remove('hidden');
+    }
+
+    private _handleGlobalClickForSearch(e: Event) {
+        const searchBar = document.getElementById('unified-search-bar');
+        if (searchBar && !searchBar.contains(e.target as Node)) {
+            const suggestionsPanel = document.getElementById('search-suggestions-panel');
+            if (suggestionsPanel) {
+                suggestionsPanel.classList.add('hidden');
+            }
+        }
+    }
+
+    // --- Geolocation & Permissions ---
+    private _centerOnUserLocation() {
+        if (this.userLocation) {
+            this.map.setView([this.userLocation.lat, this.userLocation.lon], 15);
+        } else {
+            this._requestPermission('geolocation');
+        }
+    }
+
+    private _initGeolocationWatcher() {
+        if (this.geolocationWatcherId) {
+            navigator.geolocation.clearWatch(this.geolocationWatcherId);
+        }
+        if (navigator.geolocation) {
+            this.geolocationWatcherId = navigator.geolocation.watchPosition(
+                this._handlePositionUpdate.bind(this),
+                this._handlePositionError.bind(this),
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        } else {
+            console.error("Geolocation is not supported by this browser.");
+            this._showToast('Geolocation is not available in your browser.', 'error');
+        }
+    }
+    
+    private _proceedWithGeolocation() {
+        this._initGeolocationWatcher();
+    }
+    
+    // --- START OF ADDED METHODS ---
+
+    private _initOfflineMaps() {
+        console.log("Initializing offline maps feature.");
+        const savedRegions = localStorage.getItem('sadak_sathi_offline_maps');
+        if (savedRegions) {
+            this.downloadedRegions = JSON.parse(savedRegions);
+            this._updateOfflineMapUI();
+        }
+    }
+
+    private _initCompass() {
+        console.log("Initializing compass.");
+        // Placeholder for compass initialization
+    }
+
+    private _initTheme() {
+        const savedTheme = localStorage.getItem('sadak_sathi_theme');
+        if (savedTheme === 'dark') {
+            document.body.classList.add('dark-mode');
+            const iconEl = document.getElementById('theme-toggle-icon');
+            if(iconEl) iconEl.textContent = 'light_mode';
+        }
+    }
+
+    private _toggleTheme() {
+        document.body.classList.toggle('dark-mode');
+        const isDarkMode = document.body.classList.contains('dark-mode');
+        localStorage.setItem('sadak_sathi_theme', isDarkMode ? 'dark' : 'light');
+        const iconEl = document.getElementById('theme-toggle-icon');
+        if (iconEl) iconEl.textContent = isDarkMode ? 'light_mode' : 'dark_mode';
+    }
+
+    private _updateRoutingUI() {
+        const from = (document.getElementById('from-input') as HTMLInputElement).value;
+        const to = (document.getElementById('to-input') as HTMLInputElement).value;
+        const findBtn = document.getElementById('find-route-btn')!;
+        const clearBtn = document.getElementById('clear-route-btn')!;
+
+        if (from && to) {
+            findBtn.removeAttribute('disabled');
+        } else {
+            findBtn.setAttribute('disabled', 'true');
         }
         
-        // Add new layer
-        this.tileLayers[style].addTo(this.map).bringToBack();
-        this.activeBaseLayer = style;
-
-        // Update active button state
-        document.querySelectorAll('.style-option').forEach(btn => {
-            btn.classList.toggle('active', (btn as HTMLElement).dataset.style === style);
-        });
-
-        // Sync theme with map style if applicable
-        const appContainer = document.getElementById('app-container')!;
-        if (style === 'dark' && appContainer.dataset.theme !== 'dark') {
-            this._applyTheme('dark');
-        } else if (style === 'streets' && appContainer.dataset.theme !== 'light') {
-            this._applyTheme('light');
+        if (from || to || this.activeRouteData) {
+            clearBtn.classList.remove('hidden');
+        } else {
+            clearBtn.classList.add('hidden');
         }
+    }
+
+    private async _handleFindRoute() {
+        const findBtn = document.getElementById('find-route-btn')!;
+        findBtn.innerHTML = `<div class="spinner-inline"></div> ${this.translations.finding_best_routes}`;
+        findBtn.setAttribute('disabled', 'true');
+
+        try {
+            const prefs = this._getRoutePreferences();
+            this.activeRoutePrefs = prefs;
+            const routes = await this.backend.getAlternativeRoutes(prefs);
+            const summarizedRoutes = await this.backend.getRouteSummaries(routes, prefs);
+            
+            this.availableRoutes = summarizedRoutes;
+            
+            if (summarizedRoutes.length > 0) {
+                this._displayRoutes(summarizedRoutes);
+            } else {
+                this._showToast("Could not find a route.", 'error');
+            }
+
+        } catch(err) {
+            console.error("Error finding route:", err);
+            this._showToast("An error occurred while finding routes.", 'error');
+        } finally {
+            findBtn.innerHTML = this.translations.find_route_btn;
+            this._updateRoutingUI();
+        }
+    }
+
+    private _handleClearRoute() {
+        (document.getElementById('from-input') as HTMLInputElement).value = '';
+        (document.getElementById('to-input') as HTMLInputElement).value = '';
+        this.routeLayer.clearLayers();
+        this.activeRouteData = null;
+        this.availableRoutes = [];
+        document.getElementById('route-details-panel')?.classList.add('hidden');
+        this._updateRoutingUI();
+    }
+
+    private _handlePreferenceChange() {
+        if (this.activeRouteData) {
+            this._handleFindRoute();
+        }
+    }
+
+    private _toggleHeadingUpMode() {
+        this.headingUpMode = !this.headingUpMode;
+        const btn = document.getElementById('toggle-heading-up-btn')!;
+        btn.classList.toggle('active', this.headingUpMode);
+        if (!this.headingUpMode) {
+            if (typeof (this.map as any).setBearing === 'function') {
+                (this.map as any).setBearing(0);
+            }
+            if (this.userLocationMarker && this.userLocationMarker._icon) {
+                this.userLocationMarker._icon.style.transform = (this.userLocationMarker._icon.style.transform || '').replace(/ rotate\([^)]+\)/, '');
+            }
+        }
+        this._showToast(`Heading-up mode ${this.headingUpMode ? 'enabled' : 'disabled'}.`, 'info');
+    }
+
+    private _toggleDistanceTool() {
+        this.isMeasuringDistance = !this.isMeasuringDistance;
+        const btn = document.getElementById('measure-distance-btn')!;
+        btn.classList.toggle('active', this.isMeasuringDistance);
+        (document.getElementById('map')! as HTMLElement).style.cursor = this.isMeasuringDistance ? 'crosshair' : '';
+        
+        // FIX: Corrected element ID from 'distance-measurement-panel' to 'distance-measurement-display'.
+        const distancePanel = document.getElementById('distance-measurement-display')!;
+        distancePanel.classList.toggle('hidden', !this.isMeasuringDistance);
+
+        if (!this.isMeasuringDistance) {
+            this._clearDistanceMeasurement();
+        } else {
+            this._showToast("Click on the map to measure distance.", 'info');
+        }
+    }
+
+    private _clearDistanceMeasurement() {
+        this.distancePoints = [];
+        this.distanceLayer.clearLayers();
+        (document.getElementById('distance-value') as HTMLElement).textContent = '0.00 km';
     }
 
     private async _fetchAndDisplayTraffic() {
-        this._showToast('Fetching live traffic data...', 'info');
         try {
-            const trafficData = await this.backend.getTraffic();
-            if (trafficData && trafficData.features && trafficData.features.length > 0) {
-                this.trafficLayer.clearLayers();
-                this.trafficLayer.addData(trafficData);
-                if (!this.map.hasLayer(this.trafficLayer)) {
-                    this.map.addLayer(this.trafficLayer);
-                    this.trafficLayer.bringToFront(); // Ensure traffic is visible
-                }
-            } else {
-                this._showToast('No traffic data available at the moment.', 'info');
+            // FIX: Add layer to map before adding data to ensure layer.getCenter() is available.
+            if (!this.map.hasLayer(this.trafficLayer)) {
+                this.trafficLayer.addTo(this.map);
             }
-        } catch (error) {
-            console.error("Error fetching traffic data:", error);
-            this._showToast('Could not load traffic data.', 'error');
-            // Uncheck the box on failure for better UX
-            const toggle = document.getElementById('toggle-traffic') as HTMLInputElement;
-            if (toggle) toggle.checked = false;
+            const trafficData = await this.backend.getTraffic();
+            this.trafficLayer.clearLayers();
+            this.trafficLayer.addData(trafficData);
+            this._showToast("Live traffic data loaded.", 'info');
+        } catch (err) {
+            console.error("Failed to load traffic data:", err);
+            this._showToast("Could not load live traffic.", 'error');
         }
     }
 
@@ -1162,843 +2108,754 @@ class SadakSathiApp {
         }
     }
 
-    private async _handleFindRoute() {
-        const fromInput = document.getElementById('from-input') as HTMLInputElement;
-        const toInput = document.getElementById('to-input') as HTMLInputElement;
-        const routeLoadingOverlay = document.getElementById('route-loading-overlay')!;
-
-        if (!fromInput.value || !toInput.value) {
-            // In a real app, show a toast notification
-            console.warn("Please enter both a start and end location.");
-            return;
+    private _setMapStyle(style: string) {
+        if (this.tileLayers[style] && this.activeBaseLayer !== style) {
+            this.map.removeLayer(this.tileLayers[this.activeBaseLayer]);
+            this.map.addLayer(this.tileLayers[style]);
+            this.activeBaseLayer = style;
+            document.querySelectorAll('.style-option').forEach(el => el.classList.remove('active'));
+            document.querySelector(`.style-option[data-style="${style}"]`)?.classList.add('active');
         }
+    }
 
-        const detailsPanel = document.getElementById('route-details-panel')!;
-        detailsPanel.classList.remove('hidden');
-        routeLoadingOverlay.classList.remove('hidden');
+    private _openLiveCam() {
+        // FIX: Corrected element ID from 'live-cam-modal' to 'live-cam-panel'
+        document.getElementById('live-cam-panel')?.classList.remove('hidden');
+    }
 
-        const prefs = {
-            preferHighways: (document.getElementById('route-pref-highways') as HTMLInputElement).checked,
-            avoidTolls: (document.getElementById('route-pref-no-tolls') as HTMLInputElement).checked,
-            preferScenic: (document.getElementById('route-pref-scenic') as HTMLInputElement).checked,
-        };
-        this.activeRoutePrefs = prefs;
+    private _closeLiveCam() {
+        // FIX: Corrected element ID from 'live-cam-modal' to 'live-cam-panel'
+        document.getElementById('live-cam-panel')?.classList.add('hidden');
+    }
+
+    private _hideProactiveAlert() {
+        document.getElementById('proactive-alert')?.classList.remove('visible');
+    }
+
+    private _openChatAndSendMessage(message: string) {
+        this._openChat();
+        (document.getElementById('chat-input') as HTMLInputElement).value = message;
+        this._handleChatSubmit(new Event('submit'));
+    }
+
+    private _openChat() {
+        // FIX: Toggle visibility of the modal container, not the inner panel.
+        document.getElementById('ai-chat-modal')?.classList.remove('hidden');
+        this.isChatOpen = true;
+        if (this.chatHistory.length === 0) {
+            this._addMessageToChat('model', this.translations.ai_welcome_message);
+        }
+    }
+
+    private _closeChat() {
+        // FIX: Toggle visibility of the modal container, not the inner panel.
+        document.getElementById('ai-chat-modal')?.classList.add('hidden');
+        this.isChatOpen = false;
+    }
+
+    private async _handleChatSubmit(e: Event) {
+        e.preventDefault();
+        const input = document.getElementById('chat-input') as HTMLInputElement;
+        const message = input.value.trim();
+
+        if (!message) return;
+
+        this._addMessageToChat('user', message);
+        input.value = '';
+        input.focus();
 
         try {
-            const rawRoutes = await this.backend.getAlternativeRoutes(prefs);
-            if (rawRoutes && rawRoutes.length > 0) {
-                // Get AI-generated summaries
-                this.availableRoutes = await this.backend.getRouteSummaries(rawRoutes, prefs);
-                
-                this._renderAlternativeRoutes();
-                this._setActiveRoute(this.availableRoutes[0].id);
-                 document.getElementById('route-alternatives-container')?.classList.remove('hidden');
-            } else {
-                // Handle no routes found
-                this._handleClearRoute();
-                console.log("No routes found.");
-            }
-        } catch (error) {
-            console.error("Error finding routes:", error);
-            // Show an error message to the user
-        } finally {
-            routeLoadingOverlay.classList.add('hidden');
+            this._addMessageToChat('model', '...', true);
+            const systemInstruction = this._getSystemInstruction();
+            const response = await this.backend.getChatResponse(this.chatHistory, message, systemInstruction);
+            this._updateLastChatMessage(response.text);
+        } catch (err) {
+            console.error("Chat API error:", err);
+            this._updateLastChatMessage(this.translations.ai_error_message);
         }
     }
 
-    private _renderAlternativeRoutes() {
-        const container = document.getElementById('route-alternatives')!;
-        container.innerHTML = ''; // Clear previous routes
-
-        this.availableRoutes.forEach(route => {
-            const card = document.createElement('div');
-            card.className = `route-alternative-card route--${route.type}`;
-            card.dataset.routeId = route.id;
-            card.innerHTML = `
-                <span class="time">${route.time} min</span>
-                <span class="name">${route.name}</span>
-                <span class="summary">${route.summary}</span>
-            `;
-            card.addEventListener('click', () => this._setActiveRoute(route.id));
-            container.appendChild(card);
-        });
-    }
-
-    private _getOverallRouteStatus(route: any): { text: string, icon: string, className: string } {
-        const conditions = route.directions.map((d: any) => d.condition.type).filter(Boolean);
-        
-        if (conditions.includes('blocked')) {
-            return { text: 'Road Blocked', icon: 'block', className: 'status--blocked' };
+    private _toggleVoiceInput() {
+        if (!SpeechRecognition) {
+            this._showToast("Voice input is not supported on this browser.", 'warning');
+            return;
         }
-        if (conditions.includes('one_lane')) {
-            return { text: 'One-Lane Traffic', icon: 'merge_type', className: 'status--one-lane' };
-        }
-        if (conditions.includes('accident')) {
-            return { text: 'Accident Reported', icon: 'car_crash', className: 'status--accident-reported' };
-        }
-        if (conditions.includes('traffic_jam')) {
-            return { text: 'Heavy Traffic', icon: 'traffic', className: 'status--heavy-traffic' };
-        }
-        if (conditions.includes('construction')) {
-            return { text: 'Construction Zone', icon: 'construction', className: 'status--construction-zone' };
-        }
-        if (conditions.includes('hazard')) {
-            return { text: 'Hazard Reported', icon: 'warning', className: 'status--hazard-reported' };
-        }
-        
-        return { text: 'Clear', icon: 'check_circle', className: 'status--clear' };
-    }
-
-    private _setActiveRoute(routeId: string) {
-        const routeData = this.availableRoutes.find(r => r.id === routeId);
-        if (!routeData) return;
-        
-        this.activeRouteData = routeData;
-
-        // Update active card style
-        document.querySelectorAll('.route-alternative-card').forEach(card => {
-            card.classList.toggle('active', (card as HTMLElement).dataset.routeId === routeId);
-        });
-
-        this._updateRouteDetailsUI(routeData);
-        this._displayRouteOnMap(routeData);
-        this._updateRoutePreferencesSummary();
-
-        // Update overall status
-        const overallStatus = this._getOverallRouteStatus(routeData);
-        const statusEl = document.getElementById('route-overall-status')!;
-        statusEl.innerHTML = `<span class="material-icons">${overallStatus.icon}</span> ${overallStatus.text}`;
-        statusEl.className = `stat-value ${overallStatus.className}`;
-
-        // Update AI summary
-        const summaryContainer = document.getElementById('route-ai-summary-container')!;
-        const summaryEl = document.getElementById('route-ai-summary')!;
-        if (routeData.summary) {
-            summaryEl.textContent = routeData.summary;
-            summaryContainer.classList.remove('hidden');
+        if (this.isRecognizing) {
+            this.recognition.stop();
         } else {
-            summaryContainer.classList.add('hidden');
-        }
-    }
-    
-    private _formatTimeAgo(isoString: string): string {
-        const date = new Date(isoString);
-        const now = new Date();
-        const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-        let interval = seconds / 31536000;
-        if (interval > 1) return Math.floor(interval) + " years ago";
-        interval = seconds / 2592000;
-        if (interval > 1) return Math.floor(interval) + " months ago";
-        interval = seconds / 86400;
-        if (interval > 1) return Math.floor(interval) + " days ago";
-        interval = seconds / 3600;
-        if (interval > 1) return Math.floor(interval) + " hours ago";
-        interval = seconds / 60;
-        if (interval > 1) return Math.floor(interval) + " minutes ago";
-        return "just now";
-    }
-
-    private _getConditionInfo(conditionType: string): { icon: string, label: string } {
-        switch (conditionType) {
-            case 'accident': return { icon: 'car_crash', label: 'Accident Reported' };
-            case 'construction': return { icon: 'construction', label: 'Construction Ahead' };
-            case 'hazard': return { icon: 'warning', label: 'Road Hazard' };
-            case 'traffic_jam': return { icon: 'traffic', label: 'Heavy Traffic' };
-            case 'blocked': return { icon: 'block', label: 'Road Blocked' };
-            case 'one_lane': return { icon: 'merge_type', label: 'One-Lane Traffic' };
-            case 'flood': return { icon: 'water', label: 'Flooding Reported' };
-            case 'landslide': return { icon: 'landslide', label: 'Landslide Reported' };
-            case 'broken_road': return { icon: 'dangerous', label: 'Damaged Road/Bridge' };
-            default: return { icon: '', label: '' };
+            this.activeVoiceContext = 'chat';
+            this._requestPermission('microphone');
         }
     }
 
-    private _updateRouteDetailsUI(route: any) {
-        document.getElementById('route-distance')!.textContent = `${route.distance} km`;
-        document.getElementById('route-time')!.textContent = `${route.time} min`;
-        
-        const eta = new Date(Date.now() + route.time * 60000);
-        document.getElementById('route-eta')!.textContent = eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        
-        const directionsList = document.getElementById('route-directions-list')!;
-        directionsList.innerHTML = '';
-        route.directions.forEach((step: {instruction: string, icon: string, condition: {type: string, details?: string, source?: string, lastUpdated?: string, sourceType?: 'official' | 'user'}}) => {
-            const li = document.createElement('li');
-            li.className = 'direction-step';
-
-            const conditionType = step.condition.type || 'clear';
-            li.dataset.condition = conditionType;
-
-            if (step.condition.details) {
-                 let title = step.condition.details;
-                 const sourceTypeLabel = step.condition.sourceType === 'official' ? 'Official Source' : 'Source';
-                 if (step.condition.source) title += `\n${sourceTypeLabel}: ${step.condition.source}`;
-                 if (step.condition.lastUpdated) title += `\nUpdated: ${this._formatTimeAgo(step.condition.lastUpdated)}`;
-                 li.title = title;
-            }
-
-            const conditionInfo = this._getConditionInfo(conditionType);
-
-            let conditionHtml = '';
-            if (conditionType !== 'clear') {
-                conditionHtml = `<span class="material-icons condition-icon" title="${conditionInfo.label}">${conditionInfo.icon}</span>`;
-            }
-            
-            let authenticityHtml = '';
-            if (step.condition.sourceType === 'official') {
-                authenticityHtml = `<span class="material-icons official-report-indicator" title="Verified Official Report">verified_user</span>`;
-            }
-
-            li.innerHTML = `
-                <span class="material-icons step-icon">${step.icon}</span>
-                <div class="step-instruction-wrapper">
-                    <p class="step-instruction">${step.instruction}</p>
-                    ${authenticityHtml}
-                </div>
-                <div class="step-condition-indicator">
-                    ${conditionHtml}
-                </div>`;
-            directionsList.appendChild(li);
-        });
+    private _toggleFabMenu() {
+        document.getElementById('fab-menu')?.classList.toggle('open');
     }
 
-     private _updateRoutePreferencesSummary() {
-        const summaryContainer = document.getElementById('route-preferences-summary')!;
-        const list = document.getElementById('route-preferences-list')!;
-        list.innerHTML = '';
-        let prefsUsed = false;
-        
-        if (this.activeRoutePrefs?.preferHighways) {
-            prefsUsed = true;
-            list.innerHTML += `<li><span class="material-icons">highway</span> ${this.translations.prefer_highways}</li>`;
+    private _openSettingsPanel() {
+        document.getElementById('settings-panel')?.classList.add('open');
+    }
+
+    private _openFindCarModal() {
+        this._updateFindCarModalUI();
+        document.getElementById('find-car-modal')?.classList.remove('hidden');
+    }
+
+    private _closeFindCarModal() {
+        document.getElementById('find-car-modal')?.classList.add('hidden');
+    }
+
+    private _handleParkHere() {
+        if (!this.userLocation) {
+            this._showToast(this.translations.no_user_location_for_parking, 'error');
+            return;
         }
-        if (this.activeRoutePrefs?.avoidTolls) {
-            prefsUsed = true;
-            list.innerHTML += `<li><span class="material-icons">no_transfer</span> ${this.translations.avoid_tolls}</li>`;
-        }
-        if (this.activeRoutePrefs?.preferScenic) {
-            prefsUsed = true;
-            list.innerHTML += `<li><span class="material-icons">park</span> ${this.translations.prefer_scenic_route}</li>`;
-        }
-
-        summaryContainer.classList.toggle('hidden', !prefsUsed);
-    }
-    
-    private _displayRouteOnMap(route: any) {
-        this.routeLayer.clearLayers();
-        const routeGeoJson = {
-            type: "Feature",
-            properties: {},
-            geometry: route.geometry
-        };
-        // Leaflet expects [lat, lon], but GeoJSON is [lon, lat], so we need to swap.
-        const swappedCoords = route.geometry.coordinates.map((coord: number[]) => [coord[1], coord[0]]);
-        const polyline = L.polyline(swappedCoords, { color: '#3498db', weight: 6, opacity: 0.9 });
-        this.routeLayer.addLayer(polyline);
-        this.map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+        const carLocation = { lat: this.userLocation.lat, lon: this.userLocation.lon, time: new Date().toISOString() };
+        localStorage.setItem('sadak_sathi_car_location', JSON.stringify(carLocation));
+        this._showToast(this.translations.car_location_saved_toast, 'success');
+        this._updateFindCarModalUI();
     }
 
-    private _handleClearRoute() {
-        this.availableRoutes = [];
-        this.activeRouteData = null;
-        this.activeRoutePrefs = null;
-
-        this.routeLayer.clearLayers();
-        document.getElementById('route-details-panel')?.classList.add('hidden');
-        document.getElementById('route-alternatives-container')?.classList.add('hidden');
-        document.getElementById('route-preferences-summary')?.classList.add('hidden');
-        document.getElementById('route-ai-summary-container')?.classList.add('hidden');
-        
-        const fromInput = document.getElementById('from-input') as HTMLInputElement;
-        if (fromInput) fromInput.value = '';
-        const toInput = document.getElementById('to-input') as HTMLInputElement;
-        if (toInput) toInput.value = '';
-
-        // Clean up URL parameters
-        const url = new URL(window.location.href);
-        url.searchParams.delete('from');
-        url.searchParams.delete('to');
-        window.history.replaceState({}, '', url);
-
-        this._updateRoutingUI(); // Reset the UI to search mode
-    }
-
-    private _updateRoutingUI() {
-        const fromVal = (document.getElementById('from-input') as HTMLInputElement)?.value || '';
-        const toVal = (document.getElementById('to-input') as HTMLInputElement)?.value || '';
-        const unifiedSearchBar = document.getElementById('unified-search-bar')!;
-        const routingPanel = document.getElementById('active-routing-panel')!;
-    
-        // If either input has a value, we are in routing mode
-        if (fromVal.trim() || toVal.trim()) {
-            unifiedSearchBar.classList.add('hidden');
-            routingPanel.classList.remove('hidden');
-        } else { // Both are empty, go back to search mode
-            unifiedSearchBar.classList.remove('hidden');
-            routingPanel.classList.add('hidden');
-        }
-    }
-    
-    private _handlePreferenceChange() {
-        // Automatically re-fetch routes when a preference is changed,
-        // but only if a route is actively being planned.
-        const fromInput = document.getElementById('from-input') as HTMLInputElement;
-        const toInput = document.getElementById('to-input') as HTMLInputElement;
-    
-        if (fromInput?.value && toInput?.value) {
+    private _handleGetDirectionsToCar() {
+        const savedLocation = localStorage.getItem('sadak_sathi_car_location');
+        if (savedLocation && this.userLocation) {
+            // const carLoc = JSON.parse(savedLocation);
+            (document.getElementById('from-input') as HTMLInputElement).value = this.translations.current_location_label;
+            (document.getElementById('to-input') as HTMLInputElement).value = this.translations.route_to_my_car;
+            this._closeFindCarModal();
             this._handleFindRoute();
         }
     }
-    
-    private _showToast(message: string, type: 'success' | 'warning' | 'error' | 'info' = 'info') {
-        const toast = document.getElementById('toast-notification')!;
-        const toastMessage = document.getElementById('toast-message')!;
-        const toastIcon = document.getElementById('toast-icon')!;
 
-        toast.className = 'hidden'; // Reset classes
-        toastMessage.textContent = message;
-
-        const icons = {
-            success: 'check_circle',
-            warning: 'warning',
-            error: 'error',
-            info: 'info'
-        };
-
-        toastIcon.textContent = icons[type];
-        toast.classList.add(type);
-        toast.classList.add('show');
-
-        setTimeout(() => {
-            toast.classList.remove('show');
-        }, 4000);
+    private _handleClearCarLocation() {
+        localStorage.removeItem('sadak_sathi_car_location');
+        this._showToast(this.translations.car_location_cleared_toast, 'info');
+        this._updateFindCarModalUI();
     }
 
-    // --- Offline Maps Methods ---
-    private _initOfflineMaps() {
-        const savedRegions = localStorage.getItem('sadak_sathi_offline_regions');
-        if (savedRegions) {
-            this.downloadedRegions = JSON.parse(savedRegions);
-        } else {
-            this.downloadedRegions = [];
-        }
-        this._renderDownloadedRegions();
-        this._updateDownloadModalButtons();
-    }
-    
-    private _renderDownloadedRegions() {
-        const list = document.getElementById('offline-regions-list')!;
-        list.innerHTML = '';
-
-        if (this.downloadedRegions.length === 0) {
-            list.innerHTML = `<p style="padding: 1rem; text-align: center; color: var(--text-color-muted);" data-lang-key="no_offline_maps">${this.translations.no_offline_maps}</p>`;
-            return;
-        }
-
-        this.downloadedRegions.forEach(region => {
-            const li = document.createElement('li');
-            li.dataset.regionId = region.id;
-            li.innerHTML = `
-                <div class="offline-region-info">
-                    <span class="material-icons">map</span>
-                    <div>
-                        <strong>${region.name}</strong>
-                        <span>${region.size}</span>
-                    </div>
-                </div>
-                <button class="icon-button delete-btn" title="${this.translations.delete}">
-                    <span class="material-icons">delete</span>
-                </button>
-            `;
-            li.querySelector('.delete-btn')?.addEventListener('click', () => this._handleDeleteRegion(region.id));
-            list.appendChild(li);
-        });
+    private _showOfflineMapsModal() {
+        document.getElementById('offline-maps-modal')?.classList.remove('hidden');
     }
 
     private _handleDownloadRegion(listItem: HTMLElement, regionId: string, regionName: string, regionSize: string) {
+        if (this.downloadedRegions.some(r => r.id === regionId)) return;
+        
         const downloadBtn = listItem.querySelector('.download-btn') as HTMLElement;
-        const progressContainer = listItem.querySelector('.download-progress-container') as HTMLElement;
-        const progressBar = progressContainer.querySelector('progress') as HTMLProgressElement;
-        const progressText = progressContainer.querySelector('span') as HTMLElement;
-
-        if (downloadBtn.classList.contains('downloaded')) return;
-
+        const deleteBtn = listItem.querySelector('.delete-btn') as HTMLElement;
+        const statusEl = listItem.querySelector('.download-status') as HTMLElement;
+        
         downloadBtn.classList.add('hidden');
-        progressContainer.classList.remove('hidden');
+        statusEl.textContent = this.translations.downloading;
+        statusEl.classList.remove('hidden');
         
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += Math.random() * 15;
-            if (progress >= 100) {
-                progress = 100;
-                clearInterval(interval);
-                
-                downloadBtn.classList.remove('hidden');
-                progressContainer.classList.add('hidden');
-                
-                downloadBtn.innerHTML = `<span class="material-icons">check</span> <span data-lang-key="downloaded">${this.translations.downloaded}</span>`;
-                downloadBtn.classList.add('downloaded');
-
-                // Save to state and localStorage
-                if (!this.downloadedRegions.some(r => r.id === regionId)) {
-                    this.downloadedRegions.push({ id: regionId, name: regionName, size: regionSize });
-                    localStorage.setItem('sadak_sathi_offline_regions', JSON.stringify(this.downloadedRegions));
-                    this._renderDownloadedRegions();
-                    this._showToast(this.translations.offline_map_saved_toast.replace('{region}', regionName), 'success');
-                }
-            }
-            progressBar.value = progress;
-            progressText.textContent = `${Math.round(progress)}%`;
-        }, 300);
+        setTimeout(() => { // Simulate download
+            statusEl.textContent = this.translations.downloaded;
+            deleteBtn.classList.remove('hidden');
+            this.downloadedRegions.push({ id: regionId, name: regionName, size: regionSize });
+            localStorage.setItem('sadak_sathi_offline_maps', JSON.stringify(this.downloadedRegions));
+            this._showToast(this.translations.offline_map_saved_toast.replace('{region}', regionName), 'success');
+            this._updateOfflineMapUI();
+        }, 2000);
     }
-    
-    private _handleDeleteRegion(regionId: string) {
+
+    private _handleDeleteRegion(listItem: HTMLElement, regionId: string, regionName: string) {
         this.downloadedRegions = this.downloadedRegions.filter(r => r.id !== regionId);
-        localStorage.setItem('sadak_sathi_offline_regions', JSON.stringify(this.downloadedRegions));
-        const region = en_translations[regionId.replace('-', '_') as keyof typeof en_translations] || regionId;
-        this._showToast(this.translations.offline_map_deleted_toast.replace('{region}', region), 'info');
-        this._renderDownloadedRegions();
-        this._updateDownloadModalButtons();
+        localStorage.setItem('sadak_sathi_offline_maps', JSON.stringify(this.downloadedRegions));
+        this._showToast(this.translations.offline_map_deleted_toast.replace('{region}', regionName), 'info');
+        
+        const downloadBtn = listItem.querySelector('.download-btn') as HTMLElement;
+        const deleteBtn = listItem.querySelector('.delete-btn') as HTMLElement;
+        const statusEl = listItem.querySelector('.download-status') as HTMLElement;
+
+        downloadBtn.classList.remove('hidden');
+        deleteBtn.classList.add('hidden');
+        statusEl.classList.add('hidden');
+
+        this._updateOfflineMapUI();
+    }
+
+    private _openReportIncidentModal() {
+        if (!this.userLocation) {
+            this._showToast(this.translations.report_location_unavailable, 'warning');
+            return;
+        }
+        document.getElementById('report-incident-modal')?.classList.remove('hidden');
+    }
+
+    private _closeReportIncidentModal() {
+        (document.getElementById('report-incident-form') as HTMLFormElement).reset();
+        // FIX: Corrected element ID
+        const preview = document.getElementById('incident-image-preview') as HTMLImageElement;
+        if (preview) {
+            preview.src = '';
+            preview.classList.add('hidden');
+        }
+        document.getElementById('report-incident-modal')?.classList.add('hidden');
+    }
+
+    private async _handleReportIncidentSubmit(e: Event) {
+        e.preventDefault();
+        const form = e.target as HTMLFormElement;
+        const submitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<div class="spinner-inline"></div> Submitting...`;
+
+        try {
+            const formData = new FormData(form);
+            const reportData = {
+                incidentType: formData.get('incident-type'),
+                description: formData.get('description'),
+                lat: this.userLocation!.lat,
+                lon: this.userLocation!.lon,
+                reportedBy: this.currentUser?.email || 'anonymous',
+                timestamp: new Date().toISOString()
+            };
+            await this.backend.submitUserReport(reportData);
+            this._showToast(this.translations.report_submitted_toast, 'success');
+            this._closeReportIncidentModal();
+        } catch (err) {
+            console.error("Failed to submit incident report:", err);
+            this._showToast("Failed to submit report. Please try again.", 'error');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    }
+
+    private _handleIncidentPhotoPreview(e: Event) {
+        const input = e.target as HTMLInputElement;
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                // FIX: Corrected element ID
+                const preview = document.getElementById('incident-image-preview') as HTMLImageElement;
+                if(preview) {
+                    preview.src = event.target?.result as string;
+                    preview.classList.remove('hidden');
+                }
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    private _handleDownloadReport(format: 'csv' | 'pdf') {
+        this._showToast(`Downloading report as ${format.toUpperCase()}... (Not implemented)`, 'info');
+    }
+
+    private _handleShareReport() {
+        this._showToast('Sharing report... (Not implemented)', 'info');
+    }
+
+    private _handlePrintReport() {
+        // More sophisticated print logic would go here
+        window.print();
+    }
+
+    private _updateAllAiAvatars(url: string) {
+        (document.getElementById('persona-avatar-preview') as HTMLImageElement).src = url;
+        (document.getElementById('chat-ai-avatar') as HTMLImageElement).src = url;
+        (document.getElementById('unified-search-ai-avatar') as HTMLImageElement).src = url;
     }
     
-    private _updateDownloadModalButtons() {
-        document.querySelectorAll('#download-region-options li').forEach(li => {
-            const regionId = (li as HTMLElement).dataset.region;
-            const downloadBtn = li.querySelector('.download-btn') as HTMLElement;
-            if (regionId && this.downloadedRegions.some(r => r.id === regionId)) {
-                 downloadBtn.innerHTML = `<span class="material-icons">check</span> <span data-lang-key="downloaded">${this.translations.downloaded}</span>`;
-                 downloadBtn.classList.add('downloaded');
-            } else {
-                 downloadBtn.innerHTML = `<span class="material-icons">download</span> <span data-lang-key="download">${this.translations.download}</span>`;
-                 downloadBtn.classList.remove('downloaded');
-            }
+    private _handleAvatarUpload(e: Event) {
+        const input = e.target as HTMLInputElement;
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const avatarUrl = event.target?.result as string;
+                this.aiAvatarUrl = avatarUrl;
+                localStorage.setItem('sadak_sathi_avatar', avatarUrl);
+                this._updateAllAiAvatars(avatarUrl);
+                this._showToast(this.translations.ai_avatar_updated, 'success');
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    private _openSuperadminSettingsModal() {
+        document.getElementById('superadmin-settings-modal')?.classList.remove('hidden');
+    }
+
+    private _closeSuperadminSettingsModal() {
+        document.getElementById('superadmin-settings-modal')?.classList.add('hidden');
+    }
+
+    private async _handleSuperadminSettingsSave(e: Event) {
+        e.preventDefault();
+        this._showToast('Saving superadmin settings... (Not implemented)', 'info');
+    }
+
+    private _handleSuperadminTabChange(target: HTMLElement) {
+        const tabId = target.dataset.tab;
+        if (!tabId) return;
+
+        document.querySelectorAll('#superadmin-settings-modal .admin-tab-btn').forEach(btn => btn.classList.remove('active'));
+        target.classList.add('active');
+
+        document.querySelectorAll('#superadmin-settings-modal .admin-panel').forEach(panel => {
+            (panel as HTMLElement).classList.toggle('hidden', panel.id !== `superadmin-panel-${tabId}`);
         });
     }
 
-    // --- Share Route Methods ---
-    private _openShareModal() {
-        if (!this.activeRouteData) {
-            this._showToast(this.translations.no_route_to_share, 'warning');
-            return;
-        }
-
-        const start = this.activeRouteData.geometry.coordinates[0];
-        const end = this.activeRouteData.geometry.coordinates[this.activeRouteData.geometry.coordinates.length - 1];
-        
-        const url = new URL(window.location.href);
-        url.search = ''; // Clear existing params
-        url.searchParams.set('from', `${start[1]},${start[0]}`); // lat,lon
-        url.searchParams.set('to', `${end[1]},${end[0]}`); // lat,lon
-        
-        const shareLinkInput = document.getElementById('share-route-link') as HTMLInputElement;
-        shareLinkInput.value = url.toString();
-
-        this._setupSocialShareLinks(url.toString());
-        
-        document.getElementById('share-route-modal')?.classList.remove('hidden');
+    private _openAdminDashboard() {
+        document.getElementById('admin-dashboard-modal')?.classList.remove('hidden');
     }
 
-    private _handleCopyLink() {
-        const shareLinkInput = document.getElementById('share-route-link') as HTMLInputElement;
-        navigator.clipboard.writeText(shareLinkInput.value).then(() => {
-            const copyBtn = document.getElementById('copy-share-link-btn')!;
-            const originalText = copyBtn.querySelector('span:last-child')!.textContent;
-            const originalIcon = copyBtn.querySelector('span:first-child')!.textContent;
+    private _closeAdminDashboard() {
+        document.getElementById('admin-dashboard-modal')?.classList.add('hidden');
+    }
 
-            copyBtn.classList.add('copied');
-            copyBtn.querySelector('span:last-child')!.textContent = this.translations.copied;
-            copyBtn.querySelector('span:first-child')!.textContent = 'check';
+    private _handleAdminDashboardTabChange(target: HTMLElement) {
+        const tabId = target.dataset.tab;
+        if (!tabId) return;
 
+        document.querySelectorAll('#admin-dashboard-modal .admin-tab-btn').forEach(btn => btn.classList.remove('active'));
+        target.classList.add('active');
+
+        document.querySelectorAll('#admin-dashboard-modal .admin-panel').forEach(panel => {
+            (panel as HTMLElement).classList.toggle('hidden', panel.id !== `admin-panel-${tabId}`);
+        });
+    }
+
+    private _closeAdminFormModal() {
+        // FIX: Corrected element ID
+        document.getElementById('admin-form-modal')?.classList.add('hidden');
+    }
+
+    private async _handleAdminFormSubmit(e: Event) {
+        e.preventDefault();
+        this._showToast('Submitting admin form... (Not implemented)', 'info');
+    }
+
+    private async _handleRelayConfirm() {
+        this._showToast('Relaying report... (Not implemented)', 'info');
+    }
+
+    private _toggleNotificationsPanel() {
+        document.getElementById('notifications-panel')?.classList.toggle('open');
+    }
+
+    private _toggleAdminFormAI() {
+        this._showToast('Admin form AI toggled... (Not implemented)', 'info');
+    }
+
+    private _handleOnlineStatus() {
+        this._showToast(this.translations.you_are_online, 'success');
+        document.body.classList.remove('is-offline');
+    }
+
+    private _handleOfflineStatus() {
+        this._showToast(this.translations.you_are_offline, 'warning');
+        document.body.classList.add('is-offline');
+    }
+
+    private _handleDistanceClick(e: any) {
+        const point = e.latlng;
+        this.distancePoints.push(point);
+
+        L.circleMarker(point, { radius: 5, color: '#3498db' }).addTo(this.distanceLayer);
+
+        if (this.distancePoints.length > 1) {
+            this.distanceLayer.clearLayers(); // Clear previous lines
+            L.polyline(this.distancePoints, { color: '#3498db' }).addTo(this.distanceLayer);
+            this.distancePoints.forEach(p => L.circleMarker(p, { radius: 5, color: '#3498db' }).addTo(this.distanceLayer));
+
+            let totalDistance = 0;
+            for (let i = 0; i < this.distancePoints.length - 1; i++) {
+                totalDistance += this.distancePoints[i].distanceTo(this.distancePoints[i + 1]);
+            }
+            (document.getElementById('distance-value') as HTMLElement).textContent = `${(totalDistance / 1000).toFixed(2)} km`;
+        }
+    }
+
+    private _showProactiveAlert(message: string, type: string, aiQuery: string) {
+        const now = Date.now();
+        if (now - this.lastAlertTime < 60000) return; // Debounce alerts
+        this.lastAlertTime = now;
+
+        const alertEl = document.getElementById('proactive-alert')!;
+        // FIX: Use getElementById for the alert message paragraph
+        const messageEl = document.getElementById('alert-message');
+        if (messageEl) {
+            messageEl.textContent = message;
+        }
+        (document.getElementById('alert-ask-ai-btn') as HTMLElement).dataset.aiQuery = aiQuery;
+        
+        alertEl.className = `proactive-alert alert-type-${type}`; // Reset classes
+        setTimeout(() => alertEl.classList.add('visible'), 100);
+        
+        // Auto-dismiss after some time
+        setTimeout(() => {
+            this._hideProactiveAlert();
+        }, 15000);
+    }
+
+    private _getConditionInfo(conditionType: string) {
+        // Standardize input to handle different casings and characters from various sources
+        const standardizedType = conditionType.toLowerCase().replace(/ /g, '_').replace(/\//g, '_');
+    
+        const conditionMap: { [key: string]: { icon: string, label: string, colorClass: string } } = {
+            'clear': { icon: 'check_circle_outline', label: 'Clear', colorClass: 'condition-clear' },
+            'construction': { icon: 'construction', label: 'Construction', colorClass: 'condition-construction' },
+            'traffic_jam': { icon: 'traffic', label: 'Traffic Jam', colorClass: 'condition-traffic' },
+            'blocked': { icon: 'block', label: 'Blocked', colorClass: 'condition-blocked' },
+            'one_lane': { icon: 'warning_amber', label: 'One Lane', colorClass: 'condition-one-lane' },
+            'accident': { icon: 'emergency', label: 'Accident', colorClass: 'condition-accident' },
+            'hazard': { icon: 'warning', label: 'Hazard', colorClass: 'condition-hazard' },
+            'roadblock': { icon: 'block', label: 'Roadblock', colorClass: 'condition-blocked' },
+            'flood': { icon: 'water', label: 'Flood', colorClass: 'condition-hazard' },
+            'landslide': { icon: 'landslide', label: 'Landslide', colorClass: 'condition-hazard' },
+            'broken_road_bridge': { icon: 'gpp_bad', label: 'Broken Road/Bridge', colorClass: 'condition-blocked' },
+            'other': { icon: 'help_outline', label: 'Other', colorClass: 'condition-unknown' },
+        };
+        // Use original type for the label if no match is found, to preserve user-friendly text
+        return conditionMap[standardizedType] || { icon: 'warning', label: conditionType.replace(/_/g, ' '), colorClass: '' };
+    }
+
+    private _showToast(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') {
+        const toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) return;
+        
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        
+        const icons = {
+            info: 'info',
+            success: 'check_circle',
+            warning: 'warning',
+            error: 'error'
+        };
+        
+        toast.innerHTML = `<span class="material-icons">${icons[type]}</span><p>${message}</p>`;
+        toastContainer.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.classList.add('show');
+        }, 10);
+        
+        setTimeout(() => {
+            toast.classList.remove('show');
             setTimeout(() => {
-                copyBtn.classList.remove('copied');
-                copyBtn.querySelector('span:last-child')!.textContent = originalText;
-                copyBtn.querySelector('span:first-child')!.textContent = originalIcon;
-            }, 2500);
-        });
-    }
-
-    private _setupSocialShareLinks(url: string) {
-        const text = encodeURIComponent("Check out this route I planned on Sadak Sathi!");
-        
-        (document.getElementById('share-email-btn') as HTMLAnchorElement).href = `mailto:?subject=Route from Sadak Sathi&body=${text}%0A${encodeURIComponent(url)}`;
-        (document.getElementById('share-x-btn') as HTMLAnchorElement).href = `https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent(url)}`;
-        (document.getElementById('share-facebook-btn') as HTMLAnchorElement).href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+                toast.remove();
+            }, 300);
+        }, 3000);
     }
     
-    private _initRouteFromUrlParams() {
-        const params = new URLSearchParams(window.location.search);
-        const from = params.get('from');
-        const to = params.get('to');
-
-        if (from && to) {
-            // Validate coordinates format
-            const fromCoords = from.split(',').map(Number);
-            const toCoords = to.split(',').map(Number);
-
-            if (fromCoords.length === 2 && toCoords.length === 2 && !isNaN(fromCoords[0]) && !isNaN(fromCoords[1]) && !isNaN(toCoords[0]) && !isNaN(toCoords[1])) {
-                (document.getElementById('from-input') as HTMLInputElement).value = `Lat: ${fromCoords[0].toFixed(4)}, Lon: ${fromCoords[1].toFixed(4)}`;
-                (document.getElementById('to-input') as HTMLInputElement).value = `Lat: ${toCoords[0].toFixed(4)}, Lon: ${toCoords[1].toFixed(4)}`;
-                
-                this._updateRoutingUI();
-                this._handleFindRoute();
-            }
-        }
-    }
-    
-     private async _handleMapClick(e: any) {
-        const { lat, lng } = e.latlng;
-        
-        this._showDetailCard(`Location`, `
-            <div class="poi-section">
-                <ul class="poi-tips-list">
-                    <li><span class="material-icons">pin_drop</span> <p><b>Latitude:</b> ${lat.toFixed(5)}</p></li>
-                    <li><span class="material-icons">pin_drop</span> <p><b>Longitude:</b> ${lng.toFixed(5)}</p></li>
-                </ul>
-            </div>
-        `);
-
-        // Fetch and display weather for the clicked coordinates
-        await this._fetchAndDisplayWeather(lat, lng);
-
-        // Update actions
-        this._setupMapClickDetailCardActions(lat, lng);
-    }
-
-    private async _handlePoiClick(poi: { id: string, name: string, type: string, lat: number, lon: number }) {
-        this._showDetailCard(poi.name, `
-            <div class="spinner-container">
-                <div class="spinner"></div>
-            </div>
-            <p style="text-align: center;">Loading details for ${poi.name}...</p>
-        `);
-
-        // Fetch weather and POI details in parallel for better performance
-        try {
-            const [_, details] = await Promise.all([
-                this._fetchAndDisplayWeather(poi.lat, poi.lon),
-                this.backend.getPoiDetails(poi.id, poi.name)
-            ]);
-
-            const content = `
-                <div class="poi-section">
-                    <p>${details.description}</p>
-                </div>
-                <div class="poi-section">
-                    <h4>History</h4>
-                    <p>${details.history}</p>
-                </div>
-                 <div class="poi-section">
-                    <h4>Good to Know</h4>
-                    <ul class="poi-tips-list">
-                        <li><span class="material-icons">schedule</span> <span>${details.operatingHours}</span></li>
-                        <li><span class="material-icons">local_activity</span> <span>${details.entryFee}</span></li>
-                    </ul>
-                </div>
-                <div class="poi-section">
-                    <h4>Local Tips</h4>
-                    <ul class="poi-tips-list">
-                        ${details.localTips.map((tip: string) => `<li><span class="material-icons">lightbulb</span> <p>${tip}</p></li>`).join('')}
-                    </ul>
-                </div>
-            `;
-            this._updateDetailCardContent(content);
-            this._setupPoiDetailCardActions(poi);
-        } catch (error) {
-            console.error("Failed to get POI details:", error);
-            this._updateDetailCardContent(`<p class="error">Sorry, could not fetch details for ${poi.name}.</p>`);
-        }
-    }
-    
-    private _showDetailCard(title: string, content: string) {
-        const card = document.getElementById('detail-card')!;
-        document.getElementById('detail-card-title')!.textContent = title;
-        document.getElementById('detail-card-content')!.innerHTML = content;
-        document.getElementById('detail-card-actions')!.innerHTML = ''; // Clear actions
-        card.classList.add('visible');
-    }
-
-    private _hideDetailCard() {
-        document.getElementById('detail-card')?.classList.remove('visible');
-        // Also hide weather sections to ensure a clean state next time
-        document.getElementById('detail-card-weather')?.classList.add('hidden');
-        document.getElementById('detail-card-forecast-container')?.classList.add('hidden');
-        document.getElementById('detail-card-ai-advisory')?.classList.add('hidden');
-    }
-
-    private _updateDetailCardContent(content: string) {
-        document.getElementById('detail-card-content')!.innerHTML = content;
-    }
-
-    private _handleDirectionsToEntity(name: string, coords: { lat: number, lon: number }) {
-        this._hideDetailCard();
-    
-        const fromInput = document.getElementById('from-input') as HTMLInputElement;
-        const toInput = document.getElementById('to-input') as HTMLInputElement;
-    
-        fromInput.value = this.translations.current_location_label;
-        toInput.value = name;
-    
-        // In a real app with a real routing engine, you might store the coords
-        // in a data attribute or a state variable. For this simulation, the name is enough.
-    
-        this._updateRoutingUI();
-        // Use a small timeout to ensure the UI updates before the async route finding starts
-        setTimeout(() => this._handleFindRoute(), 50);
-    }
-    
-    private _setupPoiDetailCardActions(poi: { id: string, name: string, type: string, lat: number, lon: number }) {
-        const actionsContainer = document.getElementById('detail-card-actions')!;
-        actionsContainer.innerHTML = ''; // Clear previous actions
-    
-        const directionsBtn = document.createElement('button');
-        directionsBtn.className = 'primary-btn';
-        directionsBtn.innerHTML = `<span class="material-icons">directions</span> ${this.translations.directions_to_here}`;
-        directionsBtn.addEventListener('click', () => this._handleDirectionsToEntity(poi.name, { lat: poi.lat, lon: poi.lon }));
-        
-        const askAiBtn = document.createElement('button');
-        askAiBtn.className = 'secondary-btn';
-        askAiBtn.innerHTML = `<span class="material-icons">chat</span> ${this.translations.tell_me_about_this_place}`;
-        // TODO: Add click listener for AI chat about the POI
-        
-        actionsContainer.appendChild(directionsBtn);
-        actionsContainer.appendChild(askAiBtn);
-    }
-    
-    private _setupMapClickDetailCardActions(lat: number, lng: number) {
-        const actionsContainer = document.getElementById('detail-card-actions')!;
-        actionsContainer.innerHTML = '';
-    
-        const directionsBtn = document.createElement('button');
-        directionsBtn.className = 'primary-btn';
-        directionsBtn.innerHTML = `<span class="material-icons">directions</span> ${this.translations.directions_to_here}`;
-        const locationName = `Lat: ${lat.toFixed(4)}, Lon: ${lng.toFixed(4)}`;
-        directionsBtn.addEventListener('click', () => this._handleDirectionsToEntity(locationName, { lat: lat, lon: lng }));
-    
-        const savePlaceBtn = document.createElement('button');
-        savePlaceBtn.className = 'secondary-btn';
-        savePlaceBtn.innerHTML = `<span class="material-icons">add_location_alt</span> Save Place`;
-        // TODO: Add click listener for saving place
-        
-        actionsContainer.appendChild(directionsBtn);
-        actionsContainer.appendChild(savePlaceBtn);
-    }
-
-    private async _fetchAndDisplayWeather(lat: number, lon: number) {
-        const weatherContainer = document.getElementById('detail-card-weather')!;
-        const forecastContainer = document.getElementById('detail-card-forecast-container')!;
-        const advisoryContainer = document.getElementById('detail-card-ai-advisory')!;
-        const advisoryContent = document.getElementById('ai-advisory-content')!;
-
-        // Reset and show loading state
-        weatherContainer.innerHTML = `<div class="spinner-inline"></div><span>Fetching weather...</span>`;
-        forecastContainer.innerHTML = '';
-        advisoryContent.innerHTML = `<div class="spinner-inline"></div><span>Analyzing weather...</span>`;
-        weatherContainer.classList.remove('hidden');
-        forecastContainer.classList.add('hidden');
-        advisoryContainer.classList.remove('hidden');
-
-        try {
-            const weatherData = await this.backend.getWeather(lat, lon);
-            
-            if (!weatherData || !weatherData.current || !weatherData.forecast) {
-                 throw new Error("Invalid weather data format received from backend.");
-            }
-
-            // Populate current weather
-            weatherContainer.innerHTML = `
-                <span id="weather-icon" class="material-icons">${weatherData.current.icon}</span>
-                <span id="weather-temp">${weatherData.current.temp}°C</span>
-                <span id="weather-desc">${weatherData.current.desc}</span>
-            `;
-
-            // Populate forecast
-            forecastContainer.innerHTML = weatherData.forecast.map((day: any) => `
-                <div class="forecast-item">
-                    <span class="forecast-day">${day.day}</span>
-                    <span class="material-icons forecast-icon">${day.icon}</span>
-                    <span class="forecast-temps">
-                        <span class="high">${day.temp_high}°</span> / 
-                        <span class="low">${day.temp_low}°</span>
-                    </span>
-                </div>
-            `).join('');
-            forecastContainer.classList.remove('hidden');
-            
-            // Fetch and display AI weather insights
+    private _proceedWithMicrophone() {
+        if (this.recognition && !this.isRecognizing) {
             try {
-                const aiResponse = await this.backend.getWeatherInsights(weatherData);
-                advisoryContent.innerHTML = `<p>${aiResponse.insight}</p>`;
-            } catch (aiError) {
-                console.error("Failed to get AI weather insights:", aiError);
-                advisoryContainer.classList.add('hidden');
+                this.recognition.start();
+            } catch (e) {
+                console.error("Could not start recognition, possibly already started.", e);
             }
-
-        } catch (error) {
-            console.error("Failed to fetch weather data:", error);
-            weatherContainer.innerHTML = `<span class="material-icons">error_outline</span><span>Could not load weather</span>`;
-            forecastContainer.classList.add('hidden');
-            advisoryContainer.classList.add('hidden');
         }
     }
 
-    // --- NEW: Reports Feature Methods ---
-    private async _openReportsModal() {
-        const modal = document.getElementById('reports-modal')!;
-        modal.classList.remove('hidden');
+    private _handlePositionError(error: GeolocationPositionError) {
+        this.isGeolocationActive = false;
+        console.error(`Geolocation error: ${error.message} (Code: ${error.code})`);
+        // FIX: Corrected element ID from 'gps-status' to 'gps-status-text'.
+        const gpsStatusEl = document.getElementById('gps-status-text');
+        if (gpsStatusEl) gpsStatusEl.textContent = `GPS: Error (${error.code})`;
 
-        if (this.historicalIncidents.length === 0) {
-            this.historicalIncidents = await this.backend.getHistoricalIncidents();
-            this._populateHighwayFilter();
+        if (error.code === error.PERMISSION_DENIED) {
+            this._showToast("Location access was denied.", 'error');
+            this._showPermissionHelp('geolocation');
+        } else {
+            this._showToast("Could not get your location.", 'error');
         }
-        this._logActivity(`User ${this.currentUser?.email || 'Guest'} opened reports modal.`);
-        this._renderReport();
     }
 
-    private _closeReportsModal() {
-        const modal = document.getElementById('reports-modal')!;
-        modal.classList.add('hidden');
+    private _updateOfflineMapUI() {
+        const list = document.getElementById('downloaded-regions-list');
+        if(!list) return;
+
+        if (this.downloadedRegions.length === 0) {
+            list.innerHTML = `<li class="no-maps-message">${this.translations.no_offline_maps}</li>`;
+        } else {
+            list.innerHTML = this.downloadedRegions.map(r => `
+                <li>
+                    <span class="material-icons">map</span>
+                    <div class="region-info">
+                        <strong>${r.name}</strong>
+                        <span>${r.size}</span>
+                    </div>
+                    <button class="icon-button delete-offline-btn" data-region-id="${r.id}" data-region-name="${r.name}" title="${this.translations.delete}">
+                        <span class="material-icons">delete</span>
+                    </button>
+                </li>
+            `).join('');
+            
+            list.querySelectorAll('.delete-offline-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const target = e.currentTarget as HTMLElement;
+                    const regionId = target.dataset.regionId!;
+                    const regionName = target.dataset.regionName!;
+                    const originalListItem = document.querySelector(`#download-region-options li[data-region="${regionId}"]`);
+                    this._handleDeleteRegion(originalListItem as HTMLElement, regionId, regionName);
+                });
+            });
+        }
     }
 
-    private _populateHighwayFilter() {
-        const container = document.getElementById('highway-filter-container')!;
-        const highwayNames = [...new Set(this.historicalIncidents.map(inc => inc.roadName))].sort();
+    private _displayRoutes(routes: any[]) {
+        this.routeLayer.clearLayers();
+        routes.forEach(route => {
+            const geojsonFeature = {
+                type: "Feature",
+                properties: route,
+                geometry: route.geometry
+            };
+            L.geoJSON(geojsonFeature, {
+                style: { color: route.type === 'fastest' ? '#3498db' : '#9b59b6', weight: 6, opacity: 0.8 },
+                onEachFeature: (feature: any, layer: any) => {
+                    layer.on('click', () => this._selectRoute(feature.properties.id));
+                }
+            }).addTo(this.routeLayer);
+        });
+
+        if (routes.length > 0) {
+            this._selectRoute(routes[0].id);
+        }
+        if (this.routeLayer.getBounds().isValid()) {
+            this.map.fitBounds(this.routeLayer.getBounds().pad(0.1));
+        }
+    }
+
+// FIX: Implement missing methods called by event listeners and other functions.
+    private _openRoutePreferencesModal() {
+        // Sync modal state with current preferences before showing
+        const currentPrefs = this._getRoutePreferences();
+        const modal = document.getElementById('route-preferences-modal');
+        if (!modal) return;
         
-        if(highwayNames.length === 0) {
-            container.innerHTML = `<p>No highway data available.</p>`;
-            return;
+        (modal.querySelector('#route-prefs-preferhighways') as HTMLInputElement).checked = currentPrefs.preferHighways;
+        (modal.querySelector('#route-prefs-avoidtolls') as HTMLInputElement).checked = currentPrefs.avoidTolls;
+        (modal.querySelector('#route-prefs-preferscenicroute') as HTMLInputElement).checked = currentPrefs.preferScenic;
+        (modal.querySelector('#route-prefs-preferlesscrowded') as HTMLInputElement).checked = currentPrefs.preferLessCrowded;
+        (modal.querySelector('#route-prefs-avoidunpaved') as HTMLInputElement).checked = currentPrefs.avoidUnpaved;
+
+        modal.classList.remove('hidden');
+    }
+
+    private _closeRoutePreferencesModal() {
+        document.getElementById('route-preferences-modal')?.classList.add('hidden');
+    }
+
+    private _handleSaveRoutePreferences() {
+        const modal = document.getElementById('route-preferences-modal');
+        if (!modal) return;
+
+        // Read values from the modal form and update the quick bar preferences to match
+        const preferHighways = (modal.querySelector('#route-prefs-preferhighways') as HTMLInputElement).checked;
+        (document.getElementById('prefer-highways-toggle') as HTMLInputElement).checked = preferHighways;
+
+        const avoidTolls = (modal.querySelector('#route-prefs-avoidtolls') as HTMLInputElement).checked;
+        (document.getElementById('avoid-tolls-toggle') as HTMLInputElement).checked = avoidTolls;
+        
+        const preferScenic = (modal.querySelector('#route-prefs-preferscenicroute') as HTMLInputElement).checked;
+        (document.getElementById('prefer-scenic-toggle') as HTMLInputElement).checked = preferScenic;
+
+        this._closeRoutePreferencesModal();
+
+        // If a route is active or was just searched, re-run the search with new preferences
+        if (this.availableRoutes.length > 0) {
+            this._handleFindRoute();
+        }
+        this._showToast("Route preferences saved.", "success");
+    }
+
+    private _getRoutePreferences() {
+        // Reads from the quick preferences bar as the primary source of truth. The modal syncs with this.
+        const preferHighways = (document.getElementById('prefer-highways-toggle') as HTMLInputElement)?.checked || false;
+        const avoidTolls = (document.getElementById('avoid-tolls-toggle') as HTMLInputElement)?.checked || false;
+        const preferScenic = (document.getElementById('prefer-scenic-toggle') as HTMLInputElement)?.checked || false;
+        
+        // These are only in the detailed modal, so we read them from there.
+        const modal = document.getElementById('route-preferences-modal');
+        const preferLessCrowded = (modal?.querySelector('#route-prefs-preferlesscrowded') as HTMLInputElement)?.checked || false;
+        const avoidUnpaved = (modal?.querySelector('#route-prefs-avoidunpaved') as HTMLInputElement)?.checked || false;
+        
+        return { preferHighways, avoidTolls, preferScenic, preferLessCrowded, avoidUnpaved };
+    }
+
+    private _handlePositionUpdate(position: GeolocationPosition) {
+        this.isGeolocationActive = true;
+        this.userLocation = {
+            lat: position.coords.latitude,
+            lon: position.coords.longitude
+        };
+
+        const gpsStatusEl = document.getElementById('gps-status-text');
+        if (gpsStatusEl) gpsStatusEl.textContent = 'GPS: Acquired';
+
+        const latlng = [this.userLocation.lat, this.userLocation.lon];
+        if (this.userLocationMarker) {
+            this.userLocationMarker.setLatLng(latlng);
+        } else {
+            const iconHtml = `<div class="user-location-marker"><span class="material-icons">navigation</span></div>`;
+            const userIcon = L.divIcon({
+                html: iconHtml,
+                className: '',
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+            });
+            this.userLocationMarker = L.marker(latlng, { icon: userIcon, zIndexOffset: 1000 }).addTo(this.map);
         }
 
-        container.innerHTML = `
-            <div class="highway-filter-control">
-                <input type="checkbox" id="highway-filter-all" checked>
-                <label for="highway-filter-all">Select All</label>
-            </div>
+        if (this.headingUpMode && position.coords.heading !== null) {
+            const heading = position.coords.heading;
+            if (this.userLocationMarker && this.userLocationMarker._icon) {
+                 // Reset previous rotation and apply new one
+                let transform = this.userLocationMarker._icon.style.transform.replace(/ rotate\([^)]+\)/, '');
+                this.userLocationMarker._icon.style.transform = `${transform} rotate(${heading}deg)`;
+            }
+        }
+    }
+    
+    private _getSystemInstruction(): string {
+        switch(this.aiPersonality) {
+            case 'formal':
+                return "You are a formal and precise AI assistant. Provide clear, concise information without emotion or embellishment.";
+            case 'guide':
+                return "You are an enthusiastic and knowledgeable travel guide for Nepal. Your responses should be rich with cultural details, historical context, and exciting facts. Your relationship with the user is that of a guide to a tourist.";
+            case 'buddy':
+                return `You are a calm, reassuring co-pilot and driver's buddy. Focus on safety, clear directions, and practical road advice. Your relationship with the user is a trusted ${this.aiRelationship}.`;
+            case 'friendly':
+            default:
+                return `You are Sadak Sathi, a cheerful and helpful road companion. Be friendly, approachable, and supportive. The user considers you their ${this.aiRelationship}.`;
+        }
+    }
+    
+    private _addMessageToChat(role: 'user' | 'model', text: string, isLoading: boolean = false) {
+        if (role === 'user') {
+            this.chatHistory.push({ role: 'user', parts: [{ text }] });
+        }
+        // For model, we add a placeholder and update it later.
+
+        const chatMessages = document.getElementById('chat-messages')!;
+        const messageEl = document.createElement('div');
+        messageEl.classList.add('chat-message', role === 'user' ? 'user-message' : 'ai-message');
+
+        const avatarSrc = role === 'user' ? 'https://i.imgur.com/v82B43X.png' : this.aiAvatarUrl;
+
+        let messageContent: string;
+        if (isLoading) {
+            messageContent = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+            messageEl.classList.add('loading');
+        } else {
+            // Basic markdown for bold and lists
+            let formattedText = text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\* (.*?)(?=\n\* |$)/g, '<li>$1</li>');
+            if (formattedText.includes('<li>')) {
+                formattedText = `<ul>${formattedText.replace(/<\/li>(\n)?/g, '</li>')}</ul>`;
+            }
+            messageContent = `<p>${formattedText}</p>`;
+        }
+        
+        messageEl.innerHTML = `
+            <img src="${avatarSrc}" alt="${role} avatar" class="chat-avatar">
+            <div class="message-content">${messageContent}</div>
         `;
         
-        highwayNames.forEach(name => {
-            const div = document.createElement('div');
-            div.className = 'highway-filter-item';
-            div.innerHTML = `
-                <input type="checkbox" id="highway-${name.replace(/\s+/g, '-')}" class="highway-filter-checkbox" data-highway="${name}" checked>
-                <label for="highway-${name.replace(/\s+/g, '-')}">${name}</label>
-            `;
-            container.appendChild(div);
-        });
-
-        // Add event listeners
-        document.getElementById('highway-filter-all')?.addEventListener('change', (e) => {
-            const isChecked = (e.target as HTMLInputElement).checked;
-            document.querySelectorAll('.highway-filter-checkbox').forEach(cb => {
-                (cb as HTMLInputElement).checked = isChecked;
-            });
-            this._renderReport();
-        });
-
-        container.querySelectorAll('.highway-filter-checkbox').forEach(checkbox => {
-            checkbox.addEventListener('change', () => {
-                const allChecked = Array.from(document.querySelectorAll('.highway-filter-checkbox')).every(cb => (cb as HTMLInputElement).checked);
-                (document.getElementById('highway-filter-all') as HTMLInputElement).checked = allChecked;
-                this._renderReport();
-            });
-        });
+        chatMessages.appendChild(messageEl);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    private _handleReportTypeChange(e: Event) {
-        const target = e.currentTarget as HTMLElement;
-        const type = target.dataset.type;
-        document.querySelectorAll('.report-type-btn').forEach(btn => btn.classList.remove('active'));
-        target.classList.add('active');
-
-        // Snapshot is best for single day, so auto-switch date range
-        if (type === 'snapshot') {
-            document.querySelectorAll('.report-date-btn').forEach(btn => btn.classList.remove('active'));
-            (document.querySelector('.report-date-btn[data-range="today"]') as HTMLElement).classList.add('active');
-        }
-
-        this._renderReport();
-    }
-    
-    private _handleReportDateFilterChange(e: Event) {
-        const target = e.currentTarget as HTMLElement;
-        document.querySelectorAll('.report-date-btn').forEach(btn => btn.classList.remove('active'));
-        target.classList.add('active');
-        (document.getElementById('report-date-start') as HTMLInputElement).value = '';
-        (document.getElementById('report-date-end') as HTMLInputElement).value = '';
-        this._renderReport();
-    }
-
-    private _handleReportCustomDateChange() {
-        document.querySelectorAll('.report-date-btn').forEach(btn => btn.classList.remove('active'));
-        this._renderReport();
-    }
-
-    private _handleReportViewChange(e: Event) {
-        const target = e.currentTarget as HTMLElement;
-        document.querySelectorAll('.report-view-btn').forEach(btn => btn.classList.remove('active'));
-        target.classList.add('active');
-        this._renderReport();
-    }
-
-    private _getReportDateRange(): { start: Date, end: Date } {
-        const activeButton = document.querySelector('.report-date-btn.active');
-        const now = new Date();
-        let start = new Date(now);
-        let end = new Date(now);
-
-        if (activeButton) {
-            const range = activeButton.getAttribute('data-range');
-            switch(range) {
-                case 'today':
-                    start.setHours(0, 0, 0, 0);
-                    end.setHours(23, 59, 59, 999);
-                    break;
-                case 'week':
-                    start.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
-                    start.setHours(0, 0, 0, 0);
-                    end.setHours(23, 59, 59, 999);
-                    break;
-                case 'month':
-                    start = new Date(now.getFullYear(), now.getMonth(), 1);
-                    end.setHours(23, 59, 59, 999);
-                    break;
+    private _updateLastChatMessage(text: string) {
+        const chatMessages = document.getElementById('chat-messages')!;
+        const loadingMessage = chatMessages.querySelector('.chat-message.loading');
+        if (loadingMessage) {
+            this.chatHistory.push({ role: 'model', parts: [{ text }] });
+            let formattedText = text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n\* (.*?)(?=\n\* |$)/g, '<li>$1</li>');
+            if (formattedText.includes('<li>')) {
+                formattedText = `<ul>${formattedText.replace(/<\/li>(\n)?/g, '</li>')}</ul>`;
             }
-        } else { // Custom range
-            const startDateVal = (document.getElementById('report-date-start') as HTMLInputElement).value;
-            const endDateVal = (document.getElementById('report-date-end') as HTMLInputElement).value;
-            start = startDateVal ? new Date(startDateVal) : new Date(now.getFullYear(), 0, 1);
-            end = endDateVal ? new Date(endDateVal) : now;
-            
-            start.setHours(0,0,0,0);
-            end.setHours(23,59,59,999);
+            loadingMessage.querySelector('.message-content')!.innerHTML = `<p>${formattedText}</p>`;
+            loadingMessage.classList.remove('loading');
         }
-        return { start, end };
     }
     
-    private _renderReport() {
-        const reportType = (document.querySelector('.report-type-btn.active') as HTMLElement).dataset.type;
-        const activeView = (document.querySelector('.report-view-btn.active') as HTMLElement).dataset.view;
-        const { start, end } = this._getReportDateRange();
+    private async _updateFindCarModalUI() {
+        const savedLocation = localStorage.getItem('sadak_sathi_car_location');
+        const noLocationView = document.getElementById('no-car-location-view')!;
+        const hasLocationView = document.getElementById('has-car-location-view')!;
         
-        const selectedHighways: Set<string> = new Set();
-        document.querySelectorAll('.highway-filter-checkbox:checked').forEach(cb => {
-            selectedHighways.add((cb as HTMLElement).dataset.highway!);
-        });
-        
-        const approvedIncidents = this.historicalIncidents.filter(inc => inc.status === 'approved');
-        const highwayFilteredData = approvedIncidents.filter(inc => selectedHighways.has(inc.roadName));
+        if (savedLocation) {
+            const carLoc = JSON.parse(savedLocation);
+            noLocationView.classList.add('hidden');
+            hasLocationView.classList.remove('hidden');
+            
+            const locationText = document.getElementById('parked-location-text')!;
+            locationText.textContent = this.translations.fetching_address;
+            
+            // In a real app, you would reverse geocode here. We'll simulate it.
+            setTimeout(() => {
+                locationText.textContent = `Lat: ${carLoc.lat.toFixed(4)}, Lon: ${carLoc.lon.toFixed(4)}`;
+            }, 500);
+            
+            (document.getElementById('parked-time-text') as HTMLElement).textContent = `Since: ${new Date(carLoc.time).toLocaleString()}`;
+        } else {
+            noLocationView.classList.remove('hidden');
+            hasLocationView.classList.add('hidden');
+        }
+    }
 
-        let reportData: any;
-        let summaryText = '';
+    private _selectRoute(routeId: string) {
+        const route = this.availableRoutes.find(r => r.id === routeId);
+        if (!route) return;
 
-        if (reportType === 'resumption') {
-            reportData = highwayFilteredData.filter(inc => {
-                const endDate = new Date(inc.endDate);
-                return endDate >= start && endDate <= end;
+        this.activeRouteData = route;
+
+        // Highlight selected route on map
+        this.routeLayer.eachLayer((layer: any) => {
+            const isSelected = layer.feature.properties.id === routeId;
+            layer.setStyle({
+                weight: isSelected ? 8 : 6,
+                opacity: isSelected ? 1 : 0.7
             });
-            summaryText = `Total Resumed Incidents: <span id="report-total-count">${reportData.length}</span>`;
-        } else { // snapshot
-             // For snapshot, we group by day
-            const dailySnapshots: { [key: string]: any[] } = {};
-            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                const dayStr = d.toISOString().split
+            if (isSelected) {
+                layer.bringToFront();
+            }
+        });
+
+        const panel = document.getElementById('route-details-panel')!;
+        (panel.querySelector('#route-details-distance-val') as HTMLElement).textContent = `${route.distance} km`;
+        (panel.querySelector('#route-details-time-val') as HTMLElement).textContent = `${route.time} min`;
+        
+        const eta = new Date(Date.now() + route.time * 60000);
+        (panel.querySelector('#route-details-eta-val') as HTMLElement).textContent = eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        const prefsUsedEl = (panel.querySelector('#route-prefs-used-val') as HTMLElement);
+        const usedPrefs = [];
+        if (this.activeRoutePrefs?.preferHighways) usedPrefs.push("Highways");
+        if (this.activeRoutePrefs?.avoidTolls) usedPrefs.push("No Tolls");
+        if (this.activeRoutePrefs?.preferScenic) usedPrefs.push("Scenic");
+        if (this.activeRoutePrefs?.preferLessCrowded) usedPrefs.push("Less Crowded");
+        if (this.activeRoutePrefs?.avoidUnpaved) usedPrefs.push("No Unpaved");
+        prefsUsedEl.textContent = usedPrefs.length > 0 ? usedPrefs.join(', ') : 'None';
+
+        const directionsList = panel.querySelector('#directions-list')!;
+        directionsList.innerHTML = '';
+        route.directions.forEach((dir: any) => {
+            const li = document.createElement('li');
+            const conditionInfo = this._getConditionInfo(dir.condition.type);
+            li.innerHTML = `
+                <span class="material-icons direction-icon">${dir.icon}</span>
+                <p>${dir.instruction}</p>
+                ${dir.condition.type !== 'clear' ? `<span class="material-icons condition-icon ${conditionInfo.colorClass}" title="${dir.condition.details}">${conditionInfo.icon}</span>` : ''}
+            `;
+            directionsList.appendChild(li);
+        });
+
+        panel.classList.remove('hidden');
+    }
+}
+// Initialize the app after the DOM is fully loaded
+window.addEventListener('DOMContentLoaded', () => {
+    new SadakSathiApp();
+});
