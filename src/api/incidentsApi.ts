@@ -1,61 +1,59 @@
-// This is a placeholder for the incidents API.
-// In a real application, this would make network requests to a backend server.
+// In a real production app, you would have a secure backend handle this.
+// For this setup, we'll call a Google Apps Script Web App URL directly.
+// IMPORTANT: The user must deploy their own Apps Script to a URL and add it
+// to their environment variables as GOOGLE_SHEET_WEB_APP_URL.
 
-export interface Incident {
-  id: string;
-  latitude: number;
-  longitude: number;
-  title: string;
-  description: string;
+interface IncidentReportPayload {
+    timestamp: string;
+    latitude: number;
+    longitude: number;
+    incidentType: string;
+    description: string;
+    hasPhoto: boolean;
 }
 
 /**
- * Fetches incidents from the API.
- * TODO: Replace this mock implementation with a real fetch call to your backend.
+ * Submits an incident report to a configured Google Apps Script endpoint.
+ * @param report The report data from the modal.
+ * @returns A promise that resolves to an object indicating success.
  */
-export const getIncidents = async (): Promise<Incident[]> => {
-  console.log('Fetching incidents from mock API...');
-  // Simulate a network request delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  // Mock data representing incidents in Nepal for demonstration
-  return [
-    {
-      id: '1',
-      latitude: 27.7172,
-      longitude: 85.3240,
-      title: 'Traffic Jam',
-      description: 'Heavy traffic jam near Ratna Park.'
-    },
-    {
-      id: '2',
-      latitude: 27.6896,
-      longitude: 85.3157,
-      title: 'Road Closure',
-      description: 'Road closed at Kalanki Chowk due to construction.'
-    },
-    {
-      id: '3',
-      latitude: 27.7385,
-      longitude: 85.3355,
-      title: 'Accident Reported',
-      description: 'Minor accident at Chabahil. Expect delays.'
-    },
-  ];
-};
+export const submitIncidentReport = async (report: any): Promise<{ success: boolean; message?: string }> => {
+    const url = (typeof process !== 'undefined' && process.env && process.env.GOOGLE_SHEET_WEB_APP_URL)
+        ? process.env.GOOGLE_SHEET_WEB_APP_URL
+        : undefined;
+        
+    // This guard ensures the app does not crash in environments where process.env is not defined.
+    if (!url) {
+        console.warn('GOOGLE_SHEET_WEB_APP_URL is not configured. Incident reports will be simulated.');
+        // In a development environment, we can return success to not block the UI.
+        return { success: true, message: 'Submission skipped (dev mode).' };
+    }
 
-/**
- * Reports a new incident to the API.
- */
-export const reportIncident = async (
-  incident: Omit<Incident, 'id'>
-): Promise<Incident> => {
-  console.log('Reporting incident:', incident);
-  // Simulate a network request
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  const newIncident: Incident = {
-    id: String(Math.random()),
-    ...incident,
-  };
-  return newIncident;
+    const payload: IncidentReportPayload = {
+        timestamp: new Date().toISOString(),
+        latitude: report.location.lat,
+        longitude: report.location.lng,
+        incidentType: report.incidentType,
+        description: report.description,
+        hasPhoto: !!report.photo,
+    };
+
+    try {
+        // NOTE: We use 'no-cors' mode because Apps Script web apps often don't
+        // handle CORS preflight requests correctly. This means we can't read
+        // the response body, so we optimistically assume success.
+        await fetch(url, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {
+                'Content-Type': 'text/plain;charset=utf-8', // Apps Script can be picky, text/plain is safer
+            },
+            body: JSON.stringify(payload),
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to submit incident report:', error);
+        return { success: false, message: error instanceof Error ? error.message : 'Unknown error' };
+    }
 };

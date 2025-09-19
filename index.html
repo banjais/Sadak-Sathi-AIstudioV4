@@ -1,16 +1,31 @@
-<script type="importmap">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sadak Sathi</title>
+    <link rel="stylesheet" href="index.css" />
+    <!-- Add Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- Leaflet JS is now loaded via importmap -->
+    <script type="importmap">
 {
   "imports": {
-    "react": "https://aistudiocdn.com/react@^19.1.1",
-    "react-native-paper": "https://aistudiocdn.com/react-native-paper@^5.14.5",
-    "@react-navigation/native": "https://aistudiocdn.com/@react-navigation/native@^7.1.17",
-    "expo-status-bar": "https://aistudiocdn.com/expo-status-bar@^2.2.3",
-    "react/": "https://aistudiocdn.com/react@^19.1.1/",
-    "@react-navigation/bottom-tabs": "https://aistudiocdn.com/@react-navigation/bottom-tabs@^7.4.7",
-    "react-native-vector-icons/": "https://aistudiocdn.com/react-native-vector-icons@^10.3.0/",
-    "react-native": "https://aistudiocdn.com/react-native@^0.81.1",
-    "react-native-maps": "https://aistudiocdn.com/react-native-maps@^1.26.1",
-    "expo-location": "https://aistudiocdn.com/expo-location@^18.1.6"
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "@google/genai": "https://esm.sh/@google/genai@0.14.2",
+    "idb": "https://esm.sh/idb@8.0.3",
+    "leaflet/": "https://esm.sh/leaflet@1.9.4/",
+    "leaflet": "https://esm.sh/leaflet@1.9.4",
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/"
   }
 }
 </script>
+    <script type="module" src="index.tsx"></script>
+</body>
+</html>

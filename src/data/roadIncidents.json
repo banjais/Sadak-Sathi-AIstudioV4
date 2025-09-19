@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "type": "Blocked",
+    "title": "Landslide at Mugling",
+    "description": "Major landslide has completely blocked the Prithvi Highway near Mugling. Expected to take 12-24 hours to clear.",
+    "lat": 27.8545,
+    "lng": 84.5580
+  },
+  {
+    "id": 2,
+    "type": "One-Lane",
+    "title": "Road Maintenance",
+    "description": "Road expansion work near Thankot. One lane is closed, expect minor delays.",
+    "lat": 27.6934,
+    "lng": 85.2119
+  },
+  {
+    "id": 3,
+    "type": "Blocked",
+    "title": "Accident",
+    "description": "Multi-vehicle accident on the Araniko Highway. Road is currently closed in both directions.",
+    "lat": 27.6800,
+    "lng": 85.4500
+  }
+]

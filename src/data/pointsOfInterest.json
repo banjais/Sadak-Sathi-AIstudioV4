@@ -1,0 +1,37 @@
+[
+  {
+    "id": 101,
+    "type": "Fuel",
+    "name": "Sajha Petrol Pump",
+    "lat": 27.7088,
+    "lng": 85.3134
+  },
+  {
+    "id": 102,
+    "type": "Hospital",
+    "name": "Tribhuvan University Teaching Hospital",
+    "lat": 27.7345,
+    "lng": 85.3129
+  },
+  {
+    "id": 103,
+    "type": "Hotel",
+    "name": "Hotel Yak & Yeti",
+    "lat": 27.7125,
+    "lng": 85.3188
+  },
+  {
+    "id": 104,
+    "type": "Services",
+    "name": "Kalanki Tyre Repair",
+    "lat": 27.6938,
+    "lng": 85.2774
+  },
+  {
+    "id": 105,
+    "type": "Fuel",
+    "name": "Nepal Oil Corporation, Thankot",
+    "lat": 27.6930,
+    "lng": 85.2050
+  }
+]

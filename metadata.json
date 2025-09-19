@@ -1,4 +1,9 @@
 {
   "name": "Sadak Sathi - Your Road Companion",
-  "description": "An intelligent, map-based road assistant for Nepal, providing real-time road status, routing, and a personalized AI companion."
+  "description": "An intelligent, map-based road assistant for Nepal, providing real-time road status, routing, and a personalized AI companion.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera",
+    "microphone"
+  ]
 }

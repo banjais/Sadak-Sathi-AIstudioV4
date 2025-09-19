@@ -1,0 +1,1275 @@
+/* --- GLOBAL STYLES --- */
+:root {
+    --font-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+    --c-primary: #3B82F6;
+    --c-primary-light: #60A5FA;
+    --c-primary-dark: #1E3A8A;
+    --c-primary-rgb: 59, 130, 246;
+
+    /* Base Dark Theme Colors */
+    --c-bg: #121212;
+    --c-bg-light: #1e1e1e;
+    --c-bg-modal: #2a2a2a;
+    --c-text-primary: #EAEAEA;
+    --c-text-secondary: #A0A0A0;
+    --c-border: #3a3a3a;
+    --c-shadow: rgba(0, 0, 0, 0.5);
+
+    --c-success: #34c759;
+    --c-warning: #ff9500;
+    --c-danger: #ff3b30;
+    --c-info: #007aff;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font-primary);
+    background-color: var(--c-bg);
+    color: var(--c-text-primary);
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Prevent scrolling of the body */
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    justify-content: center;
+    color-scheme: dark;
+}
+
+#root {
+    width: 100%;
+    height: 100%;
+    max-width: 430px; /* Max width for larger screens, centered by body's flex */
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--c-bg);
+    box-shadow: 0 10px 40px var(--c-shadow);
+}
+
+/* Light Theme on Body */
+body.light-theme {
+    --c-bg: #F3F4F6;
+    --c-bg-light: #FFFFFF;
+    --c-bg-modal: #FFFFFF;
+    --c-text-primary: #1F2937;
+    --c-text-secondary: #6B7280;
+    --c-border: #E5E7EB;
+    --c-shadow: rgba(0, 0, 0, 0.1);
+    color-scheme: light;
+}
+
+
+/* --- NOTCH / STATUS BAR --- */
+.notch {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 44px; /* Standard iOS status bar height */
+    padding: 0 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 1051; /* Above header, below modals */
+    pointer-events: none; /* Allow clicks to pass through to the map */
+    color: var(--c-text-primary);
+}
+
+.notch .time {
+    font-size: 0.95rem;
+    font-weight: 600;
+    pointer-events: auto; /* Make sure text is selectable if needed */
+}
+
+.notch .notch-icons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    pointer-events: auto;
+}
+
+.notch .notch-icons svg {
+    width: 18px;
+    height: 18px;
+    /* This is the key part of the request: color matches theme */
+    color: var(--c-primary);
+}
+
+
+/* --- SCREEN & LAYOUT --- */
+.home-screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.main-content {
+    flex-grow: 1;
+    position: relative;
+}
+
+.ui-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end; /* Push bottom content to the bottom */
+    padding: 0.75rem;
+    z-index: 1000;
+}
+
+.floating-search-container {
+    position: absolute;
+    top: 110px; /* Position below header consistently */
+    left: 0.75rem;
+    right: 0.75rem;
+    z-index: 1010;
+    pointer-events: all;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: center; /* This will center the POI Filter buttons */
+}
+
+.bottom-ui {
+    pointer-events: all;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: flex-end;
+    position: relative; /* Needed for pavement legend positioning */
+    flex-grow: 1;
+    justify-content: flex-end;
+}
+
+
+/* --- MAP VIEW --- */
+.map-view {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
+
+.map-view .leaflet-control-container {
+    pointer-events: none;
+}
+.map-view .leaflet-control-container .leaflet-control {
+    pointer-events: all;
+}
+.map-view .leaflet-control-zoom {
+    border: none;
+    box-shadow: 0 2px 8px var(--c-shadow);
+}
+.map-view .leaflet-control-zoom-in, .map-view .leaflet-control-zoom-out {
+    background-color: var(--c-bg-light);
+    color: var(--c-text-primary);
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    line-height: 36px;
+}
+.map-view .leaflet-control-zoom-in {
+    margin-bottom: 4px;
+}
+
+.user-location-marker {
+    width: 24px;
+    height: 24px;
+    background-color: var(--c-primary);
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 0 10px var(--c-primary);
+}
+
+/* Base style for all markers (now mainly for POIs) */
+.map-icon-container {
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--c-bg-modal);
+    border: 2px solid var(--c-border);
+    box-shadow: 0 2px 5px var(--c-shadow);
+}
+
+.map-icon-wrapper {
+    width: 32px;
+    height: 32px;
+    padding: 6px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.map-icon-wrapper svg {
+    width: 100%;
+    height: 100%;
+    stroke-width: 2;
+}
+
+
+/* NEW: Incident Marker Pin Style for better readability and severity indication */
+.incident-pin {
+    width: 38px;
+    height: 38px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: none;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.incident-pin .map-icon-wrapper {
+    transform: rotate(45deg); /* Counter-rotate icon to be upright */
+    color: white; /* Make inner icon white for better contrast */
+    padding: 8px;
+    width: 100%;
+    height: 100%;
+}
+
+/* Color-coding for incident severity */
+.incident-blocked { background-color: var(--c-danger); }
+.incident-one-lane { background-color: var(--c-warning); }
+.incident-traffic-jam { background-color: #f59e0b; }
+.incident-road-hazard { background-color: #8b5cf6; }
+.incident-vehicle-breakdown { background-color: #3b82f6; }
+.incident-other { background-color: #9ca3af; }
+
+
+.poi-fuel svg, .poi-hospital svg, .poi-hotel svg, .poi-services svg {
+    color: var(--c-primary);
+}
+.route-path {
+    stroke: var(--c-primary);
+    stroke-width: 5;
+    stroke-opacity: 0.8;
+}
+
+/* --- TRAFFIC LAYER --- */
+.traffic-high {
+    stroke: var(--c-danger);
+    stroke-width: 5;
+    stroke-opacity: 0.7;
+    filter: drop-shadow(0 0 2px var(--c-danger));
+}
+.traffic-medium {
+    stroke: var(--c-warning);
+    stroke-width: 5;
+    stroke-opacity: 0.7;
+    filter: drop-shadow(0 0 2px var(--c-warning));
+}
+.traffic-low {
+    stroke: var(--c-success);
+    stroke-width: 5;
+    stroke-opacity: 0.7;
+}
+
+
+/* --- SPLASH SCREEN --- */
+.splash-screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--c-bg);
+}
+
+.splash-logo {
+    position: relative;
+    transform: scale(1.5);
+    margin-bottom: 3rem;
+    overflow: visible;
+}
+
+.splash-logo .geological-icon {
+    position: relative;
+    z-index: 2;
+    transform: scale(3.5) translate(0px, 0.5px);
+    color: var(--c-primary);
+    opacity: 0;
+    animation: fadeIn 1s ease-in-out 0.5s forwards;
+}
+
+.splash-logo .wave-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+}
+
+.splash-logo .wave {
+    fill: none;
+    stroke: var(--c-primary);
+    stroke-width: 0.5;
+    opacity: 0;
+    transform-origin: center;
+    animation: wave-pulse 2s ease-out 0.8s infinite;
+}
+
+.splash-logo .wave:nth-child(2) {
+    animation-delay: 1.8s;
+}
+
+@keyframes wave-pulse {
+    0% { transform: scale(0.5); opacity: 0; }
+    50% { opacity: 0.3; }
+    100% { transform: scale(2.5); opacity: 0; }
+}
+
+.splash-title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: var(--c-text-primary);
+    opacity: 0;
+    animation: fadeIn 1s ease-in-out 1s forwards;
+}
+
+.splash-subtitle {
+    font-size: 1rem;
+    font-weight: 400;
+    color: var(--c-text-secondary);
+    opacity: 0;
+    animation: fadeIn 1s ease-in-out 1.2s forwards;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+
+/* --- HEADER --- */
+.main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    flex-shrink: 0;
+    background: linear-gradient(to bottom, var(--c-bg) 70%, transparent);
+    z-index: 1050;
+    position: absolute;
+    top: 44px; /* Positioned below the notch */
+    left:0;
+    right: 0;
+    width: 100%;
+}
+
+.header-left, .header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.header-logo-container {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background-color: var(--c-bg-light);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    box-shadow: 0 2px 4px var(--c-shadow);
+}
+.header-logo-container::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 2px solid var(--c-bg);
+}
+.header-logo-container.location-on::after { background-color: var(--c-success); }
+.header-logo-container.location-off::after { background-color: var(--c-danger); }
+.header-logo-container.location-weak::after { background-color: var(--c-warning); }
+.header-logo-container.location-searching::after {
+    background-color: var(--c-info);
+    animation: pulse 1.5s infinite;
+}
+
+
+.header-logo {
+    width: 24px;
+    height: 24px;
+    color: var(--c-primary);
+}
+
+.header-text-container {
+    line-height: 1.2;
+}
+.header-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--c-text-primary);
+}
+.header-subtitle {
+    font-size: 0.8rem;
+    color: var(--c-text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.header-subtitle .flag-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.header-icon-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--c-bg-light);
+    border: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    color: var(--c-text-secondary);
+    box-shadow: 0 2px 4px var(--c-shadow);
+    transition: background-color 0.2s;
+}
+.header-icon-button:hover {
+    background-color: var(--c-border);
+}
+.header-icon-button svg {
+    width: 22px;
+    height: 22px;
+}
+.alerts-button {
+    position: relative;
+}
+.alerts-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 10px;
+    height: 10px;
+    background-color: var(--c-danger);
+    border-radius: 50%;
+    border: 2px solid var(--c-bg-light);
+    animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+/* --- SEARCH BAR --- */
+.search-container {
+    width: 100%;
+    position: relative;
+}
+.search-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: var(--c-bg-light);
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px var(--c-shadow);
+}
+.search-bar svg {
+    color: var(--c-text-secondary);
+}
+.search-bar input {
+    flex-grow: 1;
+    background: none;
+    border: none;
+    outline: none;
+    font-size: 1rem;
+    color: var(--c-text-primary);
+}
+.search-bar input::placeholder {
+    color: var(--c-text-secondary);
+}
+.search-bar-actions {
+    display: flex;
+    align-items: center;
+}
+
+.search-bar-actions button {
+    background: none;
+    border: none;
+    color: var(--c-text-secondary);
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 0.2rem;
+}
+.search-voice-btn.listening-command svg {
+    color: var(--c-primary);
+    animation: listeningPulse 1s infinite;
+}
+.search-voice-btn.listening-wake-word svg {
+    animation: listeningPulseSubtle 2.5s infinite;
+}
+@keyframes listeningPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+@keyframes listeningPulseSubtle {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
+
+.search-loader {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--c-border);
+    border-top-color: var(--c-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.search-suggestions {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    background-color: var(--c-bg-light);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px var(--c-shadow);
+    overflow: hidden;
+    animation: fadeIn 0.2s ease-out;
+}
+.suggestion-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--c-text-primary);
+    cursor: pointer;
+    border-bottom: 1px solid var(--c-border);
+}
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+.suggestion-item:hover {
+    background-color: var(--c-border);
+}
+
+/* --- POI FILTER --- */
+.poi-filter-container {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+}
+.poi-filter-button {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: 20px;
+    border: 1px solid var(--c-border);
+    background-color: var(--c-bg-light);
+    color: var(--c-text-secondary);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px var(--c-shadow);
+}
+.poi-filter-button svg {
+    width: 16px;
+    height: 16px;
+}
+.poi-filter-button.active {
+    background-color: var(--c-primary);
+    color: white;
+    border-color: var(--c-primary);
+}
+.poi-filter-button.active svg {
+    color: white;
+}
+
+
+/* --- FAB MENU --- */
+.fab-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+.fab-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    animation: fadeIn 0.2s ease-out;
+}
+.fab-menu-item {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background-color: var(--c-bg-light);
+    border: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    color: var(--c-text-secondary);
+    box-shadow: 0 4px 12px var(--c-shadow);
+    transition: all 0.2s ease;
+}
+.fab-menu-item:hover {
+    background-color: var(--c-primary);
+    color: white;
+}
+.fab-menu-item.active {
+    background-color: var(--c-primary);
+    color: white;
+}
+.fab-menu-item svg {
+    width: 24px;
+    height: 24px;
+}
+.fab-main {
+    width: 56px;
+    height: 56px;
+    border-radius: 20px;
+    background-color: var(--c-primary);
+    color: white;
+    border: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px var(--c-shadow);
+    transition: transform 0.2s ease, background-color 0.2s ease;
+}
+.fab-main.open {
+    transform: rotate(45deg);
+    background-color: var(--c-primary-dark);
+}
+.fab-main svg {
+    width: 28px;
+    height: 28px;
+}
+
+/* --- DRIVER HUD --- */
+.driver-hud {
+    position: absolute;
+    top: 44px; /* Positioned below the notch */
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+    pointer-events: all;
+}
+
+.driver-hud.visible {
+    opacity: 1;
+}
+
+.hud-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.speed-cluster {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+}
+
+/* --- NEW SPEEDOMETER GAUGE --- */
+.speedometer-gauge {
+    position: relative;
+    width: 120px;
+    height: 120px;
+}
+.speedometer-svg {
+    width: 100%;
+    height: 100%;
+}
+.speedometer-svg path {
+    transition: stroke-dashoffset 0.3s ease-out;
+}
+.speedometer-svg g {
+    transition: transform 0.3s ease-out;
+    transform-origin: center;
+}
+.speedometer-readout {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    text-align: center;
+    line-height: 1;
+    text-shadow: 0 1px 3px var(--c-shadow);
+}
+.speedometer-readout .speed-value {
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.speedometer-readout .speed-unit {
+    font-size: 0.8rem;
+    display: block;
+    opacity: 0.8;
+}
+
+
+.speed-limit-display {
+    width: 60px;
+    height: 60px;
+    background-color: white;
+    color: black;
+    border-radius: 50%;
+    border: 4px solid #cc0000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.8rem;
+    font-weight: 700;
+    align-self: center;
+    margin-top: 1rem;
+}
+.compass {
+    width: 60px;
+    height: 60px;
+    background-color: rgba(0, 0, 0, 0.7);
+    border-radius: 50%;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.compass-dial {
+    width: 100%;
+    height: 100%;
+    transition: transform 0.2s ease-out;
+}
+.compass-svg {
+    width: 100%;
+    height: 100%;
+}
+
+
+/* --- NAVIGATION PROGRESS --- */
+.navigation-progress-container {
+    width: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    color: white;
+    backdrop-filter: blur(5px);
+    animation: fadeIn 0.3s;
+    pointer-events: all;
+}
+
+.navigation-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.navigation-progress-info {
+    display: flex;
+    justify-content: space-between;
+    flex-grow: 1;
+    padding-right: 1rem;
+}
+
+.progress-percentage {
+    font-weight: 500;
+    font-size: 1rem;
+}
+
+.progress-bar-bg {
+    width: 100%;
+    height: 8px;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background-color: var(--c-primary);
+    border-radius: 4px;
+    transition: width 0.5s ease-out;
+}
+
+.hud-save-button {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s, color 0.2s;
+    flex-shrink: 0;
+}
+
+.hud-save-button:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.hud-save-button svg {
+    width: 20px;
+    height: 20px;
+}
+
+
+/* --- LANDING VIEW --- */
+.landing-view {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+.landing-footer {
+    background: linear-gradient(transparent, var(--c-bg) 50%);
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- MODALS --- */
+/* All modal bodies should be scrollable if content overflows */
+.modal-body {
+    overflow-y: auto;
+    max-height: 65vh; /* Prevents modal from being too tall */
+}
+
+
+/* --- WEATHER ALERT MODAL --- */
+.weather-alert-modal-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 1.5rem;
+}
+.weather-alert-modal-icon {
+    color: var(--c-warning);
+    margin-bottom: 1rem;
+}
+
+/* --- ALERTS CENTER MODAL --- */
+.alerts-center-body {
+    padding: 0;
+    overflow-y: auto;
+}
+.alerts-section {
+    padding: 1rem;
+    border-bottom: 1px solid var(--c-border);
+}
+.alerts-section:last-child {
+    border-bottom: none;
+}
+.alerts-section h3 {
+    margin-bottom: 0.75rem;
+    font-size: 1.1rem;
+}
+.weather-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 1rem;
+}
+.weather-summary {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+.weather-icon {
+    color: var(--c-primary);
+}
+.weather-temp {
+    font-size: 2.5rem;
+    font-weight: 700;
+}
+.weather-details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    width: 100%;
+    padding-top: 1rem;
+    text-align: center;
+}
+.weather-detail-item {
+    background-color: var(--c-bg-light);
+    border-radius: 8px;
+    padding: 0.75rem;
+}
+.weather-detail-item .detail-icon {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 0.25rem;
+    color: var(--c-text-secondary);
+}
+.weather-detail-item .detail-value {
+    display: block;
+    font-weight: 600;
+}
+.weather-detail-item .detail-label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--c-text-secondary);
+}
+
+.alert-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.alert-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.alert-item:hover {
+    background-color: var(--c-border);
+}
+.alert-item.critical {
+    background-color: rgba(var(--c-primary-rgb), 0.1);
+    border-left: 4px solid var(--c-primary);
+}
+.alert-item-icon {
+    color: var(--c-warning);
+    flex-shrink: 0;
+}
+.alert-item.critical .alert-item-icon {
+    color: var(--c-primary);
+}
+.alert-item-content h4 {
+    font-size: 1rem;
+    margin-bottom: 0.2rem;
+}
+.alert-item-content p {
+    font-size: 0.85rem;
+    color: var(--c-text-secondary);
+}
+
+.weather-alerts-section .alert-item-content p {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+}
+
+/* --- AI COMPANION --- */
+.ai-message.special {
+    font-style: italic;
+    color: var(--c-text-secondary);
+    text-align: center;
+}
+
+
+/* --- OFFLINE MAPS MODAL --- */
+.offline-maps-info {
+    font-size: 0.9rem;
+    color: var(--c-text-secondary);
+    margin-bottom: 1.5rem;
+    padding: 0 0.5rem;
+}
+
+.offline-region-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.offline-region-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0.5rem;
+    border-bottom: 1px solid var(--c-border);
+}
+
+.offline-region-item:last-child {
+    border-bottom: none;
+}
+
+.offline-region-info h3 {
+    font-size: 1rem;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+.progress-bar-container {
+    width: 120px;
+    height: 1rem;
+    background-color: var(--c-border);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+}
+.progress-bar {
+    height: 100%;
+    background-color: var(--c-primary);
+    transition: width 0.3s ease;
+}
+.progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.7rem;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+.status-text.downloaded {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    color: var(--c-success);
+}
+.status-text.downloaded svg {
+    width: 14px;
+    height: 14px;
+}
+
+.offline-region-action {
+    width: 100px;
+    text-align: right;
+}
+
+.offline-region-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    border: 1px solid var(--c-border);
+    background-color: var(--c-bg-light);
+    color: var(--c-text-primary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.offline-region-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.offline-region-button.download {
+    color: var(--c-primary);
+    border-color: var(--c-primary);
+}
+.offline-region-button.delete {
+    color: var(--c-danger);
+    border-color: var(--c-danger);
+}
+.offline-region-button svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* --- PAVEMENT LEGEND --- */
+.pavement-legend {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    background-color: var(--c-bg-light);
+    padding: 0.75rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px var(--c-shadow);
+    z-index: 1000;
+    pointer-events: all;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.legend-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--c-text-primary);
+}
+
+.legend-items {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--c-text-secondary);
+}
+
+.legend-swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1px solid var(--c-border);
+}
+
+.legend-swatch.good { background-color: #28a745; }
+.legend-swatch.fair { background-color: #ffc107; }
+.legend-swatch.poor { background-color: #dc3545; }
+
+/* --- RESPONSIVE DESIGN --- */
+
+/* For very narrow screens (e.g., iPhone SE) */
+@media (max-width: 370px) {
+    .header-text-container {
+        display: none; /* Hide text container entirely on very small screens */
+    }
+
+    .poi-filter-button {
+        padding: 0.4rem 0.7rem; /* Make buttons smaller */
+        font-size: 0.75rem;
+    }
+
+    .fab-menu-item {
+        width: 44px;
+        height: 44px;
+    }
+
+    .fab-main {
+        width: 52px;
+        height: 52px;
+    }
+}
+
+
+/* For landscape orientation */
+@media (orientation: landscape) {
+    #root {
+        /* On landscape, allow it to be wider */
+        max-width: 100%; 
+        max-height: 100vh;
+    }
+
+    .floating-search-container {
+        /* Position closer to the top in landscape */
+        top: 90px;
+    }
+
+    /* Make modals appear as centered boxes instead of full-height sheets */
+    .modal-content {
+        width: 90vw;
+        max-width: 600px;
+        max-height: 90vh;
+        border-radius: 16px;
+    }
+    
+    .modal-body {
+        /* Adjust max-height for landscape view */
+        max-height: calc(90vh - 150px);
+    }
+    
+    /* Adapt Driver HUD for landscape */
+    .driver-hud {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 0.5rem;
+    }
+
+    .hud-top-row {
+       /* HUD items are now side-by-side */
+    }
+
+    .navigation-progress-container {
+        max-width: 300px; /* Constrain width of progress bar */
+    }
+
+    /* Adapt Directions Panel for landscape */
+    .directions-content {
+        flex-direction: row;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem;
+    }
+
+    .directions-summary {
+       flex-grow: 1;
+       display: flex;
+       justify-content: space-around;
+       gap: 1rem;
+    }
+    
+    .directions-actions {
+        flex-direction: column; /* Stack action buttons vertically */
+        gap: 0.5rem;
+    }
+
+    .directions-start-button, .directions-secondary-button {
+        width: 100%;
+    }
+
+    .landing-footer {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        background: linear-gradient(transparent, var(--c-bg) 70%);
+    }
+
+    .landing-nearby-buttons {
+        gap: 0.75rem;
+        order: 2; /* Move buttons to the right */
+    }
+
+    .landing-footer-title {
+        margin-bottom: 0;
+        order: 1;
+    }
+
+    .explore-map-button {
+        display: none; /* Hide this button as the POI buttons are more prominent */
+    }
+}
